@@ -10,7 +10,8 @@ library; [the implementation plan](docs/PLAN.md) defines the work and gates.
 
 ## Start working
 
-Use Node 22.18+ and the pnpm version pinned in `package.json`.
+Use the Node version in `.node-version` and the pnpm version pinned in
+`package.json`. The supported development runtimes are listed in `engines.node`.
 
 ```sh
 corepack enable
