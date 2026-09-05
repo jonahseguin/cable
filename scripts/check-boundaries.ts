@@ -316,7 +316,15 @@ export function manifestViolations(owner: string, source: string, root: string):
     errors.push(`${owner}/package.json: expected package name ${expectedName}`);
   }
   for (const dependency of manifestDependencies(manifest)) {
-    const reason = violation(owner, file, { specifier: dependency.name, typeOnly: false }, root);
+    // @standard-schema/spec contains the public types referenced by contract declarations.
+    // Source checks still reject every runtime import from the contract package.
+    const declarationOnly = owner === "contract" && dependency.name === "@standard-schema/spec";
+    const reason = violation(
+      owner,
+      file,
+      { specifier: dependency.name, typeOnly: declarationOnly },
+      root,
+    );
     if (reason !== undefined) errors.push(`${owner}/package.json: ${dependency.name}: ${reason}`);
     if (dependency.name.startsWith("@cable/") && !dependency.version.startsWith("workspace:")) {
       errors.push(

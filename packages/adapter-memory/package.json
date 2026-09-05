@@ -17,5 +17,8 @@
   "scripts": {
     "build": "tsdown src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cable/core": "workspace:*"
   }
 }

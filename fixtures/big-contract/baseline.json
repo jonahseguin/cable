@@ -1,6 +1,18 @@
 {
-  "status": "scaffold",
+  "status": "active",
   "milestone": "M1",
+  "measurement": {
+    "date": "2026-09-05",
+    "runner": "Darwin arm64, Node 24.16.0",
+    "bun": "1.4.0",
+    "typescript": "5.9.3",
+    "instantiations": 413122,
+    "checkSeconds": 1.04
+  },
+  "workload": {
+    "procedures": 200,
+    "channels": 40
+  },
   "instantiationsBelow": 500000,
   "checkSecondsBelow": 2.5
 }

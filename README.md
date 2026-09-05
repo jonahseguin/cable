@@ -4,20 +4,20 @@ Contract-first, type-safe procedures and durable WebSocket channels for actor
 runtimes. Cloudflare Durable Objects first; Rivet follows after the portable
 engine and conformance suite are stable.
 
-**Status: repository setup (M0).** The packages are private scaffolds with no
-implemented public API. [The design](docs/DESIGN.md) describes the intended
-library; [the implementation plan](docs/PLAN.md) defines the work and gates.
+**Status: M1 implementation is in progress.** The packages remain private while
+the contract and procedure APIs are built and tested. [The design](docs/DESIGN.md)
+describes the intended library; [the implementation plan](docs/PLAN.md) defines
+the work and gates.
 
 ## Start working
 
-Use the Node version in `.node-version` and the pnpm version pinned in
-`package.json`. The supported development runtimes are listed in `engines.node`.
+Use the Bun version pinned in `package.json`. Node remains available for project
+tools that require it; supported Node versions are listed in `engines.node`.
 
 ```sh
-corepack enable
-pnpm install --frozen-lockfile
-pnpm setup:hooks
-pnpm check
+bun install --frozen-lockfile
+bun run setup:hooks
+bun run check
 ```
 
 Agents start with [AGENTS.md](AGENTS.md). Claude imports the same instructions
@@ -30,17 +30,17 @@ using local Git configuration. It does not change global hooks.
 
 ## Commands
 
-| Command                 | Purpose                                                                |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `pnpm check`            | Format, lint, typecheck, boundaries, build, tests, Fallow, perf status |
-| `pnpm format`           | Apply Oxfmt formatting                                                 |
-| `pnpm lint`             | Oxlint, typed checks, and vendored anti-slop rules                     |
-| `pnpm check:boundaries` | Enforce portable packages and dependency direction                     |
-| `pnpm build`            | Build ESM and declarations for every package                           |
-| `pnpm test`             | Tooling regression tests and built package smoke tests; build first    |
-| `pnpm fallow`           | Unused code, duplication, and complexity checks                        |
-| `pnpm generate:perf`    | Regenerate the fixed contract performance workload                     |
-| `pnpm ts-perf`          | Report scaffold status; enforce real performance budgets from M1       |
+| Command                    | Purpose                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `bun run check`            | Format, lint, typecheck, boundaries, build, tests, Fallow, and type performance |
+| `bun run format`           | Apply Oxfmt formatting                                                          |
+| `bun run lint`             | Run Oxlint, typed checks, and vendored anti-slop rules                          |
+| `bun run check:boundaries` | Enforce portable packages and dependency direction                              |
+| `bun run build`            | Build ESM and declarations for every package                                    |
+| `bun run test`             | Run behavior and built-package smoke tests; build first                         |
+| `bun run fallow`           | Check unused code, duplication, and complexity                                  |
+| `bun run generate:perf`    | Regenerate the fixed contract performance workload                              |
+| `bun run ts-perf`          | Enforce the contract and client type-performance budgets                        |
 
 [Reference repositories](references/README.md) are pinned research material,
 excluded from project tooling. Study their implementations deliberately and

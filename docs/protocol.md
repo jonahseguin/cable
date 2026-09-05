@@ -46,3 +46,28 @@ Close codes: 4000 protocol error, 4001 unauthorized, 4002 grant expired,
   `bye 4008 retry:1000`; the client reconnects and resumes.
 
 ---
+
+## HTTP procedures
+
+Implemented in M1. POST `/_cable/rpc` accepts
+`{ calls: [{ id, path, input }] }` and returns `{ results: [...] }`. Each result
+is `{ id, ok: true, data }` or `{ id, ok: false, error }`. An error contains
+`code`, HTTP `status`, and optional `message` and `data`. IDs are nonempty strings
+and must be unique within a batch. Result order follows request order. A failed
+call does not discard successful siblings.
+
+The default request limits are 1 MiB and 100 calls. The handler bounds streamed
+bodies before executing calls. Invalid envelopes fail the request; procedure
+validation and handler failures belong to their individual results.
+
+GET `/_cable/rpc/<encoded-dot-path>?input=<encoded-json>` is available only for
+queries whose contract declares GET. It returns one result with ID `get`.
+Successful responses use the contract's cache policy; errors use `no-store`.
+There is no GET batching. Both routes support a configurable base path.
+
+Inputs, outputs, and error payloads use JSON-native values. The codecs reject
+cycles, non-finite numbers, class instances, accessors, and other unsupported
+values rather than invoke conversion hooks. Missing input/data represents
+`undefined` for void procedures. Output schemas validate and transform handler
+results by default. Disabling output validation requires handlers to return the
+schema's output type. See [ADR 0016](adr/0016-client-metadata-and-json.md).

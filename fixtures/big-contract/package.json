@@ -3,5 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "description": "Deterministic workload for the M1 contract and client performance budget.",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@cable/client": "workspace:*",
+    "@cable/contract": "workspace:*"
+  },
+  "devDependencies": {
+    "zod": "4.5.4"
+  }
 }

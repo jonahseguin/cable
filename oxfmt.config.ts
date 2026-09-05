@@ -11,7 +11,6 @@ export default defineConfig({
     ".codex/**",
     ".cursor/**",
     ".fallow/**",
-    ".pnpm-store/**",
     "coverage/**",
     "dist/**",
     "docs/DESIGN.md",

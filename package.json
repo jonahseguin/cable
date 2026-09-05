@@ -3,15 +3,20 @@
   "version": "0.0.0",
   "private": true,
   "description": "A contract-first, type-safe API layer for procedures and durable channels.",
+  "workspaces": [
+    "packages/*",
+    "examples/*",
+    "fixtures/*"
+  ],
   "type": "module",
   "scripts": {
-    "build": "pnpm --recursive --if-present build",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:boundaries && pnpm build && pnpm test && pnpm fallow && pnpm ts-perf",
+    "build": "bun run --workspaces --if-present build",
+    "check": "bun run format:check && bun run build && bun run lint && bun run typecheck && bun run check:boundaries && bun run test && bun run fallow && bun run ts-perf --require-baseline",
     "check:boundaries": "tsx scripts/check-boundaries.ts",
     "changeset": "changeset",
     "dead-code": "fallow dead-code --type-aware --type-aware-require complete --format json --quiet --explain",
     "duplicates": "fallow dupes --fail-on-issues --format json --quiet --explain",
-    "fallow": "pnpm dead-code && pnpm duplicates && pnpm health",
+    "fallow": "bun run dead-code && bun run duplicates && bun run health",
     "format": "oxfmt --disable-nested-config --write . '!references/**' '!docs/DESIGN.md'",
     "format:check": "oxfmt --disable-nested-config --check . '!references/**' '!docs/DESIGN.md'",
     "generate:perf": "tsx scripts/generate-perf-fixture.ts",
@@ -22,11 +27,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "ts-perf": "tsx scripts/ts-perf.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --recursive --if-present typecheck"
+    "typecheck": "tsc --noEmit -p tsconfig.json && bun run --workspaces --if-present typecheck"
   },
   "devDependencies": {
     "@changesets/cli": "3.0.2",
     "@oxlint/plugins": "1.81.0",
+    "@standard-schema/spec": "1.1.0",
     "@types/node": "22.20.1",
     "fallow": "3.22.0",
     "oxfmt": "0.66.0",
@@ -36,11 +42,15 @@
     "tsx": "4.23.13",
     "typescript": "5.9.3",
     "vite": "7.3.6",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "zod": "4.5.4"
   },
   "engines": {
-    "node": "^22.18.0 || ^24.0.0 || >=26.0.0",
-    "pnpm": ">=10.0.0 <11"
+    "bun": ">=1.4.0 <2",
+    "node": "^22.18.0 || ^24.0.0 || >=26.0.0"
   },
-  "packageManager": "pnpm@10.34.5"
+  "packageManager": "bun@1.4.0",
+  "trustedDependencies": [
+    "esbuild"
+  ]
 }

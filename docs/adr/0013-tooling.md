@@ -6,7 +6,7 @@ Use Oxlint for linting, its matching JavaScript plugin API for the pinned anti-s
 plugin, and Oxfmt as the only formatter. Keep TypeScript 5.9 as the authoritative
 type checker, including strict optional properties, indexed access, and isolated
 declarations for the contract. Fallow checks unused code and duplication separately.
-Exact tool versions and the pnpm lockfile make local and CI behavior reproducible.
+Exact tool versions and the package-manager lockfile make local and CI behavior reproducible.
 
 The user explicitly prefers Oxlint/Oxfmt and prohibits Prettier. Biome would duplicate
 formatting and linting ownership. Ultracite's Ox presets are useful prior art, but a

@@ -1,8 +1,8 @@
 # Working on cable
 
 `cable` is a TypeScript library for contract-first procedures and durable,
-typed channels on actor runtimes. The repository is in M0 (scaffolding).
-Package entry points are placeholders until their milestone is implemented.
+typed channels on actor runtimes. M0 and M1 are complete; M2 is in progress.
+Package entry points remain placeholders until their milestone is implemented.
 Never describe a planned API as available.
 
 ## Start here
@@ -31,7 +31,7 @@ Never describe a planned API as available.
 - Runtime state is authoritative; process memory is a cache. Channel behavior
   must survive a new engine instance over the same sockets and storage.
 - Keep public types shallow. Infer one contract node at a time; never recurse
-  over an entire contract tree. Run `pnpm ts-perf` after contract or client
+  over an entire contract tree. Run `bun run ts-perf` after contract or client
   proxy type changes.
 
 ## Implementation standard
@@ -72,7 +72,7 @@ watch mode, enable telemetry, or apply a fix before reviewing a dry run.
   behavior runs both normally and with hibernation between steps.
 - A bug fix needs a regression test that fails for the original cause.
 - Run the narrowest relevant check while iterating. Before handoff, run
-  `pnpm check`; run `pnpm ts-perf` when public type machinery changed. Report
+  `bun run check`; run `bun run ts-perf` when public type machinery changed. Report
   commands you could not run and why.
 - Protocol changes update `docs/protocol.md`, codec tests, and a changeset in
   the same change. Public package behavior changes require a changeset; setup,

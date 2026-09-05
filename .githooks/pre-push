@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 
-pnpm check
+bun run check

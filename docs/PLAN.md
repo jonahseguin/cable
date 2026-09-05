@@ -1,8 +1,9 @@
 # Implementation plan
 
-The current task is **M0: agent context and repository setup**. No library API is
-implemented or published. Read [DESIGN.md](DESIGN.md) for the full requirements;
-ADRs record explicit amendments. The user's current instructions take precedence.
+M0 and M1 are complete. The current milestone is **M2: channels over memory**. No library API is published. Read [DESIGN.md](DESIGN.md)
+for the full requirements; ADRs record explicit amendments. The user authorized
+implementation through M7, but each milestone must pass its gate before work starts
+on the next one.
 
 ## M0 sequence and acceptance
 
@@ -13,7 +14,7 @@ ADRs record explicit amendments. The user's current instructions take precedence
    and explicit update commands. Exclude it from builds, linting, formatting,
    dead-code analysis, tests, default searches, and editor auto-imports.
 3. Install the explicit Oxlint/Oxfmt stack, anti-slop plugin, Fallow, strict
-   TypeScript, pnpm, tsdown, Vitest, Changesets, and reproducible CI. Verify guardrails
+   TypeScript, Bun, tsdown, Vitest, Changesets, and reproducible CI. Verify guardrails
    with intentional forbidden imports and real built artifact smoke checks.
 4. Scaffold the ten packages from the design with private manifests, ESM exports
    (`types` first), declaration builds, and empty source entry points. Enforce
@@ -76,3 +77,12 @@ The Blume documentation-site plan is in [documentation.md](documentation.md). Ad
 runtime and site only when executable public API examples exist. The current docs
 remain ordinary Markdown. Cloudflare/Rivet SDKs, React, Effect, and deployment secrets
 are introduced with their milestone, not as unused root dependencies in M0.
+
+## M1 acceptance
+
+Bun 1.4.0 frozen installation and the complete local gate pass. The gate includes
+79 tests, declaration builds, strict lint, type checking, architecture boundaries,
+and Fallow. The real 200-procedure/40-channel fixture records 413,122
+instantiations and 1.04s check time. HTTP and memory tests cover typed errors,
+schema transformations, batching, and opt-in GET. Channel contracts exist;
+channel execution and sockets are the next milestone.
