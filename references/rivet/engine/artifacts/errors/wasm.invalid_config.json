@@ -1,0 +1,5 @@
+{
+  "code": "invalid_config",
+  "group": "wasm",
+  "message": "Invalid wasm configuration."
+}

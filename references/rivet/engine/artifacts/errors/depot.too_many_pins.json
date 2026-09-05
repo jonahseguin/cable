@@ -1,0 +1,5 @@
+{
+  "code": "too_many_pins",
+  "group": "depot",
+  "message": "Bucket has too many restore_points."
+}

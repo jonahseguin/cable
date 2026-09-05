@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+	/* Light tokens — kept as a fallback. App pins `<html class="dark">`
+	   in index.html so these only render if dark is ever removed. */
+	--background: 0 0% 100%;
+	--foreground: 240 10% 4%;
+	--card: 0 0% 100%;
+	--card-foreground: 240 10% 4%;
+	--popover: 0 0% 100%;
+	--popover-foreground: 240 10% 4%;
+	--primary: 18.5 100% 50%;
+	--primary-foreground: 0 0% 100%;
+	--secondary: 240 5% 96%;
+	--secondary-foreground: 240 10% 4%;
+	--muted: 240 5% 96%;
+	--muted-foreground: 240 4% 46%;
+	--accent: 240 5% 96%;
+	--accent-foreground: 240 10% 4%;
+	--destructive: 0 84.2% 60.2%;
+	--destructive-foreground: 0 0% 100%;
+	--border: 240 6% 90%;
+	--input: 240 6% 90%;
+	--ring: 18.5 100% 50%;
+	--radius: 0.5rem;
+}
+:root[class~="dark"] {
+	/* Cool zinc neutrals — mirrors Foundry's #09090b / #0c0c0e / #0f0f11. */
+	--background: 240 6% 4%;
+	--foreground: 0 0% 100%;
+	--card: 240 7% 5%;
+	--card-foreground: 0 0% 100%;
+	--popover: 240 7% 5%;
+	--popover-foreground: 0 0% 100%;
+	--primary: 18.5 100% 50%;
+	--primary-foreground: 0 0% 100%;
+	--secondary: 240 5% 7%;
+	--secondary-foreground: 0 0% 100%;
+	--muted: 240 5% 9%;
+	--muted-foreground: 240 5% 65%;
+	--accent: 240 5% 9%;
+	--accent-foreground: 0 0% 100%;
+	--destructive: 0 72.2% 50.6%;
+	--destructive-foreground: 0 0% 100%;
+	--warning: 47.9 95.8% 53.1%;
+	/* Visual equivalent of white/10 over the background. */
+	--border: 240 5% 14%;
+	--input: 240 5% 14%;
+	--ring: 18.59deg 100% 50%;
+	--background-main: 240 6% 4%;
+}
+
+:root,
+.dark {
+	--chart-1: 18.5 100% 50%;
+	--chart-2: 160 60% 45%;
+	--chart-3: 30 80% 55%;
+	--chart-4: 280 65% 60%;
+	--chart-5: 340 75% 55%;
+}

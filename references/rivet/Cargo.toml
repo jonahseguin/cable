@@ -1,0 +1,743 @@
+[workspace]
+resolver = "2"
+members = [
+  "container-runner",
+  "engine/packages/api-builder",
+  "engine/packages/api-peer",
+  "engine/packages/api-public",
+  "engine/packages/api-public-openapi-gen",
+  "engine/packages/api-types",
+  "engine/packages/api-util",
+  "engine/packages/bootstrap",
+  "engine/packages/build-meta",
+  "engine/packages/cache",
+  "engine/packages/cache-purge",
+  "engine/packages/cache-result",
+  "engine/packages/cli",
+  "engine/packages/config",
+  "engine/packages/config-schema-gen",
+  "engine/packages/datacenter",
+  "engine/packages/depot",
+  "engine/packages/depot-client",
+  "engine/packages/depot-client-embedded",
+  "engine/packages/depot-client-types",
+  "engine/packages/dynamic-config",
+  "engine/packages/engine",
+  "engine/packages/env",
+  "engine/packages/epoxy",
+  "engine/packages/error",
+  "engine/packages/error-macros",
+  "engine/packages/gasoline",
+  "engine/packages/gasoline-macros",
+  "engine/packages/gasoline-runtime",
+  "engine/packages/guard",
+  "engine/packages/guard-core",
+  "engine/packages/logs",
+  "engine/packages/metrics",
+  "engine/packages/metrics-server",
+  "engine/packages/namespace",
+  "engine/packages/outbound-guard",
+  "engine/packages/pegboard",
+  "engine/packages/pegboard-envoy",
+  "engine/packages/pegboard-gateway",
+  "engine/packages/pegboard-gateway2",
+  "engine/packages/pegboard-gateway3",
+  "engine/packages/pegboard-outbound",
+  "engine/packages/pegboard-runner",
+  "engine/packages/perf",
+  "engine/packages/pools",
+  "engine/packages/postgres-util",
+  "engine/packages/profiling",
+  "engine/packages/runner-protocol",
+  "engine/packages/runtime",
+  "engine/packages/service-manager",
+  "engine/packages/telemetry",
+  "engine/packages/term",
+  "engine/packages/test-deps",
+  "engine/packages/test-deps-docker",
+  "engine/packages/test-snapshot-gen",
+  "engine/packages/tracing-utils",
+  "engine/packages/types",
+  "engine/packages/universaldb",
+  "engine/packages/universalpubsub",
+  "engine/packages/ups-broadcast",
+  "engine/packages/util",
+  "engine/packages/util-id",
+  "engine/packages/util-serde",
+  "engine/packages/version-management",
+  "engine/packages/workflow-worker",
+  "engine/sdks/rust/actor-runtime-socket-protocol",
+  "engine/sdks/rust/api-full",
+  "engine/sdks/rust/data",
+  "engine/sdks/rust/depot-protocol",
+  "engine/sdks/rust/envoy-client",
+  "engine/sdks/rust/envoy-protocol",
+  "engine/sdks/rust/epoxy-protocol",
+  "engine/sdks/rust/test-envoy",
+  "engine/sdks/rust/universaldb-commit",
+  "engine/sdks/rust/ups-protocol",
+  "rivetkit-rust/packages/actor-persist",
+  "rivetkit-rust/packages/client",
+  "rivetkit-rust/packages/client-protocol",
+  "rivetkit-rust/packages/engine-process",
+  "rivetkit-rust/packages/inspector-protocol",
+  "rivetkit-rust/packages/rivetkit",
+  "rivetkit-rust/packages/rivetkit-core",
+  "rivetkit-rust/packages/shared-types",
+  "rivetkit-typescript/packages/rivetkit-napi",
+  "rivetkit-typescript/packages/rivetkit-wasm",
+  "examples/chat-room-rust",
+  "examples/hello-world-rust"
+]
+
+  [workspace.package]
+  version = "2.3.14"
+  edition = "2024"
+  authors = [ "Rivet Gaming, LLC <developer@rivet.dev>" ]
+  license = "Apache-2.0"
+  homepage = "https://rivet.dev"
+  repository = "https://github.com/rivet-dev/rivet"
+
+  [workspace.dependencies]
+  anstyle = "1"
+  anyhow = "1.0.82"
+  async-channel = "2.1.1"
+  async-stream = "0.3"
+  async-trait = "0.1"
+  axum-test = "17"
+  base64 = "0.22"
+  bcrypt = "0.13.0"
+  ciborium = "0.2"
+  bytes = "1.6.0"
+  cjson = "0.1"
+  colored_json = "5.0.0"
+  console-subscriber = "0.4"
+  dirs = "5.0.1"
+  divan = "0.1.17"
+  foundationdb-tuple = "0.9.1"
+  fs_extra = "1.3.0"
+  futures = "0.3.30"
+  futures-util = "0.3"
+  glob = "0.3.1"
+  governor = "0.6"
+  heck = "0.5"
+  hex = "0.4"
+  http = "1.3.1"
+  http-body = "1.0.0"
+  http-body-util = "0.1.1"
+  hyper-tungstenite = "0.17.0"
+  include_dir = "0.7.4"
+  indoc = "2.0.5"
+  itertools = "0.14.0"
+  json5 = "0.4.1"
+  lazy_static = "1.4"
+  libc = "0.2"
+  lz4_flex = "0.11.3"
+  maplit = "1.0.2"
+  md5 = "0.7.0"
+  once_cell = "1.20.2"
+  opentelemetry-appender-tracing = "0.28.1"
+  papaya = "0.2.1"
+  parking_lot = "0.12"
+  pest_derive = "2.7"
+  portpicker = "0.1"
+  prettyplease = "0.2"
+  prometheus = "0.14"
+  quote = "1.0"
+  rand = "0.8"
+  regex = "1.4"
+  replace_with = "0.1.8"
+  rstest = "0.26.1"
+  rustls-pemfile = "2.2.0"
+  rustyline = "15.0.0"
+  scc = "3.6.12"
+  semver = "1.0.27"
+  serde_bytes = "0.11.17"
+  serde_html_form = "0.2.7"
+  serde_yaml = "0.9.34"
+  sha2 = "0.10"
+  slog = "2.7"
+  slog-async = "2.8"
+  slog-term = "2.9"
+  scopeguard = "1.2"
+  statrs = "0.18"
+  subtle = "2"
+  sysinfo = "0.37.2"
+  tabled = "0.17.0"
+  tempfile = "3.13.0"
+  testcontainers = "0.24"
+  thiserror = "1.0.64"
+  tokio-cron-scheduler = "0.13.0"
+  tokio-stream = "0.1.15"
+  tokio-util = "0.7"
+  tower = "0.5"
+  tracing = "0.1.40"
+  tracing-core = "0.1"
+  tracing-opentelemetry = "0.29"
+  tracing-slog = "0.2"
+  vergen-gitcl = "1.0.0"
+  reqwest-eventsource = "0.6.0"
+
+    [workspace.dependencies.async-nats]
+    package = "rivet-async-nats"
+    version = "0.46.0"
+
+    [workspace.dependencies.pyroscope]
+    version = "2.0"
+    features = [ "backend-pprof-rs" ]
+
+    [workspace.dependencies.xxhash-rust]
+    version = "=0.8.15"
+    features = [ "xxh3" ]
+
+    [workspace.dependencies.hyper-rustls]
+    version = "0.27.7"
+    default-features = false
+    features = [ "http1", "http2", "native-tokio", "webpki-tokio", "ring" ]
+
+    [workspace.dependencies.rusqlite]
+    version = "0.32.1"
+    features = [ "bundled" ]
+
+    [workspace.dependencies.tokio-tungstenite]
+    version = "0.26.0"
+    features = [ "rustls-tls-native-roots", "rustls-tls-webpki-roots" ]
+
+    [workspace.dependencies.vergen]
+    version = "9.0.4"
+    features = [ "build", "cargo", "rustc" ]
+
+    [workspace.dependencies.sentry]
+    version = "0.45.0"
+    default-features = false
+    features = [
+  "anyhow",
+  "backtrace",
+  "contexts",
+  "debug-images",
+  "panic",
+  "reqwest",
+  "rustls",
+  "tracing"
+]
+
+    [workspace.dependencies.windows]
+    version = "0.58"
+    features = [
+  "Win32",
+  "Win32_Storage",
+  "Win32_Storage_FileSystem",
+  "Win32_System",
+  "Win32_System_Console",
+  "Win32_Security"
+]
+
+    [workspace.dependencies.pest]
+    version = "2.7"
+
+    [workspace.dependencies.rocksdb]
+    version = "0.24"
+    features = [ "multi-threaded-cf" ]
+
+    [workspace.dependencies.hyper-util]
+    version = "0.1.10"
+    features = [ "full" ]
+
+    [workspace.dependencies.rustls]
+    version = "0.23.25"
+    default-features = false
+    features = [ "ring", "std", "logging" ]
+
+    [workspace.dependencies.tokio-rustls]
+    version = "0.26.2"
+    default-features = false
+    features = [ "ring", "logging" ]
+
+    [workspace.dependencies.utoipa]
+    version = "5.4.0"
+    features = [ "uuid" ]
+
+    [workspace.dependencies.axum]
+    version = "0.8"
+    features = [ "http2", "macros" ]
+
+    [workspace.dependencies.axum-extra]
+    version = "0.10.1"
+    features = [ "query" ]
+
+    [workspace.dependencies.tower-http]
+    version = "0.6"
+    features = [ "cors", "trace" ]
+
+    [workspace.dependencies.serde_json]
+    version = "1.0.128"
+    features = [ "raw_value" ]
+
+    [workspace.dependencies.nix]
+    version = "0.30"
+    default-features = false
+    features = [ "fs", "user", "signal" ]
+
+    [workspace.dependencies.chrono-tz]
+    version = "0.10.4"
+
+    [workspace.dependencies.croner]
+    version = "2.2.0"
+
+    [workspace.dependencies.chrono]
+    version = "0.4.38"
+    features = [ "now" ]
+
+    [workspace.dependencies.clap]
+    version = "4.3"
+    features = [ "derive", "cargo" ]
+
+    [workspace.dependencies.clickhouse]
+    version = "0.14.2"
+    features = [ "uuid", "inserter" ]
+
+    [workspace.dependencies.config]
+    version = "0.14.0"
+    default-features = false
+    features = [ "async", "json", "yaml" ]
+
+    [workspace.dependencies.hyper]
+    version = "0.14"
+    features = [ "server", "http1", "tcp" ]
+
+    [workspace.dependencies.indexmap]
+    version = "2.0"
+    features = [ "serde" ]
+
+    [workspace.dependencies.ipnet]
+    version = "2.10.1"
+    features = [ "serde" ]
+
+    [workspace.dependencies.moka]
+    version = "0.12"
+    features = [ "future" ]
+
+    [workspace.dependencies.opentelemetry]
+    version = "0.28"
+    features = [ "trace", "metrics", "logs" ]
+
+    [workspace.dependencies.opentelemetry-http]
+    version = "0.28"
+
+    [workspace.dependencies.opentelemetry-otlp]
+    version = "0.28"
+    features = [ "trace", "metrics", "logs", "grpc-tonic" ]
+
+    [workspace.dependencies.opentelemetry_sdk]
+    version = "0.28"
+    features = [ "trace", "metrics", "logs" ]
+
+    [workspace.dependencies.opentelemetry-semantic-conventions]
+    version = "0.28"
+    features = [ "semconv_experimental" ]
+
+    [workspace.dependencies.opentelemetry-stdout]
+    version = "0.28.0"
+    features = [ "trace", "metrics", "logs" ]
+
+    [workspace.dependencies.proc-macro2]
+    version = "1.0"
+    features = [ "span-locations" ]
+
+    [workspace.dependencies.reqwest]
+    version = "0.12.22"
+    default-features = false
+    features = [ "json", "rustls-tls-native-roots", "rustls-tls-webpki-roots" ]
+
+    [workspace.dependencies.schemars]
+    version = "0.8.21"
+    features = [ "url", "uuid1" ]
+
+    [workspace.dependencies.serde]
+    version = "1.0"
+    features = [ "derive" ]
+
+    [workspace.dependencies.strum]
+    version = "0.26.3"
+    features = [ "derive" ]
+
+    [workspace.dependencies.syn]
+    version = "2.0"
+    features = [ "full", "extra-traits" ]
+
+    [workspace.dependencies.url]
+    version = "2.5.4"
+    features = [ "serde" ]
+
+    [workspace.dependencies.urlencoding]
+    version = "2.1"
+
+    [workspace.dependencies.uuid]
+    version = "1.11.0"
+    features = [ "v4", "serde" ]
+
+    [workspace.dependencies.tokio]
+    version = "1.44.0"
+    features = [ "full", "tracing" ]
+
+    [workspace.dependencies.tokio-postgres]
+    version = "0.7"
+    features = [ "with-chrono-0_4" ]
+
+    [workspace.dependencies.deadpool-postgres]
+    version = "0.14.1"
+
+    [workspace.dependencies.tokio-postgres-rustls]
+    version = "0.13"
+
+    [workspace.dependencies.webpki-roots]
+    version = "0.26"
+
+    [workspace.dependencies.tracing-logfmt]
+    version = "0.3"
+    features = [ "ansi_logs" ]
+
+    [workspace.dependencies.tracing-stackdriver]
+    version = "0.10.0"
+    default-features = false
+
+    [workspace.dependencies.tracing-subscriber]
+    version = "0.3"
+    default-features = false
+    features = [ "ansi", "fmt", "json", "env-filter" ]
+
+    [workspace.dependencies.serde_bare]
+    git = "https://github.com/rivet-dev/serde_bare"
+    rev = "f63f155db7e0ab989255ee0d6991ff8eb9ebee25"
+    version = "0.5.0"
+
+    [workspace.dependencies.vbare]
+    version = "0.0.4"
+
+    [workspace.dependencies.vbare-compiler]
+    package = "rivet-vbare-compiler"
+    version = "0.0.5"
+
+    [workspace.dependencies.rivet-api-builder]
+    path = "engine/packages/api-builder"
+
+    [workspace.dependencies.rivet-api-peer]
+    path = "engine/packages/api-peer"
+
+    [workspace.dependencies.rivet-api-public]
+    path = "engine/packages/api-public"
+
+    [workspace.dependencies.rivet-api-public-openapi-gen]
+    path = "engine/packages/api-public-openapi-gen"
+
+    [workspace.dependencies.rivet-api-types]
+    path = "engine/packages/api-types"
+
+    [workspace.dependencies.rivet-api-util]
+    path = "engine/packages/api-util"
+
+    [workspace.dependencies.rivet-bootstrap]
+    path = "engine/packages/bootstrap"
+
+    [workspace.dependencies.rivet-build-meta]
+    path = "engine/packages/build-meta"
+
+    [workspace.dependencies.rivet-cache]
+    path = "engine/packages/cache"
+
+    [workspace.dependencies.rivet-cache-purge]
+    path = "engine/packages/cache-purge"
+
+    [workspace.dependencies.rivet-cache-result]
+    path = "engine/packages/cache-result"
+
+    [workspace.dependencies.rivet-cli]
+    path = "engine/packages/cli"
+
+    [workspace.dependencies.rivet-config]
+    path = "engine/packages/config"
+
+    [workspace.dependencies.rivet-config-schema-gen]
+    path = "engine/packages/config-schema-gen"
+
+    [workspace.dependencies.datacenter]
+    path = "engine/packages/datacenter"
+
+    [workspace.dependencies.depot]
+    path = "engine/packages/depot"
+
+    [workspace.dependencies.rivet-depot-client]
+    path = "engine/packages/depot-client"
+
+    [workspace.dependencies.depot-client-embedded]
+    path = "engine/packages/depot-client-embedded"
+
+    [workspace.dependencies.rivet-depot-client-types]
+    path = "engine/packages/depot-client-types"
+
+    [workspace.dependencies.rivet-dynamic-config]
+    path = "engine/packages/dynamic-config"
+
+    [workspace.dependencies.rivet-engine]
+    path = "engine/packages/engine"
+
+    [workspace.dependencies.rivet-env]
+    path = "engine/packages/env"
+
+    [workspace.dependencies.epoxy]
+    path = "engine/packages/epoxy"
+
+    [workspace.dependencies.rivet-error]
+    path = "engine/packages/error"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivet-error-macros]
+    path = "engine/packages/error-macros"
+    version = "=2.3.14"
+
+    [workspace.dependencies.gasoline]
+    path = "engine/packages/gasoline"
+
+    [workspace.dependencies.gas]
+    package = "gasoline"
+    path = "engine/packages/gasoline"
+
+    [workspace.dependencies.gasoline-macros]
+    path = "engine/packages/gasoline-macros"
+
+    [workspace.dependencies.gasoline-runtime]
+    path = "engine/packages/gasoline-runtime"
+
+    [workspace.dependencies.rivet-guard]
+    path = "engine/packages/guard"
+
+    [workspace.dependencies.rivet-guard-core]
+    path = "engine/packages/guard-core"
+
+    [workspace.dependencies.rivet-logs]
+    path = "engine/packages/logs"
+
+    [workspace.dependencies.rivet-metrics]
+    path = "engine/packages/metrics"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivet-metrics-server]
+    path = "engine/packages/metrics-server"
+
+    [workspace.dependencies.namespace]
+    path = "engine/packages/namespace"
+
+    [workspace.dependencies.rivet-outbound-guard]
+    path = "engine/packages/outbound-guard"
+
+    [workspace.dependencies.pegboard]
+    path = "engine/packages/pegboard"
+
+    [workspace.dependencies.pegboard-envoy]
+    path = "engine/packages/pegboard-envoy"
+
+    [workspace.dependencies.pegboard-gateway]
+    path = "engine/packages/pegboard-gateway"
+
+    [workspace.dependencies.pegboard-gateway2]
+    path = "engine/packages/pegboard-gateway2"
+
+    [workspace.dependencies.pegboard-gateway3]
+    path = "engine/packages/pegboard-gateway3"
+
+    [workspace.dependencies.pegboard-outbound]
+    path = "engine/packages/pegboard-outbound"
+
+    [workspace.dependencies.pegboard-runner]
+    path = "engine/packages/pegboard-runner"
+
+    [workspace.dependencies.rivet-perf]
+    path = "engine/packages/perf"
+
+    [workspace.dependencies.rivet-pools]
+    path = "engine/packages/pools"
+
+    [workspace.dependencies.rivet-postgres-util]
+    path = "engine/packages/postgres-util"
+
+    [workspace.dependencies.rivet-profiling]
+    path = "engine/packages/profiling"
+
+    [workspace.dependencies.rivet-runner-protocol]
+    path = "engine/packages/runner-protocol"
+
+    [workspace.dependencies.rivet-runtime]
+    path = "engine/packages/runtime"
+
+    [workspace.dependencies.rivet-service-manager]
+    path = "engine/packages/service-manager"
+
+    [workspace.dependencies.rivet-telemetry]
+    path = "engine/packages/telemetry"
+
+    [workspace.dependencies.rivet-term]
+    path = "engine/packages/term"
+
+    [workspace.dependencies.rivet-test-deps]
+    path = "engine/packages/test-deps"
+
+    [workspace.dependencies.rivet-test-deps-docker]
+    path = "engine/packages/test-deps-docker"
+
+    [workspace.dependencies.test-snapshot-gen]
+    path = "engine/packages/test-snapshot-gen"
+
+    [workspace.dependencies.rivet-tracing-utils]
+    path = "engine/packages/tracing-utils"
+
+    [workspace.dependencies.rivet-types]
+    path = "engine/packages/types"
+
+    [workspace.dependencies.universaldb]
+    path = "engine/packages/universaldb"
+
+    [workspace.dependencies.universalpubsub]
+    path = "engine/packages/universalpubsub"
+
+    [workspace.dependencies.rivet-ups-broadcast]
+    path = "engine/packages/ups-broadcast"
+
+    [workspace.dependencies.rivet-util]
+    path = "engine/packages/util"
+
+    [workspace.dependencies.util]
+    package = "rivet-util"
+    path = "engine/packages/util"
+
+    [workspace.dependencies.rivet-util-id]
+    path = "engine/packages/util-id"
+
+    [workspace.dependencies.rivet-util-serde]
+    path = "engine/packages/util-serde"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivet-version-management]
+    path = "engine/packages/version-management"
+
+    [workspace.dependencies.rivet-workflow-worker]
+    path = "engine/packages/workflow-worker"
+
+    [workspace.dependencies.rivet-actor-runtime-socket-protocol]
+    path = "engine/sdks/rust/actor-runtime-socket-protocol"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivet-api-full]
+    path = "engine/sdks/rust/api-full"
+
+    [workspace.dependencies.rivet-data]
+    path = "engine/sdks/rust/data"
+
+    [workspace.dependencies.rivet-depot-protocol]
+    path = "engine/sdks/rust/depot-protocol"
+
+    [workspace.dependencies.rivet-envoy-client]
+    path = "engine/sdks/rust/envoy-client"
+    default-features = false
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivet-envoy-protocol]
+    path = "engine/sdks/rust/envoy-protocol"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivetkit-client-protocol]
+    path = "rivetkit-rust/packages/client-protocol"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivetkit-client]
+    path = "rivetkit-rust/packages/client"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivetkit-actor-persist]
+    path = "rivetkit-rust/packages/actor-persist"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivetkit-inspector-protocol]
+    path = "rivetkit-rust/packages/inspector-protocol"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivetkit]
+    path = "rivetkit-rust/packages/rivetkit"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivetkit-core]
+    path = "rivetkit-rust/packages/rivetkit-core"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivetkit-shared-types]
+    path = "rivetkit-rust/packages/shared-types"
+    version = "=2.3.14"
+
+    [workspace.dependencies.depot-client-types]
+    package = "rivet-depot-client-types"
+    path = "engine/packages/depot-client-types"
+    version = "=2.3.14"
+
+    [workspace.dependencies.rivetkit-engine-process]
+    path = "rivetkit-rust/packages/engine-process"
+    version = "=2.3.14"
+
+    [workspace.dependencies.depot-client]
+    package = "rivet-depot-client"
+    path = "engine/packages/depot-client"
+    version = "=2.3.14"
+
+    [workspace.dependencies.epoxy-protocol]
+    path = "engine/sdks/rust/epoxy-protocol"
+
+    [workspace.dependencies.rivet-test-envoy]
+    path = "engine/sdks/rust/test-envoy"
+
+    [workspace.dependencies.rivet-universaldb-commit]
+    path = "engine/sdks/rust/universaldb-commit"
+
+    [workspace.dependencies.rivet-ups-protocol]
+    path = "engine/sdks/rust/ups-protocol"
+
+[profile.dev]
+overflow-checks = false
+# "line-tables-only" produces just the line-number DWARF needed for stack
+# traces, skipping variable/type info. Meaningfully faster debug builds
+# (~2 min per engine cross-compile) with no runtime cost.
+debug = "line-tables-only"
+lto = "off"
+
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release]
+debug = false
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+
+# Self-host bundles are rebuilt frequently while retaining release-grade
+# optimization. ThinLTO preserves cross-crate optimization without paying the
+# single-core, whole-program fat-LTO link on every engine change.
+[profile.self-host-release]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+strip = "symbols"
+
+# Release-grade optimization with DWARF line info and no symbol stripping so
+# heaptrack can resolve native allocation backtraces during leak investigation.
+# Uses thin LTO and more codegen units to keep frames un-inlined and builds fast.
+[profile.profiling]
+inherits = "release"
+debug = 1
+lto = "thin"
+codegen-units = 16
+strip = false
+
+[profile.quick]
+inherits = "dev"
+debug = false          # no debug info → faster link, smaller binary
+strip = "symbols"      # strip what's left
+opt-level = 1          # cheap optimizations, still fast to compile
+panic = "abort"        # drops unwinding tables
+codegen-units = 256    # max parallelism

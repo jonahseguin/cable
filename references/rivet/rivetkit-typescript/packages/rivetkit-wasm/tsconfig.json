@@ -1,0 +1,10 @@
+{
+	"extends": "../../../tsconfig.base.json",
+	"compilerOptions": {
+		"declaration": true,
+		"lib": ["ESNext", "DOM", "WebWorker"],
+		"types": []
+	},
+	"exclude": ["node_modules", "pkg", "pkg-cloudflare", "pkg-deno"],
+	"include": ["index.d.ts"]
+}

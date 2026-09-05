@@ -1,0 +1,19 @@
+[package]
+name = "rivet-build-meta"
+publish = false
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+epoxy-protocol.workspace = true
+rivet-config.workspace = true
+rivet-envoy-protocol.workspace = true
+rivet-universaldb-commit.workspace = true
+rivet-ups-protocol.workspace = true
+
+[build-dependencies]
+anyhow.workspace = true
+vergen.workspace = true
+vergen-gitcl.workspace = true
