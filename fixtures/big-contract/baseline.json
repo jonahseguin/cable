@@ -6,8 +6,8 @@
     "runner": "Darwin arm64, Node 24.16.0",
     "bun": "1.4.0",
     "typescript": "5.9.3",
-    "instantiations": 413122,
-    "checkSeconds": 1.04
+    "instantiations": 266700,
+    "checkSeconds": 0.83
   },
   "workload": {
     "procedures": 200,

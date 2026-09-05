@@ -1,7 +1,7 @@
 # Working on cable
 
 `cable` is a TypeScript library for contract-first procedures and durable,
-typed channels on actor runtimes. M0 and M1 are complete; M2 is in progress.
+typed channels on actor runtimes. M0 is complete. M1 is awaiting its CI performance gate.
 Package entry points remain placeholders until their milestone is implemented.
 Never describe a planned API as available.
 

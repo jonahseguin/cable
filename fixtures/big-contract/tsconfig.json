@@ -3,6 +3,7 @@
   "compilerOptions": {
     "declaration": false,
     "declarationMap": false,
+    "skipLibCheck": true,
     "types": []
   },
   "include": ["client.ts", "contract.ts"],

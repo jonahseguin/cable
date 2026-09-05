@@ -235,7 +235,7 @@ async function handleGet<TContext extends object>(
     const input = decodeGetInput(url.searchParams.get("input"), maxBodyBytes);
     const context = await createContext(request);
     const result = await runtime.execute({ id: "get", input, path }, context);
-    return getResultResponse(result, transport.cache);
+    return getResultResponse(normalizeRuntimeResult(result, "get"), transport.cache);
   } catch (error) {
     return fatalResponse(error);
   }
@@ -259,11 +259,22 @@ async function executeIndependently<TContext extends object>(
 ): Promise<RpcResult> {
   try {
     const result = await runtime.execute(call, context);
+    return normalizeRuntimeResult(result, call.id);
+  } catch {
+    return internalResult(call.id);
+  }
+}
+
+function normalizeRuntimeResult(result: RpcResult, expectedId: string): RpcResult {
+  try {
+    if (result.id !== expectedId) {
+      return internalResult(expectedId);
+    }
     if (result.ok) {
       assertJsonData(result.data, "INTERNAL");
     } else {
-      if (!isHttpStatus(result.error.status)) {
-        return internalResult(call.id);
+      if (result.error.code === "INTERNAL" || !isHttpStatus(result.error.status)) {
+        return internalResult(expectedId);
       }
       if (result.error.data !== undefined) {
         assertJsonData(result.error.data, "INTERNAL");
@@ -271,7 +282,7 @@ async function executeIndependently<TContext extends object>(
     }
     return result;
   } catch {
-    return internalResult(call.id);
+    return internalResult(expectedId);
   }
 }
 
@@ -592,13 +603,14 @@ function invalidJsonData(
 }
 
 function fatalResponse(error: unknown): Response {
-  const wire = isCableError(error)
-    ? toWireError(error)
-    : { code: "INTERNAL", message: "Internal server error", status: 500 };
+  const wire = isCableError(error) ? toWireError(error) : internalWireError();
   return jsonResponse(encodeWireError(wire), wire.status);
 }
 
 function toWireError(error: CableError<string>): WireError {
+  if (error.code === "INTERNAL") {
+    return internalWireError();
+  }
   const wire: MutableWireError = {
     code: error.code,
     message: error.message,
@@ -608,6 +620,10 @@ function toWireError(error: CableError<string>): WireError {
     wire.data = error.data;
   }
   return wire;
+}
+
+function internalWireError(): WireError {
+  return { code: "INTERNAL", message: "Internal server error", status: 500 };
 }
 
 function encodeWireError(error: WireError): string {

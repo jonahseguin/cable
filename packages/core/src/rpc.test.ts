@@ -31,11 +31,21 @@ class TestRuntime implements RpcRuntime<TestContext> {
     if (call.path === "throw") {
       throw new Error("runtime failure");
     }
+    if (call.path === "read-secret") {
+      return {
+        error: { code: "INTERNAL", message: "database password", status: 500 },
+        id: call.id,
+        ok: false,
+      };
+    }
+    if (call.path === "read-date") {
+      return { data: new Date(0), id: call.id, ok: true };
+    }
     return { data: call.input, id: call.id, ok: true };
   }
 
   public transport(path: string): { readonly cache?: string; readonly method: "GET" } | undefined {
-    return path === "read" || path === "read-fail"
+    return path === "read" || path === "read-fail" || path === "read-secret" || path === "read-date"
       ? { cache: "public, max-age=30", method: "GET" }
       : undefined;
   }
@@ -230,4 +240,22 @@ describe("createRpcHandler", () => {
     expect(response.status).toBe(409);
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
+
+  it.each(["read-secret", "read-date"])(
+    "sanitizes unsupported or internal GET result from %s",
+    async (path) => {
+      const handler = createRpcHandler(new TestRuntime(), {
+        context: () => ({ requestId: "request-get-boundary" }),
+      });
+      const response = await handler.fetch(
+        new Request(`https://example.test/_cable/rpc/${path}?input=null`),
+      );
+
+      expect(response.status).toBe(500);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.text()).toBe(
+        '{"error":{"code":"INTERNAL","message":"Internal server error","status":500}}',
+      );
+    },
+  );
 });

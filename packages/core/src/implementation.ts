@@ -364,10 +364,16 @@ async function invokeMiddleware(
     const data = await procedure.handler({ ctx: context, input });
     return { data };
   }
+  let calledNext = false;
   return current.run({
     ctx: context,
-    next: async ({ ctx }): Promise<MiddlewareResult<object>> =>
-      invokeMiddleware(middleware, index + 1, ctx, procedure, input),
+    next: async ({ ctx }): Promise<MiddlewareResult<RuntimeContext>> => {
+      if (calledNext) {
+        throw new CableError("INTERNAL", { message: "Middleware called next more than once" });
+      }
+      calledNext = true;
+      return invokeMiddleware(middleware, index + 1, ctx, procedure, input);
+    },
   });
 }
 

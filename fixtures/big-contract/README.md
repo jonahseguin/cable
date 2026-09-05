@@ -15,3 +15,6 @@ the client program's file list and rejects the fixture's backend module or packa
 implementation source. The other reports compiler diagnostics and enforces fewer
 than 500,000 instantiations and less than 2.5 seconds of check time. The first M1
 measurement is recorded in `baseline.json`; the fixed limits remain the CI gate.
+The fixture skips rechecking dependency declaration bodies so the measurement
+covers cable's consumer-facing inference. Root and package typechecks continue to
+check those declarations.
