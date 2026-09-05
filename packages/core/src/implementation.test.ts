@@ -179,6 +179,33 @@ describe("implement", () => {
     });
   });
 
+  it("prevents middleware from invoking a handler more than once", async () => {
+    let calls = 0;
+    const procedures = implement(
+      c.contract({ mutation: c.mutation({ input: z.void(), output: z.number() }) }),
+    )
+      .context<object>()
+      .use(async ({ ctx, next }) => {
+        await next({ ctx });
+        return next({ ctx });
+      })
+      .procedures({
+        mutation: () => {
+          calls += 1;
+          return calls;
+        },
+      });
+
+    await expect(
+      procedures.execute({ id: "once", input: undefined, path: "mutation" }, {}),
+    ).resolves.toEqual({
+      error: { code: "INTERNAL", message: "Internal server error", status: 500 },
+      id: "once",
+      ok: false,
+    });
+    expect(calls).toBe(1);
+  });
+
   it("keeps successful calls in a mixed HTTP batch independent", async () => {
     const handler = createRpcHandler(createTestProcedures(), {
       context: () => ({ tenant: "acme" }),

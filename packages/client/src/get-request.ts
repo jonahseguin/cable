@@ -16,6 +16,7 @@ export async function getRequest(context: LinkContext, call: RpcCall): Promise<R
   const text = await response.text();
   try {
     const result = decodeResult(text);
+    if (!response.ok && result.ok) throw httpError(response.status);
     // There is only one call per GET response; the server uses a fixed wire ID.
     return { ...result, id: call.id };
   } catch (cause) {

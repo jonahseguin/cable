@@ -139,6 +139,18 @@ function checkProcedureTypes(client: Client<typeof api>): void {
 void checkProcedureTypes;
 
 describe("runtime contract metadata", () => {
+  it("rejects a successful GET envelope returned with a failing HTTP status", async () => {
+    const contract = c.contract({
+      cached: c.query({ input: z.void(), output: z.string(), transport: { method: "GET" } }),
+    });
+    const client = createClient({
+      contract,
+      fetch: async () =>
+        new Response(JSON.stringify({ id: "get", ok: true, data: "denied" }), { status: 401 }),
+    });
+    await expect(client.cached.query()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   it("uses GET for marked queries and POST for other calls, preserving declared GET errors", async () => {
     const contract = c.contract({
       cached: c.query({

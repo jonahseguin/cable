@@ -133,6 +133,7 @@ describe("node inference", () => {
     output: transformedSchema,
     transport: { cache: "public, max-age=30", method: "GET" },
   });
+  const noErrors = c.mutation({ input: stringSchema, output: numberSchema });
   const room = c.channel("chat.{roomId}", {
     client: {
       send: { errors: { MUTED: transformedSchema }, input: transformedSchema },
@@ -148,6 +149,7 @@ describe("node inference", () => {
       readonly code: "MISSING";
       readonly data: string;
     }>();
+    expectTypeOf<InferErrors<typeof noErrors>>().toEqualTypeOf<never>();
     expectTypeOf<InferChannelParams<typeof room>>().toEqualTypeOf<Readonly<{ roomId: string }>>();
     expectTypeOf<InferServerEvent<typeof room, "message">>().toEqualTypeOf<number>();
     expectTypeOf<InferClientEventInput<typeof room, "send">>().toEqualTypeOf<string>();
@@ -166,10 +168,18 @@ describe("node inference", () => {
   const invalidQuery = (): boolean =>
     // @ts-expect-error Procedure inputs must implement Standard Schema.
     isProcedureContract(c.query({ input: "not a schema", output: stringSchema }));
+  const invalidExplicitErrors = (): boolean =>
+    isProcedureContract(
+      c.query<typeof stringSchema, typeof stringSchema, { BROKEN: typeof numberSchema }>(
+        // @ts-expect-error Explicit error maps require a matching runtime errors definition.
+        { input: stringSchema, output: stringSchema },
+      ),
+    );
   // @ts-expect-error The channel does not declare a `missing` server event.
   const invalidEvent: keyof typeof room.server = "missing";
 
   expectTypeOf(invalidMutation).returns.toBeBoolean();
   expectTypeOf(invalidQuery).returns.toBeBoolean();
+  expectTypeOf(invalidExplicitErrors).returns.toBeBoolean();
   expectTypeOf(invalidEvent).toEqualTypeOf<"message">();
 });

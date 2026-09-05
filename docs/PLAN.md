@@ -1,6 +1,7 @@
 # Implementation plan
 
-M0 and M1 are complete. The current milestone is **M2: channels over memory**. No library API is published. Read [DESIGN.md](DESIGN.md)
+M0 is complete. M1 passes locally but remains gated on CI type performance.
+M2 implementation waits for that gate. No library API is published. Read [DESIGN.md](DESIGN.md)
 for the full requirements; ADRs record explicit amendments. The user authorized
 implementation through M7, but each milestone must pass its gate before work starts
 on the next one.
@@ -86,3 +87,7 @@ and Fallow. The real 200-procedure/40-channel fixture records 413,122
 instantiations and 1.04s check time. HTTP and memory tests cover typed errors,
 schema transformations, batching, and opt-in GET. Channel contracts exist;
 channel execution and sockets are the next milestone.
+
+The first M1 CI run passed every gate except type-check time: 4.73s on the
+GitHub runner, with 413,122 instantiations. Local timing does not establish the
+CI budget. Resolve that failure before advancing.
