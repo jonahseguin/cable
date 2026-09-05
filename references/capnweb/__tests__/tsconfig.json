@@ -1,0 +1,4 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["**/*.ts", "../vitest.shims.d.ts"]
+}

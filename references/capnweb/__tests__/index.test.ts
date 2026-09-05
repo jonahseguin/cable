@@ -1,0 +1,4213 @@
+// Copyright (c) 2025 Cloudflare, Inc.
+// Licensed under the MIT license found in the LICENSE.txt file or at:
+//     https://opensource.org/license/mit
+
+import { expect, it, describe, inject } from "vitest"
+import { deserialize, serialize, RpcSession, type RpcSessionOptions, RpcTransport,
+         type RpcTransportWithCustomEncoding, RpcTarget, RpcStub, RpcPromise, newWebSocketRpcSession,
+         newMessagePortRpcSession,
+         newHttpBatchRpcSession} from "../src/index.js"
+import { swapByteOrder } from "../src/serialize.js"
+import { MAX_CLOSE_REASON_BYTES } from "../src/websocket.js"
+import { ErrorStubHook, PayloadStubHook, PromiseStubHook, RpcPayload, RpcStub as RawRpcStub,
+         StubHook, streamImpl, unwrapStubTakingOwnership, type PropertyPath } from "../src/core.js"
+import { Counter, TestTarget } from "./test-util.js";
+
+type CustomEncodingLevel = RpcTransportWithCustomEncoding["encodingLevel"];
+
+let SERIALIZE_TEST_CASES: Record<string, unknown> = {
+  '123': 123,
+  'null': null,
+  '"foo"': "foo",
+  'true': true,
+
+  '{"foo":123}': {foo: 123},
+  '{"foo":{"bar":123,"baz":456},"qux":789}': {foo: {bar: 123, baz: 456}, qux: 789},
+
+  '[[123]]': [123],
+  '[[[[123,456]]]]': [[123, 456]],
+  '{"foo":[[123]]}': {foo: [123]},
+  '{"foo":[[123]],"bar":[[456,789]]}': {foo: [123], bar: [456, 789]},
+
+  '["bigint","123"]': 123n,
+  '["date",1234]': new Date(1234),
+  '["bytes","aGVsbG8h"]': new TextEncoder().encode("hello!"),
+  '["undefined"]': undefined,
+  '["error","Error","the message"]': new Error("the message"),
+  '["error","TypeError","the message"]': new TypeError("the message"),
+  '["error","RangeError","the message"]': new RangeError("the message"),
+
+  '["inf"]': Infinity,
+  '["-inf"]': -Infinity,
+  '["nan"]': NaN,
+
+  '["url","https://example.com/path?q=1"]': new URL("https://example.com/path?q=1"),
+
+  '["headers",[]]': new Headers(),
+  '["headers",[["content-type","text/plain"],["x-custom","hello"]]]':
+      new Headers({"Content-Type": "text/plain", "X-Custom": "hello"}),
+
+  '["request","http://example.com/",{"method":"HEAD"}]':
+      new Request("http://example.com/", {method: "HEAD"}),
+  '["request","http://example.com/",{"method":"DELETE","headers":[["x-foo","bar"]]}]':
+      new Request("http://example.com/", {method: "DELETE", headers: {"X-Foo": "bar"}}),
+  '["request","http://example.com/",{"redirect":"manual"}]':
+      new Request("http://example.com/", {redirect: "manual"}),
+
+  // Note: Cloudflare Workers atutomatically fills in `statusText` based on `status` while other
+  //   platforms leave it as an empty string. So we can't actually test a totalyl empty init
+  //   struct here, annoyingly.
+  '["response",null,{"statusText":"OK"}]': new Response(null, {statusText: "OK"}),
+  '["response",null,{"status":404,"statusText":"Not Found"}]':
+      new Response(null, {status: 404, statusText: "Not Found"}),
+  '["response",null,{"status":201,"statusText":"Hello","headers":[["x-custom","value"]]}]':
+      new Response(null, {status: 201, statusText: "Hello", headers: {"X-Custom": "value"}}),
+};
+
+class NotSerializable {
+  i: number;
+  constructor(i: number) {
+    this.i = i;
+  }
+  toString() {
+    return `NotSerializable(${this.i})`;
+  }
+}
+
+describe("simple serialization", () => {
+  it("can serialize", () => {
+    for (let key in SERIALIZE_TEST_CASES) {
+      expect(serialize(SERIALIZE_TEST_CASES[key])).toBe(key);
+    }
+  })
+
+  it("can deserialize", () => {
+    for (let key in SERIALIZE_TEST_CASES) {
+      let value = deserialize(key);
+      if (value instanceof Uint8Array || value instanceof URL ||
+          value instanceof Headers || value instanceof Request || value instanceof Response) {
+        // toStrictEqual() won't work for these (e.g. in Node.js, Uint8Array may deserialize as
+        // Buffer), so test by serializing again and making sure they round-trip.
+        expect(serialize(value)).toBe(key);
+      } else {
+        expect(value).toStrictEqual(SERIALIZE_TEST_CASES[key]);
+      }
+    }
+  })
+
+  it("throws an error if the value can't be serialized", () => {
+    expect(() => serialize(new NotSerializable(123))).toThrowError(
+      new TypeError("Cannot serialize value: NotSerializable(123)")
+    );
+
+    expect(() => serialize(Object.create(null))).toThrowError(
+      new TypeError("Cannot serialize value: (couldn't stringify value)")
+    );
+  })
+
+  it("throws an error for circular references", () => {
+    let obj: any = {};
+    obj.self = obj;
+    expect(() => serialize(obj)).toThrowError(
+      "Serialization exceeded maximum allowed depth. (Does the message contain cycles?)"
+    );
+  })
+
+  it("can serialize complex nested structures", () => {
+    let complex = {
+      level1: {
+        level2: {
+          level3: {
+            array: [1, 2, { nested: "deep" }],
+            date: new Date(5678),
+            nullVal: null,
+            undefinedVal: undefined
+          }
+        }
+      },
+      top_array: [[1, 2], [3, 4]]
+    };
+    let serialized = serialize(complex);
+    expect(deserialize(serialized)).toStrictEqual(complex);
+  })
+
+  it("throws errors for malformed deserialization data", () => {
+    expect(() => deserialize('{"unclosed": ')).toThrowError();
+    expect(() => deserialize('["unknown_type", "param"]')).toThrowError();
+    expect(() => deserialize('["date"]')).toThrowError(); // missing timestamp
+    expect(() => deserialize('["error"]')).toThrowError(); // missing type and message
+  })
+
+  it("can serialize large Uint8Array without stack overflow", () => {
+    let bytes = new Uint8Array(200000);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = i & 0xff;
+    }
+    let serialized = serialize(bytes);
+    let deserialized = deserialize(serialized) as Uint8Array;
+    expect(deserialized).toBeInstanceOf(Uint8Array);
+    expect(new Uint8Array(deserialized)).toStrictEqual(bytes);
+  })
+
+  it("correctly serializes Uint8Array with trailing byte value 61", () => {
+    // Byte 61 is ASCII '='. A previous bug applied .replace(/=*$/, "") to the binary string
+    // instead of the base64 output, which would silently strip trailing 61-valued bytes.
+    let bytes = new Uint8Array([72, 101, 108, 108, 111, 61]); // "Hello="
+    let serialized = serialize(bytes);
+    let deserialized = deserialize(serialized) as Uint8Array;
+    expect(deserialized).toBeInstanceOf(Uint8Array);
+    expect(new Uint8Array(deserialized)).toStrictEqual(bytes);
+  })
+
+  it("strips base64 padding from serialized bytes", () => {
+    // 5 bytes requires base64 padding (5 % 3 != 0), verify it's stripped.
+    let bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    let serialized = serialize(bytes);
+    expect(serialized).not.toContain("=");
+    let deserialized = deserialize(serialized) as Uint8Array;
+    expect(deserialized).toBeInstanceOf(Uint8Array);
+    expect(new Uint8Array(deserialized)).toStrictEqual(bytes);
+  })
+
+  it("can serialize Uint8Array as legacy bytes without a type marker", () => {
+    let bytes = new Uint8Array([72, 101, 108, 108, 111]);
+    let serialized = serialize(bytes);
+    expect(serialized).toBe('["bytes","SGVsbG8"]');
+
+    let deserialized = deserialize(serialized) as Uint8Array;
+    expect(deserialized).toBeInstanceOf(Uint8Array);
+    expect(new Uint8Array(deserialized)).toStrictEqual(bytes);
+
+    // Accept the explicit marker from other implementations, while continuing
+    // to emit the markerless form for backwards compatibility.
+    let explicitlyTyped = deserialize('["bytes","SGVsbG8","Uint8Array"]');
+    expect(Object.getPrototypeOf(explicitlyTyped)).toBe(Uint8Array.prototype);
+    expect(explicitlyTyped).toStrictEqual(bytes);
+  })
+
+  it("can serialize Node.js Buffer as bytes", () => {
+    if (typeof Buffer === "undefined") return; // skip in browsers
+    let buf = Buffer.from("hello!");
+    let serialized = serialize(buf);
+    expect(serialized).toBe('["bytes","aGVsbG8h"]');
+    let deserialized = deserialize(serialized) as Uint8Array;
+    expect(deserialized).toBeInstanceOf(Uint8Array);
+    expect(new Uint8Array(deserialized)).toStrictEqual(new Uint8Array(buf));
+  })
+
+  it("can serialize ArrayBuffer as bytes with an ArrayBuffer marker", () => {
+    let bytes = new Uint8Array([72, 101, 108, 108, 111]);
+    let serialized = serialize(bytes.buffer);
+    expect(serialized).toBe('["bytes","SGVsbG8","ArrayBuffer"]');
+
+    let deserialized = deserialize(serialized);
+    expect(deserialized).toBeInstanceOf(ArrayBuffer);
+    expect(new Uint8Array(deserialized as ArrayBuffer)).toStrictEqual(bytes);
+  })
+
+  it("can serialize typed array views as bytes with type markers", () => {
+    let cases = [
+      {
+        name: "DataView",
+        elementSize: 1,
+        makeView: (buffer: ArrayBuffer, offset: number, byteLength: number) =>
+            new DataView(buffer, offset, byteLength),
+      },
+      ...[
+        Int8Array,
+        Uint8ClampedArray,
+        Int16Array,
+        Uint16Array,
+        Int32Array,
+        Uint32Array,
+        BigInt64Array,
+        BigUint64Array,
+        Float32Array,
+        Float64Array,
+      ].map(Type => ({
+        name: Type.name,
+        elementSize: Type.BYTES_PER_ELEMENT,
+        makeView: (buffer: ArrayBuffer, offset: number, byteLength: number) =>
+            new Type(buffer, offset, byteLength / Type.BYTES_PER_ELEMENT),
+      })),
+    ];
+
+    for (let {name, elementSize, makeView} of cases) {
+      // Use a non-zero offset and extra trailing byte to verify only the view's visible byte range
+      // is serialized, not the whole backing buffer.
+      let byteLength = elementSize * 2;
+      let offset = elementSize;
+      let backing = new ArrayBuffer(offset + byteLength + 1);
+      let bytes = new Uint8Array(byteLength);
+      for (let i = 0; i < bytes.length; i++) bytes[i] = i + 1;
+      new Uint8Array(backing, offset, byteLength).set(bytes);
+
+      let view = makeView(backing, offset, byteLength);
+      let serialized = serialize(view);
+      let parsed = JSON.parse(serialized) as [string, string, string];
+      expect(parsed[0]).toBe("bytes");
+      expect(parsed[2]).toBe(name);
+
+      let deserialized = deserialize(serialized) as ArrayBufferView;
+      expect(Object.getPrototypeOf(deserialized)).toBe(Object.getPrototypeOf(view));
+      expect(new Uint8Array(
+          deserialized.buffer, deserialized.byteOffset, deserialized.byteLength)).toStrictEqual(bytes);
+    }
+  })
+
+  it("serializes multi-byte numbers in little-endian wire order", () => {
+    let serialized = serialize(new Uint32Array([0x01020304]));
+    let parsed = JSON.parse(serialized) as [string, string, string];
+    expect(parsed[2]).toBe("Uint32Array");
+    let wireBytes = Uint8Array.from(atob(parsed[1]), c => c.charCodeAt(0));
+    expect([...wireBytes]).toStrictEqual([0x04, 0x03, 0x02, 0x01]);
+  })
+
+  it("can swap each multi-byte element's byte order", () => {
+    for (let elementSize of [2, 4, 8]) {
+      let bytes = Uint8Array.from(
+          { length: elementSize * 3 }, (_, index) => (index * 37 + 1) & 0xff);
+      let expected = bytes.slice();
+      for (let offset = 0; offset < expected.length; offset += elementSize) {
+        expected.subarray(offset, offset + elementSize).reverse();
+      }
+
+      swapByteOrder(bytes, elementSize);
+      expect(bytes).toStrictEqual(expected);
+    }
+
+    expect(() => swapByteOrder(new Uint8Array(), 3)).toThrowError(
+        "Unsupported element size: 3");
+  })
+
+  it("rejects byte lengths that are misaligned for typed arrays", () => {
+    for (let [type, byteLength, elementSize] of [
+      ["Int16Array", 1, 2],
+      ["Float32Array", 3, 4],
+      ["BigUint64Array", 7, 8],
+    ] as const) {
+      let base64 = btoa("\0".repeat(byteLength));
+      expect(() => deserialize(`["bytes","${base64}","${type}"]`)).toThrowError(
+          `Invalid byte length ${byteLength} for ${type}; expected a multiple of ${elementSize}`);
+    }
+  })
+
+  it("throws for unknown bytes type markers", () => {
+    expect(() => deserialize('["bytes","SGVsbG8","invalidUint8Array"]')).toThrowError(
+        "Unknown bytes type marker: invalidUint8Array");
+    expect(() => deserialize('["bytes","SGVsbG8",123]')).toThrowError(
+        "Unknown bytes type marker type: number");
+  })
+
+  it("preserves Invalid Date values through serialization", () => {
+    let invalidDate = new Date(NaN);
+    let serialized = serialize(invalidDate);
+    expect(serialized).toBe('["date",null]');
+
+    let deserialized = deserialize(serialized) as Date;
+    expect(deserialized).toBeInstanceOf(Date);
+    expect(Number.isNaN(deserialized.getTime())).toBe(true);
+  })
+})
+
+// =======================================================================================
+
+describe("blob serialization", () => {
+  it("rejects malformed blob wire values", () => {
+    // Missing parts.
+    expect(() => deserialize('["blob"]')).toThrowError();
+    expect(() => deserialize('["blob","text/plain"]')).toThrowError();
+    // Non-string MIME type.
+    expect(() => deserialize('["blob",123,["readable",0]]')).toThrowError();
+    // Extra parts.
+    expect(() => deserialize('["blob","text/plain",["readable",0],"extra"]')).toThrowError();
+  });
+
+  it("throws when serializing Blob without an RPC session", () => {
+    // The encoder always uses a pipe, which requires an active RPC session. `serialize()` routes
+    // through NULL_EXPORTER and therefore cannot support Blob — same as streams and stubs.
+    let blob = new Blob(["hello"], {type: "text/plain"});
+    expect(() => serialize(blob)).toThrowError("Cannot create pipes without an RPC session");
+  })
+})
+
+describe("error serialization", () => {
+  function roundTrip(err: Error): Error & Record<string, unknown> {
+    return deserialize(serialize(err)) as unknown as Error & Record<string, unknown>;
+  }
+
+  it("preserves dynamically-attached own properties", () => {
+    let err = new Error("the message") as Error & Record<string, unknown>;
+    err.code = "E_FOO";
+    err.details = { reason: "x", retries: 3 };
+
+    let result = roundTrip(err);
+    expect(result).toBeInstanceOf(Error);
+    expect(result.name).toBe("Error");
+    expect(result.message).toBe("the message");
+    expect(result.code).toBe("E_FOO");
+    expect(result.details).toStrictEqual({ reason: "x", retries: 3 });
+  });
+
+  it("preserves class-field properties on Error subclasses", () => {
+    class MyError extends Error {
+      code = "E_FOO";
+      foo = "bar";
+    }
+    let err = new MyError("boom");
+
+    let result = roundTrip(err);
+    // Subclass identity is not preserved and falls back to Error.
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe("boom");
+    expect(result.code).toBe("E_FOO");
+    expect(result.foo).toBe("bar");
+  });
+
+  it("preserves built-in subclass identity when extras are present", () => {
+    let err = new TypeError("t") as TypeError & Record<string, unknown>;
+    err.code = 1;
+
+    let result = roundTrip(err);
+    expect(result).toBeInstanceOf(TypeError);
+    expect(result.name).toBe("TypeError");
+    expect(result.message).toBe("t");
+    expect(result.code).toBe(1);
+  });
+
+  it("emits the legacy 3-element form when there are no extras", () => {
+    let err = new Error("plain");
+    err.stack = undefined;
+    expect(serialize(err)).toBe('["error","Error","plain"]');
+  });
+
+  it("emits 5 elements with null stack when extras are present but stack is absent", () => {
+    let err = new Error("x") as Error & Record<string, unknown>;
+    err.stack = undefined;
+    err.code = "X";
+
+    let parsed = JSON.parse(serialize(err));
+    expect(parsed[0]).toBe("error");
+    expect(parsed[1]).toBe("Error");
+    expect(parsed[2]).toBe("x");
+    expect(parsed[3]).toBe(null);
+    expect(parsed[4]).toStrictEqual({ code: "X" });
+  });
+
+  it("round-trips nested supported types inside props", () => {
+    let err = new Error("nested") as Error & Record<string, unknown>;
+    err.when = new Date(1234);
+    err.big = 12345678901234567890n;
+    err.bytes = new TextEncoder().encode("hi!");
+    err.obj = { a: 1, b: [2, 3] };
+    err.inner = new TypeError("inner");
+
+    let result = roundTrip(err);
+    expect(result.when).toStrictEqual(new Date(1234));
+    expect(result.big).toBe(12345678901234567890n);
+    expect(new Uint8Array(result.bytes as Buffer)).toStrictEqual(new TextEncoder().encode("hi!"));
+    expect(result.obj).toStrictEqual({ a: 1, b: [2, 3] });
+
+    if (!(result.inner instanceof TypeError)) throw new Error("invariant");
+    expect(result.inner).toBeInstanceOf(TypeError);
+    expect(result.inner.message).toBe("inner");
+  });
+
+  it("is decodable by a legacy 4-element decoder (new sender -> old receiver)", () => {
+    // Mimic the pre-change decoder branch: only look at value[1..3], ignore the rest.
+    function legacyDecode(json: string): Error & Record<string, unknown> {
+      let value = JSON.parse(json);
+      if (value.length >= 3 && typeof value[1] === "string" && typeof value[2] === "string") {
+        let cls: any = { Error, TypeError, RangeError }[value[1]] || Error;
+        let result = new cls(value[2]);
+        if (typeof value[3] === "string") {
+          result.stack = value[3];
+        }
+        return result;
+      }
+      throw new Error("unparseable");
+    }
+
+    // Default `serialize` strips stack, so value[3] will be null. Old decoder's
+    // `typeof value[3] === "string"` check still passes (just doesn't fire), and value[4]
+    // is silently ignored. We're verifying the new shape doesn't break the old branch.
+    let err = new TypeError("t") as TypeError & Record<string, unknown>;
+    err.code = "X";
+
+    let decoded = legacyDecode(serialize(err));
+    expect(decoded).toBeInstanceOf(TypeError);
+    expect(decoded.message).toBe("t");
+    expect(decoded.code).toBeUndefined();
+  });
+
+  it("decodes legacy 3- and 4-element forms (old sender -> new receiver)", () => {
+    let three = deserialize('["error","Error","msg"]') as Error;
+    expect(three).toBeInstanceOf(Error);
+    expect(three.message).toBe("msg");
+
+    let four = deserialize('["error","TypeError","msg","trace"]') as Error;
+    expect(four).toBeInstanceOf(TypeError);
+    expect(four.message).toBe("msg");
+    expect(four.stack).toBe("trace");
+  });
+
+  it("throws when decoding an error with a malformed props bag", () => {
+    // A non-object/array `props` is structurally invalid; reject rather than silently ignore.
+    expect(() => deserialize('["error","Error","msg",null,"not-an-object"]'))
+        .toThrow(TypeError);
+    expect(() => deserialize('["error","Error","msg",null,42]'))
+        .toThrow(TypeError);
+    expect(() => deserialize('["error","Error","msg",null,[1,2]]'))
+        .toThrow(TypeError);
+    expect(() => deserialize('["error","Error","msg",null,null]'))
+        .toThrow(TypeError);
+  });
+
+  it("round-trips Error.cause", () => {
+    let inner = new TypeError("inner");
+    let outer = new Error("outer", { cause: inner });
+
+    let result = roundTrip(outer);
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe("outer");
+
+    if (!(result.cause instanceof Error)) throw new Error("invariant");
+    expect(result.cause).toBeInstanceOf(TypeError);
+    expect(result.cause.message).toBe("inner");
+  });
+
+  it("round-trips a primitive cause", () => {
+    let err = new Error("oops", { cause: "boom" });
+    let result = roundTrip(err);
+    expect(result.cause).toBe("boom");
+  });
+
+  it("round-trips AggregateError.errors with inner subclass identity", () => {
+    let agg = new AggregateError([new TypeError("a"), new RangeError("b")], "agg");
+    let result = roundTrip(agg);
+
+    if (!(result instanceof AggregateError)) throw new Error("invariant");
+    expect(result).toBeInstanceOf(AggregateError);
+    expect(result.message).toBe("agg");
+    expect(Array.isArray(result.errors)).toBe(true);
+    expect(result.errors).toHaveLength(2);
+    expect(result.errors[0]).toBeInstanceOf(TypeError);
+    expect(result.errors[0].message).toBe("a");
+    expect(result.errors[1]).toBeInstanceOf(RangeError);
+    expect(result.errors[1].message).toBe("b");
+  });
+
+  it("silently drops properties whose values cannot be serialized", () => {
+    let err = new Error("with-bad-prop") as Error & Record<string, unknown>;
+    err.code = "E_OK";
+    err.bad = Object.create(null);
+
+    let serialized = serialize(err);
+    let result = deserialize(serialized) as Error & Record<string, unknown>;
+
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe("with-bad-prop");
+    expect(result.code).toBe("E_OK");
+    expect("bad" in result).toBe(false);
+  });
+
+  it("silently drops cyclic property values", () => {
+    let err = new Error("cyclic") as Error & Record<string, unknown>;
+    err.code = "E_OK";
+    let cycle: any = {};
+    cycle.self = cycle;
+    err.cycle = cycle;
+
+    let result = roundTrip(err);
+    expect(result.message).toBe("cyclic");
+    expect(result.code).toBe("E_OK");
+    expect("cycle" in result).toBe(false);
+  });
+
+  it("never throws even when every extra property is unsupported", () => {
+    let err = new Error("all-bad") as Error & Record<string, unknown>;
+    err.a = Object.create(null);
+    err.b = Symbol("x");
+
+    let result = roundTrip(err);
+    expect(result.message).toBe("all-bad");
+    expect("a" in result).toBe(false);
+    expect("b" in result).toBe(false);
+  })
+})
+
+// =======================================================================================
+
+class TestTransport implements RpcTransport {
+  constructor(public name: string, private partner?: TestTransport) {
+    if (partner) {
+      partner.partner = this;
+    }
+  }
+
+  private queue: string[] = [];
+  private waiter?: () => void;
+  private aborter?: (err: any) => void;
+  public log = false;
+  public sentLog: string[] = [];
+  private fenced = false;
+
+  send(message: string): void {
+    // HACK: If the string "$remove$" appears in the message, remove it. This is used in some
+    //   tests to hack the RPC protocol.
+    message = message.replaceAll("$remove$", "");
+
+    if (this.log) console.log(`${this.name}: ${message}`);
+    this.sentLog.push(message);
+    this.partner!.queue.push(message);
+    if (this.partner!.waiter && !this.partner!.fenced) {
+      this.partner!.waiter();
+      this.partner!.waiter = undefined;
+      this.partner!.aborter = undefined;
+    }
+  }
+
+  async receive(): Promise<string> {
+    while (this.queue.length == 0 || this.fenced) {
+      await new Promise<void>((resolve, reject) => {
+        this.waiter = resolve;
+        this.aborter = reject;
+      });
+    }
+
+    return this.queue.shift()!;
+  }
+
+  // Blocks this transport from receiving messages. Messages sent to this transport will
+  // accumulate in the queue until the fence is released.
+  fence() {
+    this.fenced = true;
+  }
+
+  // Releases the fence, allowing queued messages to be received.
+  releaseFence() {
+    this.fenced = false;
+    if (this.queue.length > 0 && this.waiter) {
+      this.waiter();
+      this.waiter = undefined;
+      this.aborter = undefined;
+    }
+  }
+
+  // Returns the number of messages waiting in the receive queue.
+  get pendingCount() {
+    return this.queue.length;
+  }
+
+  forceReceiveError(error: any) {
+    this.aborter!(error);
+  }
+}
+
+class ObjectTestTransport implements RpcTransportWithCustomEncoding {
+  constructor(
+      private partner?: ObjectTestTransport,
+      readonly encodingLevel: CustomEncodingLevel = "jsonCompatible") {
+    if (partner) {
+      partner.partner = this;
+    }
+  }
+
+  private queue: unknown[] = [];
+  private waiter?: () => void;
+  private aborter?: (err: any) => void;
+  private fenced = false;
+
+  send(message: unknown): void {
+    let cloned = this.encodingLevel === "jsonCompatible" ? JSON.parse(JSON.stringify(message))
+                                                         : structuredClone(message);
+    this.partner!.queue.push(cloned);
+    if (this.partner!.waiter && !this.partner!.fenced) {
+      this.partner!.waiter();
+      this.partner!.waiter = undefined;
+      this.partner!.aborter = undefined;
+    }
+  }
+
+  async receive(): Promise<unknown> {
+    while (this.queue.length == 0 || this.fenced) {
+      await new Promise<void>((resolve, reject) => {
+        this.waiter = resolve;
+        this.aborter = reject;
+      });
+    }
+
+    return this.queue.shift()!;
+  }
+
+  fence() {
+    this.fenced = true;
+  }
+
+  releaseFence() {
+    this.fenced = false;
+    if (this.queue.length > 0 && this.waiter) {
+      this.waiter();
+      this.waiter = undefined;
+      this.aborter = undefined;
+    }
+  }
+
+  abort(reason: any): void {
+    this.aborter?.(reason);
+    this.waiter = undefined;
+    this.aborter = undefined;
+  }
+}
+
+// Spin the microtask queue a bit to give messages time to be delivered and handled.
+async function pumpMicrotasks() {
+  for (let i = 0; i < 16; i++) {
+    await Promise.resolve();
+  }
+}
+
+class TestHarness<T extends RpcTarget> {
+  clientTransport: TestTransport;
+  serverTransport: TestTransport;
+  client: RpcSession<T>;
+  server: RpcSession;
+
+  stub: RpcStub<T>;
+
+  constructor(target: T, serverOptions?: RpcSessionOptions) {
+    this.clientTransport = new TestTransport("client");
+    this.serverTransport = new TestTransport("server", this.clientTransport);
+
+    this.client = new RpcSession<T>(this.clientTransport);
+
+    this.server = new RpcSession(this.serverTransport, target, serverOptions);
+
+    this.stub = this.client.getRemoteMain();
+  }
+
+  // Enable logging of all messages sent. Useful for debugging.
+  enableLogging() {
+    this.clientTransport.log = true;
+    this.serverTransport.log = true;
+  }
+
+  checkAllDisposed() {
+    expect(this.client.getStats(), "client").toStrictEqual({imports: 1, exports: 1});
+    expect(this.server.getStats(), "server").toStrictEqual({imports: 1, exports: 1});
+  }
+
+  async [Symbol.asyncDispose]() {
+    try {
+      // HACK: Spin the microtask loop for a bit to make sure dispose messages have been sent
+      //   and received.
+      await pumpMicrotasks();
+
+      // Check at the end of every test that everything was disposed.
+      this.checkAllDisposed();
+    } catch (err) {
+      // Don't throw from disposer as it may suppress the real error that caused the disposal in
+      // the first place.
+
+      // I couldn't find a better way to make vitest log a failure without throwing...
+      let message: string;
+      if (err instanceof Error) {
+        message = err.stack || err.message;
+      } else {
+        message = `${err}`;
+      }
+      expect.soft(true, message).toBe(false);
+    }
+  }
+}
+
+it("propagates async send failures from string transports", async () => {
+  let sendError = new Error("send failed");
+  let transport: RpcTransport = {
+    send(_message: string): Promise<void> {
+      return Promise.reject(sendError);
+    },
+    receive(): Promise<string> {
+      return new Promise(() => {});
+    },
+  };
+
+  let session = new RpcSession<TestTarget>(transport);
+  using stub = session.getRemoteMain();
+
+  await expect(() => stub.square(1)).rejects.toThrow(sendError);
+});
+
+it("propagates synchronous send failures from string transports", async () => {
+  // A transport whose send() throws synchronously (rather than rejecting a promise) must still
+  // abort the session. The abort is deliberately deferred to a microtask so the caller finishes
+  // its own bookkeeping first, matching the timing of a rejected promise from an async transport.
+  let sendError = new Error("sync send failed");
+  let transport: RpcTransport = {
+    send(_message: string): void {
+      throw sendError;
+    },
+    receive(): Promise<string> {
+      return new Promise(() => {});
+    },
+  };
+
+  let session = new RpcSession<TestTarget>(transport);
+  using stub = session.getRemoteMain();
+
+  await expect(() => stub.square(1)).rejects.toThrow(sendError);
+});
+
+it("propagates synchronous send failures from custom-encoding transports", async () => {
+  // Same as above, but exercising the custom-encoding (non-string) send path.
+  let sendError = new Error("sync custom send failed");
+  let transport: RpcTransportWithCustomEncoding = {
+    encodingLevel: "structuredClonable",
+    send(_message: unknown): void {
+      throw sendError;
+    },
+    receive(): Promise<unknown> {
+      return new Promise(() => {});
+    },
+  };
+
+  let session = new RpcSession<TestTarget>(transport);
+  using stub = session.getRemoteMain();
+
+  await expect(() => stub.square(1)).rejects.toThrow(sendError);
+});
+
+describe("local stub", () => {
+  it("supports wrapping an RpcTarget", async () => {
+    let stub = new RpcStub(new TestTarget());
+    expect(await stub.square(3)).toBe(9);
+  });
+
+  it("supports wrapping a function", async () => {
+    // TODO: If we don't explicitly declare the type of `i` then the type system complains about
+    //   too-deep recursion here. Why?
+    let stub = new RpcStub((i :number) => i + 5);
+    expect(await stub(3)).toBe(8);
+  });
+
+  it("supports wrapping an async function", async () => {
+    let stub = new RpcStub(async (i :number) => { return i + 5; });
+    expect(await stub(3)).toBe(8);
+  });
+
+  it("supports wrapping an arbitrary object", async () => {
+    let stub = new RpcStub({abc: "hello"});
+    expect(await stub.abc).toBe("hello");
+  });
+
+  it("supports wrapping an object with nested stubs", async () => {
+    let innerTarget = new TestTarget();
+    let innerStub = new RpcStub(innerTarget);
+    let outerObject = { inner: innerStub, value: 42 };
+    let outerStub = new RpcStub(outerObject);
+
+    expect(await outerStub.value).toBe(42);
+    expect(await outerStub.inner.square(4)).toBe(16);
+  });
+
+  it("supports wrapping an object with nested RpcTargets", async () => {
+    let innerTarget = new TestTarget();
+    let outerObject = { inner: innerTarget, value: 42 };
+    let outerStub = new RpcStub(outerObject);
+
+    expect(await outerStub.value).toBe(42);
+    expect(await outerStub.inner.square(4)).toBe(16);
+  });
+
+  it("supports wrapping an object with nested functions", async () => {
+    let outerObject = { square: (x: number) => x * x, value: 42 };
+    let outerStub = new RpcStub(outerObject);
+
+    expect(await outerStub.value).toBe(42);
+    expect(await outerStub.square(4)).toBe(16);
+  });
+
+  it("supports wrapping an object with nested async functions", async () => {
+    async function asyncSqare(x: number) {
+      await Promise.resolve();
+      return x * x;
+    }
+
+    let outerObject = { square: asyncSqare, value: 42 };
+    let outerStub = new RpcStub(outerObject);
+
+    expect(await outerStub.value).toBe(42);
+    expect(await outerStub.square(4)).toBe(16);
+  });
+
+  it("supports wrapping an RpcTarget with nested stubs", async () => {
+    class TargetWithStubs extends RpcTarget {
+      getValue() { return 42; }
+
+      get innerStub() {
+        return new RpcStub(new TestTarget());
+      }
+    }
+
+    let outerStub = new RpcStub(new TargetWithStubs());
+    expect(await outerStub.getValue()).toBe(42);
+    expect(await outerStub.innerStub.square(3)).toBe(9);
+  });
+
+  it("supports wrapping an RpcTarget with nested RpcTargets", async () => {
+    class TargetWithTargets extends RpcTarget {
+      getValue() { return 42; }
+
+      get innerTarget() {
+        return new TestTarget();
+      }
+    }
+
+    let outerStub = new RpcStub(new TargetWithTargets());
+    expect(await outerStub.getValue()).toBe(42);
+    expect(await outerStub.innerTarget.square(3)).toBe(9);
+  });
+
+  it("returns undefined when accessing nonexistent properties", async () => {
+    let objectStub = new RpcStub({foo: "bar"});
+    let arrayStub = new RpcStub([1, 2, 3]);
+    let targetStub = new RpcStub(new TestTarget());
+
+    expect(await (objectStub as any).nonexistent).toBe(undefined);
+    expect(await (arrayStub as any).nonexistent).toBe(undefined);
+    expect(await (targetStub as any).nonexistent).toBe(undefined);
+
+    // Accessing a property of undefined should throw TypeError (but the error message differs
+    // across runtimes).
+    await expect(() => (objectStub as any).nonexistent.foo).rejects.toThrow(TypeError);
+    await expect(() => (arrayStub as any).nonexistent.foo).rejects.toThrow(TypeError);
+    await expect(() => (targetStub as any).nonexistent.foo).rejects.toThrow(TypeError);
+  });
+
+  it("exposes only prototype properties for RpcTarget, not instance properties", async () => {
+    class TargetWithProps extends RpcTarget {
+      instanceProp = "instance";
+      dynamicProp: string;
+
+      constructor() {
+        super();
+        this.dynamicProp = "dynamic";
+      }
+
+      get prototypeProp() { return "prototype"; }
+      prototypeMethod() { return "method"; }
+    }
+
+    let target = new TargetWithProps();
+    let stub = new RpcStub(target);
+
+    expect(await stub.prototypeProp).toBe("prototype");
+    expect(await stub.prototypeMethod()).toBe("method");
+    await expect(() => (stub as any).instanceProp).rejects.toThrow(new TypeError(
+        "Attempted to access property 'instanceProp', which is an instance property of the " +
+        "RpcTarget. To avoid leaking private internals, instance properties cannot be accessed " +
+        "over RPC. If you want to make this property available over RPC, define it as a method " +
+        "or getter on the class, instead of an instance property."));
+    await expect(() => (stub as any).dynamicProp).rejects.toThrow(new TypeError(
+        "Attempted to access property 'dynamicProp', which is an instance property of the " +
+        "RpcTarget. To avoid leaking private internals, instance properties cannot be accessed " +
+        "over RPC. If you want to make this property available over RPC, define it as a method " +
+        "or getter on the class, instead of an instance property."));
+  });
+
+  it("does not expose private methods starting with #", async () => {
+    class TargetWithPrivate extends RpcTarget {
+      #privateMethod() { return "private"; }
+      publicMethod() { return "public"; }
+    }
+
+    let stub = new RpcStub(new TargetWithPrivate());
+    expect(await stub.publicMethod()).toBe("public");
+    expect(await (stub as any)["#privateMethod"]).toBe(undefined);
+  });
+
+  it("supports map() on nulls", async () => {
+    let counter = new RpcStub(new Counter(0));
+
+    let stub = new RpcStub(new TestTarget());
+
+    {
+      using promise = stub.returnNull();
+      expect(await promise.map(_ => counter.increment(123))).toBe(null);
+    }
+
+    {
+      using promise = stub.returnUndefined();
+      expect(await promise.map(_ => counter.increment(456))).toBe(undefined);
+    }
+
+    {
+      using promise = stub.returnNumber(2);
+      expect(await promise.map(i => counter.increment(i))).toBe(2);
+    }
+
+    {
+      using promise = stub.returnNumber(4);
+      expect(await promise.map(i => counter.increment(i))).toBe(6);
+    }
+  });
+
+  it("supports map() on arrays", async () => {
+    let outerCounter = new RpcStub(new Counter(0));
+    let stub = new RpcStub(new TestTarget());
+
+    using fib = stub.generateFibonacci(6);
+    using counters = await fib.map(i => {
+      let counter = stub.makeCounter(i);
+      let val = counter.increment(3);
+      outerCounter.increment();
+      return {counter, val};
+    });
+
+    expect(counters.map(x => x.val)).toStrictEqual([3, 4, 4, 5, 6, 8]);
+
+    expect(await Promise.all(counters.map(x => x.counter.value)))
+        .toStrictEqual([3, 4, 4, 5, 6, 8]);
+
+    expect(await outerCounter.value).toBe(6);
+  });
+
+  it("supports nested map()", async () => {
+    let stub = new RpcStub(new TestTarget());
+
+    let fib = stub.generateFibonacci(7);
+    let result = await fib.map(i => {
+      return stub.generateFibonacci(i).map(j => {
+        return stub.generateFibonacci(j);
+      });
+    });
+
+    expect(result).toStrictEqual([
+      [],
+      [[]],
+      [[]],
+      [[], [0]],
+      [[], [0], [0]],
+      [[], [0], [0], [0, 1], [0, 1, 1]],
+      [[], [0], [0], [0, 1], [0, 1, 1], [0, 1, 1, 2, 3], [0, 1, 1, 2, 3, 5, 8, 13],
+          [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]],
+    ]);
+  });
+
+  it("overrides toString() to at least specify the type", async () => {
+    let stub = new RpcStub(new TestTarget());
+    expect(stub.toString()).toBe("[object RpcStub]");
+    let promise = stub.square(3);
+    expect(promise.toString()).toBe("[object RpcPromise]");
+  });
+});
+
+describe("stub disposal", () => {
+  it("disposes nested stubs and RpcTargets when wrapping an object", () => {
+    class DisposableTarget extends RpcTarget {
+      constructor(private disposeFlag: { value: boolean }) {
+        super();
+      }
+      [Symbol.dispose]() { this.disposeFlag.value = true; }
+    }
+
+    let innerFlag = { value: false };
+    let anotherFlag = { value: false };
+    let innerStub = new RpcStub(new DisposableTarget(innerFlag));
+
+    let outerObject = {
+      stub: innerStub,
+      target: new DisposableTarget(anotherFlag),
+      value: 42
+    };
+    let outerStub = new RpcStub(outerObject);
+
+    outerStub[Symbol.dispose]();
+
+    expect(innerFlag.value).toBe(true);
+    expect(anotherFlag.value).toBe(true);
+  });
+
+  it("only calls RpcTarget disposer when wrapping an RpcTarget with nested stubs", () => {
+    let targetDisposed = false;
+    let innerTargetDisposed = false;
+
+    class InnerTarget extends RpcTarget {
+      [Symbol.dispose]() { innerTargetDisposed = true; }
+    }
+
+    class TargetWithStubs extends RpcTarget {
+      inner = new RpcStub(new InnerTarget());
+
+      get innerStub() {
+        return this.inner;
+      }
+
+      [Symbol.dispose]() { targetDisposed = true; }
+    }
+
+    let outerStub = new RpcStub(new TargetWithStubs());
+    outerStub[Symbol.dispose]();
+
+    expect(targetDisposed).toBe(true);
+    expect(innerTargetDisposed).toBe(false); // nested stubs in RpcTarget are not auto-disposed
+  });
+
+  it("only disposes RpcTarget when all dups are disposed", () => {
+    let disposed = false;
+    class DisposableTarget extends RpcTarget {
+      [Symbol.dispose]() { disposed = true; }
+    }
+
+    let original = new RpcStub(new DisposableTarget());
+    let dup1 = original.dup();
+    let dup2 = original.dup();
+
+    original[Symbol.dispose]();
+    expect(disposed).toBe(false);
+
+    dup1[Symbol.dispose]();
+    expect(disposed).toBe(false);
+
+    dup2[Symbol.dispose]();
+    expect(disposed).toBe(true);
+  });
+
+  it("makes disposal idempotent - duplicate dispose calls don't affect refcount", () => {
+    let disposed = false;
+    class DisposableTarget extends RpcTarget {
+      [Symbol.dispose]() { disposed = true; }
+    }
+
+    let original = new RpcStub(new DisposableTarget());
+    let dup1 = original.dup();
+
+    // Dispose the duplicate twice
+    dup1[Symbol.dispose]();
+    dup1[Symbol.dispose]();
+    expect(disposed).toBe(false);
+
+    // Only when original is also disposed should the target be disposed
+    original[Symbol.dispose]();
+    expect(disposed).toBe(true);
+  });
+});
+
+describe("basic rpc", () => {
+  it("supports calls", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    expect(await harness.stub.square(3)).toBe(9);
+  });
+
+  it("supports throwing errors", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+    await expect(() => stub.throwError()).rejects.toThrow(new RangeError("test error"));
+  });
+
+  it("preserves own properties on thrown errors over RPC", async () => {
+    class RichTarget extends RpcTarget {
+      throwRich() {
+        let err = new RangeError("rich") as any;
+        err.code = "E_RICH";
+        err.details = { reason: "because", count: 7 };
+        err.when = new Date(1234);
+        throw err;
+      }
+    }
+    await using harness = new TestHarness(new RichTarget());
+    let stub = harness.stub as any;
+
+    let caught: any;
+    try {
+      await stub.throwRich();
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(RangeError);
+    expect(caught.message).toBe("rich");
+    expect(caught.code).toBe("E_RICH");
+    expect(caught.details).toStrictEqual({ reason: "because", count: 7 });
+    expect(caught.when).toStrictEqual(new Date(1234));
+  });
+
+  it("preserves Error.cause on thrown errors over RPC", async () => {
+    class CauseTarget extends RpcTarget {
+      throwWithCause() {
+        throw new Error("outer", { cause: new TypeError("inner") });
+      }
+    }
+    await using harness = new TestHarness(new CauseTarget());
+    let stub = harness.stub as any;
+
+    let caught: any;
+    try {
+      await stub.throwWithCause();
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught.message).toBe("outer");
+    expect(caught.cause).toBeInstanceOf(TypeError);
+    expect(caught.cause.message).toBe("inner");
+  });
+
+  it("round-trips heavyweight-but-supported types attached to errors", async () => {
+    class ReqErrTarget extends RpcTarget {
+      throwWithRequest() {
+        let err = new Error("with-request") as any;
+        err.request = new Request("http://example.com/", { method: "DELETE" });
+        throw err;
+      }
+    }
+    await using harness = new TestHarness(new ReqErrTarget());
+    let stub = harness.stub as any;
+
+    let caught: any;
+    try {
+      await stub.throwWithRequest();
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught.message).toBe("with-request");
+    expect(caught.request).toBeInstanceOf(Request);
+    expect(caught.request.url).toBe("http://example.com/");
+    expect(caught.request.method).toBe("DELETE");
+  });
+
+  it("silently drops stub-valued error properties without leaking capabilities", async () => {
+    class CounterFactory extends RpcTarget {
+      throwWithStub() {
+        let err = new Error("with-stub") as any;
+        // Attach a stub to the error. There's no sensible lifetime for this capability, so
+        // it must be dropped on the wire rather than leaked to the importer.
+        err.counter = new RpcStub(new Counter(10));
+        err.code = "E_STUB";
+        throw err;
+      }
+    }
+    await using harness = new TestHarness(new CounterFactory());
+    let stub = harness.stub as any;
+
+    let caught: any;
+    try {
+      await stub.throwWithStub();
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught.message).toBe("with-stub");
+    expect(caught.code).toBe("E_STUB");
+    expect("counter" in caught).toBe(false);
+    // The harness's checkAllDisposed() in asyncDispose verifies no exports/imports leaked.
+  });
+
+  it("drops the whole error property when a stub is nested inside an unserializable value", async () => {
+    // Regression: when an Error is serialized inside a successful payload (source is set),
+    // a property whose value contains both a stub and an unserializable sibling must drop
+    // the entire property atomically. Previously the stub would be exported on the way down
+    // before the unserializable sibling triggered the failure, leaking a capability.
+    class MixedFactory extends RpcTarget {
+      makeError() {
+        let err = new Error("with-mixed") as any;
+        err.mixed = { counter: new RpcStub(new Counter(10)), bad: Object.create(null) };
+        err.code = "E_MIXED";
+        return { wrapped: err };
+      }
+    }
+    await using harness = new TestHarness(new MixedFactory());
+    let stub = harness.stub as any;
+
+    let result = await stub.makeError();
+    expect(result.wrapped).toBeInstanceOf(Error);
+    expect(result.wrapped.message).toBe("with-mixed");
+    expect(result.wrapped.code).toBe("E_MIXED");
+    expect("mixed" in result.wrapped).toBe(false);
+    // checkAllDisposed() in asyncDispose verifies no stub leaked through the failed prop.
+  });
+
+  it("supports .then(), .catch(), and .finally() on RPC promises", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+
+    // Test .then() with successful call
+    {
+      let result = await stub.square(3).then(value => {
+        expect(value).toBe(9);
+        return value * 2;
+      });
+      expect(result).toBe(18);
+    }
+
+    // Test .catch() with error
+    {
+      let result = await stub.throwError()
+        .catch(err => {
+          expect(err).toBeInstanceOf(RangeError);
+          expect((err as Error).message).toBe("test error");
+          return "caught";
+        });
+      expect(result).toBe("caught");
+    }
+
+    // Test .finally() with successful call
+    {
+      let finallyCalled = false;
+      await stub.square(4)
+        .finally(() => {
+          finallyCalled = true;
+        });
+      expect(finallyCalled).toBe(true);
+    }
+
+    // Test .finally() with an error
+    {
+      let finallyCalled = false;
+      let promise = stub.throwError()
+        .finally(() => {
+          finallyCalled = true;
+        });
+      await expect(() => promise).rejects.toThrow(new RangeError("test error"));
+      expect(finallyCalled).toBe(true);
+    }
+  });
+
+  it("throws error when trying to send non-serializable argument", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+
+    expect(() => stub.square(new NotSerializable(123) as any)).toThrow(
+      new TypeError("Cannot serialize value: NotSerializable(123)")
+    );
+  });
+
+  it("throws error when trying to return non-serializable result", async () => {
+    class BadTarget extends RpcTarget {
+      returnNonSerializable() {
+        return new NotSerializable(456);
+      }
+    }
+
+    await using harness = new TestHarness(new BadTarget());
+    let stub = harness.stub as any;
+
+    await expect(() => stub.returnNonSerializable()).rejects.toThrow(
+      new TypeError("Cannot serialize value: NotSerializable(456)")
+    );
+  });
+
+  it("does not expose common Object properties on RpcTarget", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub: any = harness.stub;
+
+    // For this test we want to access properties on a remove object that are common properties of
+    // all objects. However, if we just access them on the stub, we'll actually access the *local*
+    // object's version of that property. We really want to generate messages sent to the other
+    // end to access the remote version, but there's no legitimate way to do this via the JS-level
+    // API. Fortunately, our transport implements a hack: the string "$remove$" will be excised
+    // from any message. So, we can use this as a prefix on property names to create a property
+    // that does not match anything locally, but by the time it reaches the remote end, will name
+    // a common object property.
+
+    // Properties of Object.prototype should not be exposed over RPC.
+    expect(await stub.$remove$toString).toBe(undefined);
+    expect(await stub.$remove$hasOwnProperty).toBe(undefined);
+
+    // Special properties are not exposed.
+    expect(await stub.$remove$__proto__).toBe(undefined);
+    expect(await stub.$remove$constructor).toBe(undefined);
+  });
+
+  it("does not expose common Object properties on RpcTarget", async () => {
+    class ObjectVendor extends RpcTarget {
+      get() {
+        return new RpcStub<object>({
+          foo: 123,
+          arr: [1, 2],
+          func(x: any) { return `${x}`; },
+          jsonify(x: any) { return JSON.stringify(x); },
+          toString() { return "special string"; }
+        });
+      }
+    }
+
+    await using harness = new TestHarness(new ObjectVendor(), {
+      onSendError(err) { return err; }
+    });
+    using stub: any = await harness.stub.get();
+
+    expect(await stub.foo).toBe(123);
+    expect(await stub.func(321)).toBe("321");
+
+    // Similar to previous test case, but we're operating on a stub backed by an object rather
+    // than an RpcTarget now.
+
+    // Properties of Object.prototype should not be exposed over RPC.
+    expect(await stub.$remove$toString).toBe(undefined);
+    expect(await stub.$remove$hasOwnProperty).toBe(undefined);
+
+    // Properties of Array.prototype and Function.prototype are similarly not exposed even for
+    // values of those types.
+    expect(await stub.arr.$remove$map).toBe(undefined);
+    expect(await stub.func.$remove$call).toBe(undefined);
+
+    // Special properties are not exposed.
+    expect(await stub.$remove$__proto__).toBe(undefined);
+    expect(await stub.$remove$constructor).toBe(undefined);
+
+    expect(await stub.func({})).toBe("[object Object]");
+    expect(await stub.func({$remove$toString: "bad"})).toBe("[object Object]");
+    expect(await stub.func({$remove$__proto__: {toString: "bad"}})).toBe("[object Object]");
+
+    expect(await stub.jsonify({x: 123, $remove$toJSON: () => "bad"})).toBe('{"x":123}');
+  });
+
+  it("supports passing async functions", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    async function square(i: number) {
+      await Promise.resolve();
+      return i * i;
+    }
+
+    expect(await harness.stub.callFunction(square, 3)).toStrictEqual({result: 9});
+  });
+});
+
+describe("capability-passing", () => {
+  it("supports returning an RpcTarget", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+    using counter = await stub.makeCounter(4);
+    expect(await counter.increment()).toBe(5);
+    expect(await counter.increment(4)).toBe(9);
+  });
+
+  it("supports passing a stub back over the connection", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+
+    using counter = await stub.makeCounter(4);
+    expect(await stub.incrementCounter(counter)).toBe(5);
+    expect(await stub.incrementCounter(counter, 4)).toBe(9);
+  });
+
+  it("supports three-party capability passing", async () => {
+    // Create two parallel connections: Alice and Bob
+    class AliceTarget extends RpcTarget {
+      getCounter() {
+        return new Counter(10);
+      }
+    }
+
+    class BobTarget extends RpcTarget {
+      // Bob actually uses the counter, causing calls to proxy through Bob to Alice
+      incrementCounter(counter: RpcStub<Counter>, amount: number) {
+        return counter.increment(amount);
+      }
+    }
+
+    await using aliceHarness = new TestHarness(new AliceTarget());
+    await using bobHarness = new TestHarness(new BobTarget());
+
+    let aliceStub = aliceHarness.stub;
+    let bobStub = bobHarness.stub;
+
+    // Get counter from Alice.
+    using counter = await aliceStub.getCounter();
+
+    // Bob increments the counter - this call proxies from Bob through the client to Alice
+    let result = await bobStub.incrementCounter(counter, 3);
+    expect(result).toBe(13);
+  });
+
+  it("supports proxying", async () => {
+    // Create two connections in series: us -> Bob -> Alice
+    class AliceTarget extends RpcTarget {
+      getCounter(i: number) {
+        return new Counter(i);
+      }
+
+      incrementCounter(counter: RpcStub<Counter>, amount: number) {
+        return counter.increment(amount);
+      }
+    }
+
+    class BobTarget extends RpcTarget {
+      constructor(private alice: RpcStub<AliceTarget>) {
+        super();
+      }
+
+      async getCounter(i: number) {
+        return await this.alice.getCounter(i);
+      }
+
+      getCounterPromise(i: number) {
+        return this.alice.getCounter(i);
+      }
+
+      incrementCounter(counter: RpcStub<Counter>, amount: number) {
+        return this.alice.incrementCounter(counter, amount);
+      }
+    }
+
+    await using aliceHarness = new TestHarness(new AliceTarget());
+    await using bobHarness = new TestHarness(new BobTarget(aliceHarness.stub));
+
+    let bobStub = bobHarness.stub;
+
+    // Return capability through proxy.
+    {
+      using result = await bobStub.getCounter(4);
+      expect(await result.increment(2)).toBe(6)
+    }
+
+    // Return capability through proxy, pipeline.
+    {
+      using result = bobStub.getCounter(4);
+      expect(await result.increment(2)).toBe(6)
+    }
+
+    // Return promise through proxy.
+    {
+      using result = bobStub.getCounterPromise(4);
+      expect(await result.increment(2)).toBe(6)
+    }
+
+    // Send capability through proxy.
+    {
+      let counter = new Counter(10);
+
+      let result = await bobStub.incrementCounter(counter, 3);
+
+      expect(result).toBe(13);
+      expect(counter.increment(1)).toBe(14);
+    }
+  });
+});
+
+describe("promise pipelining", () => {
+  it("supports passing a promise in arguments", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+    using promise = stub.square(2);
+    expect(await stub.square(promise)).toBe(16);
+  });
+
+  it("supports calling a promise", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+    using counter = stub.makeCounter(4);
+    let promise1 = counter.increment();
+    let promise2 = counter.increment(4);
+    expect(await promise1).toBe(5);
+    expect(await promise2).toBe(9);
+  });
+
+  it("supports returning a promise", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+    expect(await stub.callSquare(stub, 3)).toStrictEqual({result: 9});
+  });
+
+  it("propagates errors to pipelined calls", async () => {
+    class ErrorTarget extends RpcTarget {
+      throwError(): TestTarget {
+        throw new Error("pipelined error");
+      }
+    }
+
+    await using harness = new TestHarness(new ErrorTarget());
+    let stub = harness.stub;
+
+    // Pipeline a call on a promise that will reject
+    using errorPromise = stub.throwError();
+    using pipelinedCall = errorPromise.square(5);
+
+    await expect(() => pipelinedCall).rejects.toThrow("pipelined error");
+  });
+
+  it("propagates errors to argument-pipelined calls", async () => {
+    class ErrorTarget extends RpcTarget {
+      throwError(): never {
+        throw new Error("pipelined error");
+      }
+
+      processValue(value: any) {
+        return value * 2;
+      }
+    }
+
+    await using harness = new TestHarness(new ErrorTarget());
+    let stub = harness.stub;
+
+    // Pipeline a call on a promise that will reject
+    using errorPromise = stub.throwError();
+    using pipelinedCall = stub.processValue(errorPromise);
+
+    await expect(() => pipelinedCall).rejects.toThrow("pipelined error");
+  });
+
+  it("doesn't create spurious unhandled rejections", async () => {
+    class ErrorTarget extends RpcTarget {
+      throwError(): never {
+        throw new Error("test error");
+      }
+
+      processValue(value: any) {
+        return value * 2;
+      }
+    }
+
+    await using harness = new TestHarness(new ErrorTarget());
+    let stub = harness.stub;
+
+    let promise = stub.throwError();
+    let promise2 = stub.processValue(promise);
+
+    // Intentionally don't await the promises until the next tick. This means we don't pull them,
+    // which means nothing awaits the final result on the server end, which means the errors
+    // could be considered "unhandled rejections". We do not want the server end to actually see
+    // them as such, though, since it's entirely the client's fault that it hasn't waited on them
+    // yet! This tests that the system silences such unhandled rejection notices. Note that
+    // vitest automatically treats unhandled rejections as failures.
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    await expect(() => promise).rejects.toThrow("test error");
+    await expect(() => promise2).rejects.toThrow("test error");
+  });
+});
+
+describe("map() over RPC", () => {
+  it("supports map() on nulls", async () => {
+    let counter = new RpcStub(new Counter(0));
+
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+
+    {
+      using promise = stub.returnNull();
+      expect(await promise.map(_ => counter.increment(123))).toBe(null);
+    }
+
+    {
+      using promise = stub.returnUndefined();
+      expect(await promise.map(_ => counter.increment(456))).toBe(undefined);
+    }
+
+    {
+      using promise = stub.returnNumber(2);
+      expect(await promise.map(i => counter.increment(i))).toBe(2);
+    }
+
+    {
+      using promise = stub.returnNumber(4);
+      expect(await promise.map(i => counter.increment(i))).toBe(6);
+    }
+  });
+
+  it("supports map() on arrays", async () => {
+    let outerCounter = new RpcStub(new Counter(0));
+
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+
+    using fib = stub.generateFibonacci(6);
+    using counters = await fib.map(i => {
+      let counter = stub.makeCounter(i);
+      let val = counter.increment(3);
+      outerCounter.increment();
+      return {counter, val};
+    });
+
+    expect(counters.map(x => x.val)).toStrictEqual([3, 4, 4, 5, 6, 8]);
+
+    expect(await Promise.all(counters.map(x => x.counter.value)))
+        .toStrictEqual([3, 4, 4, 5, 6, 8]);
+
+    expect(await outerCounter.value).toBe(6);
+  });
+
+  it("supports nested map()", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+
+    using fib = stub.generateFibonacci(7);
+    using result = await fib.map(i => {
+      return stub.generateFibonacci(i).map(j => {
+        return stub.generateFibonacci(j);
+      });
+    });
+
+    expect(result).toStrictEqual([
+      [],
+      [[]],
+      [[]],
+      [[], [0]],
+      [[], [0], [0]],
+      [[], [0], [0], [0, 1], [0, 1, 1]],
+      [[], [0], [0], [0, 1], [0, 1, 1], [0, 1, 1, 2, 3], [0, 1, 1, 2, 3, 5, 8, 13],
+          [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]],
+    ]);
+  });
+});
+
+describe("stub disposal over RPC", () => {
+  it("disposes remote RpcTarget when stub is disposed", async () => {
+    let targetDisposedCount = 0;
+    class DisposableTarget extends RpcTarget {
+      getValue() { return 42; }
+      [Symbol.dispose]() { ++targetDisposedCount; }
+    }
+
+    class MainTarget extends RpcTarget {
+      getDisposableTarget() {
+        return new DisposableTarget();
+      }
+    }
+
+    await using harness = new TestHarness(new MainTarget());
+    let mainStub = harness.stub as any;
+
+    {
+      using disposableStub = await mainStub.getDisposableTarget();
+      expect(await disposableStub.getValue()).toBe(42);
+      expect(targetDisposedCount).toBe(0);
+    } // disposer runs here
+
+    // Wait a bit for the disposal message to be processed
+    await pumpMicrotasks();
+
+    expect(targetDisposedCount).toBe(1);
+  });
+
+  it("disposes a returned RpcTarget for every time it appears in a result", async () => {
+    let targetDisposedCount = 0;
+    class DisposableTarget extends RpcTarget {
+      getValue() { return 42; }
+      [Symbol.dispose]() { ++targetDisposedCount; }
+    }
+
+    class MainTarget extends RpcTarget {
+      getDisposableTarget() {
+        let result = new DisposableTarget();
+        return [result, result, result];
+      }
+    }
+
+    await using harness = new TestHarness(new MainTarget());
+    let mainStub = harness.stub as any;
+
+    {
+      using disposableStub = await mainStub.getDisposableTarget();
+      expect(await disposableStub[0].getValue()).toBe(42);
+      expect(await disposableStub[1].getValue()).toBe(42);
+      expect(await disposableStub[2].getValue()).toBe(42);
+
+      // The current implementation will actually call the disposer twice as soon as the pipeline
+      // is done, but the last call won't happen until the stubs are disposed.
+      expect(targetDisposedCount).toBeLessThan(3);
+    } // final disposer runs here
+
+    // Wait a bit for the disposal message to be processed
+    await pumpMicrotasks();
+
+    // Disposer is called three times.
+    expect(targetDisposedCount).toBe(3);
+  });
+
+  it("disposes RpcTarget that was passed in params", async () => {
+    let targetDisposedCount = 0;
+    class DisposableTarget extends RpcTarget {
+      getValue() { return 42; }
+      [Symbol.dispose]() { ++targetDisposedCount; }
+    }
+
+    class MainTarget extends RpcTarget {
+      useDisposableTarget(stub: RpcStub<DisposableTarget>) {
+        return stub.getValue();
+      }
+    }
+
+    await using harness = new TestHarness(new MainTarget());
+    let mainStub = harness.stub as any;
+
+    {
+      let result = await mainStub.useDisposableTarget(new DisposableTarget());
+      expect(result).toBe(42);
+    }
+
+    // Wait a bit for the disposal message to be processed
+    await pumpMicrotasks();
+
+    expect(targetDisposedCount).toBe(1);
+  });
+
+  it("dupes RpcTarget that was passed in params if it has a dup() method", async () => {
+    let dupCount = 0;
+    let disposeCount = 0;
+    class DisposableTarget extends RpcTarget {
+      getValue() { return 42; }
+
+      dup() {
+        ++dupCount;
+        return new DisposableTarget();
+      }
+
+      disposed = false;
+      [Symbol.dispose]() {
+        if (this.disposed) throw new Error("double disposed");
+        this.disposed = true;
+        ++disposeCount;
+      }
+    }
+
+    class MainTarget extends RpcTarget {
+      useDisposableTarget(stub: RpcStub<DisposableTarget>) {
+        return stub.getValue();
+      }
+    }
+
+    await using harness = new TestHarness(new MainTarget());
+    let mainStub = harness.stub as any;
+
+    let disposableTarget = new DisposableTarget();
+
+    {
+      let result = await mainStub.useDisposableTarget(disposableTarget);
+      expect(dupCount).toBe(1);
+      expect(result).toBe(42);
+    }
+
+    {
+      let result = await mainStub.useDisposableTarget(disposableTarget);
+      expect(dupCount).toBe(2);
+      expect(result).toBe(42);
+    }
+
+    // Wait a bit for the disposal message to be processed
+    await pumpMicrotasks();
+
+    expect(dupCount).toBe(2);
+    expect(disposeCount).toBe(2);
+    expect(disposableTarget.disposed).toBe(false);
+  });
+
+  it("only disposes remote target when all RPC dups are disposed", async () => {
+    let targetDisposed = false;
+    class DisposableTarget extends RpcTarget {
+      getValue() { return 42; }
+      [Symbol.dispose]() { targetDisposed = true; }
+    }
+
+    class MainTarget extends RpcTarget {
+      getDisposableTarget() {
+        return new DisposableTarget();
+      }
+    }
+
+    await using harness = new TestHarness(new MainTarget());
+    let mainStub = harness.stub as any;
+
+    let disposableStub = await mainStub.getDisposableTarget();
+    let dup1 = disposableStub.dup();
+    let dup2 = disposableStub.dup();
+
+    disposableStub[Symbol.dispose]();
+    await pumpMicrotasks();
+    expect(targetDisposed).toBe(false);
+
+    dup1[Symbol.dispose]();
+    await pumpMicrotasks();
+    expect(targetDisposed).toBe(false);
+
+    dup2[Symbol.dispose]();
+    await pumpMicrotasks();
+    expect(targetDisposed).toBe(true);
+  });
+
+  it("makes RPC disposal idempotent", async () => {
+    let targetDisposed = false;
+    class DisposableTarget extends RpcTarget {
+      getValue() { return 42; }
+      [Symbol.dispose]() { targetDisposed = true; }
+    }
+
+    class MainTarget extends RpcTarget {
+      getDisposableTarget() {
+        return new DisposableTarget();
+      }
+    }
+
+    await using harness = new TestHarness(new MainTarget());
+    let mainStub = harness.stub as any;
+
+    let disposableStub = await mainStub.getDisposableTarget();
+    let dup1 = disposableStub.dup();
+
+    // Dispose the duplicate twice
+    dup1[Symbol.dispose]();
+    dup1[Symbol.dispose]();
+    await pumpMicrotasks();
+    expect(targetDisposed).toBe(false);
+
+    // Only when original is also disposed should the target be disposed
+    disposableStub[Symbol.dispose]();
+    await pumpMicrotasks();
+    expect(targetDisposed).toBe(true);
+  });
+
+  it("disposes targets automatically on disconnect", async () => {
+    let targetDisposed = false;
+    class DisposableTarget extends RpcTarget {
+      getValue() { return 42; }
+      hangingCall(): Promise<number> {
+        // This call will hang and be interrupted by disconnect
+        return new Promise(() => {}); // Never resolves
+      }
+      [Symbol.dispose]() { targetDisposed = true; }
+    }
+
+    // Intentionally don't use `using` here because we expect the stats to be wrong after a
+    // disconnect.
+    let harness = new TestHarness(new DisposableTarget());
+    let stub = harness.stub;
+    expect(await stub.getValue()).toBe(42);
+
+    // Start a hanging call
+    let hangingPromise = stub.hangingCall();
+
+    // Simulate disconnect by making the transport fail
+    harness.clientTransport.forceReceiveError(new Error("test error"));
+
+    // The hanging call should be rejected
+    await expect(() => hangingPromise).rejects.toThrow(new Error("test error"));
+
+    // Further calls should also fail immediately
+    await expect(() => stub.getValue()).rejects.toThrow(new Error("test error"));
+
+    // Targets should be disposed
+    expect(targetDisposed).toBe(true);
+  });
+
+  it("shuts down the connection if the main capability is disposed", async () => {
+    // Intentionally don't use `using` here because we expect the stats to be wrong after a
+    // disconnect.
+    let harness = new TestHarness(new TestTarget());
+    let stub = harness.stub;
+
+    let counter = await stub.makeCounter(0);
+
+    stub[Symbol.dispose]();
+
+    await expect(() => counter.increment(1)).rejects.toThrow(
+      new Error("RPC session was shut down by disposing the main stub")
+    );
+  });
+});
+
+describe("e-order", () => {
+  it("maintains e-order for concurrent calls on single stub", async () => {
+    let callOrder: number[] = [];
+    class OrderTarget extends RpcTarget {
+      recordCall(id: number) {
+        callOrder.push(id);
+        return id;
+      }
+    }
+
+    await using harness = new TestHarness(new OrderTarget());
+    let stub = harness.stub as any;
+
+    // Make multiple concurrent calls
+    let promises = [
+      stub.recordCall(1),
+      stub.recordCall(2),
+      stub.recordCall(3),
+      stub.recordCall(4)
+    ];
+
+    await Promise.all(promises);
+
+    // Calls should arrive in the order they were made
+    expect(callOrder).toEqual([1, 2, 3, 4]);
+  });
+
+  it("maintains e-order for promise-pipelined calls", async () => {
+    let callOrder: number[] = [];
+    class OrderTarget extends RpcTarget {
+      getObject() {
+        return {
+          method1: (id: number) => { callOrder.push(id); return id; },
+          method2: (id: number) => { callOrder.push(id); return id; }
+        };
+      }
+    }
+
+    await using harness = new TestHarness(new OrderTarget());
+    let stub = harness.stub as any;
+
+    // Get a promise for an object
+    using objectPromise = stub.getObject();
+
+    // Make pipelined calls on different methods of the same promise
+    let promises = [
+      objectPromise.method1(1),
+      objectPromise.method2(2),
+      objectPromise.method1(3),
+      objectPromise.method2(4)
+    ];
+
+    await Promise.all(promises);
+
+    // Calls should arrive in the order they were made, even across different methods
+    expect(callOrder).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("error serialization", () => {
+  it("hides the stack by default", async () => {
+    await using harness = new TestHarness(new TestTarget(), {
+      onSendError: (error) => {
+        // default behavior
+      }
+    });
+    let stub = harness.stub;
+
+    let result = await stub.throwError()
+      .catch(err => {
+        expect(err).toBeInstanceOf(RangeError);
+        expect((err as Error).message).toBe("test error");
+
+        // By default, the stack isn't sent. A stack may be added client-side, though. So we
+        // verify that it doesn't contain the function name `throwErrorImpl` nor the file name
+        // `test-util.ts`, which should only appear on the server.
+        expect((err as Error).stack).not.toContain("throwErrorImpl");
+        expect((err as Error).stack).not.toContain("test-util.ts");
+
+        return "caught";
+      });
+    expect(result).toBe("caught");
+  });
+
+  it("hides the stack by default with structured clone transports", async () => {
+    let clientTransport = new ObjectTestTransport(undefined, "structuredClonable");
+    let serverTransport = new ObjectTestTransport(clientTransport, "structuredClonable");
+    let client = new RpcSession<TestTarget>(clientTransport);
+    new RpcSession(serverTransport, new TestTarget());
+    using stub = client.getRemoteMain();
+
+    let result = await stub.throwError()
+      .catch(err => {
+        expect(err).toBeInstanceOf(RangeError);
+        expect((err as Error).message).toBe("test error");
+        expect((err as Error).stack).not.toContain("throwErrorImpl");
+        expect((err as Error).stack).not.toContain("test-util.ts");
+
+        return "caught";
+      });
+    expect(result).toBe("caught");
+  });
+
+  it("reveals the stack if the callback returns the error", async () => {
+    await using harness = new TestHarness(new TestTarget(), {
+      onSendError: (error) => {
+        return error;
+      }
+    });
+    let stub = harness.stub;
+
+    let result = await stub.throwError()
+      .catch(err => {
+        expect(err).toBeInstanceOf(RangeError);
+        expect((err as Error).message).toBe("test error");
+
+        // Now the error function and source file should be in the stack.
+        expect((err as Error).stack).toContain("throwErrorImpl");
+        expect((err as Error).stack).toContain("test-util.ts");
+
+        return "caught";
+      });
+    expect(result).toBe("caught");
+  });
+
+  it("allows errors to be rewritten", async () => {
+    await using harness = new TestHarness(new TestTarget(), {
+      onSendError: (error) => {
+        let rewritten = new TypeError("rewritten error");
+        rewritten.stack = "test stack";
+        return rewritten;
+      }
+    });
+    let stub = harness.stub;
+
+    let result = await stub.throwError()
+      .catch(err => {
+        expect(err).toBeInstanceOf(TypeError);
+        expect((err as Error).message).toBe("rewritten error");
+        expect((err as Error).stack).toBe("test stack");
+        return "caught";
+      });
+    expect(result).toBe("caught");
+  });
+
+  it("sends own properties from the rewritten error, not the original", async () => {
+    class ErrorTarget extends RpcTarget {
+      throwError() {
+        let err = new Error("original") as any;
+        err.code = "E_ORIGINAL";
+        throw err;
+      }
+    }
+    await using harness = new TestHarness(new ErrorTarget(), {
+      onSendError: _error => {
+        let rewritten = new TypeError("rewritten") as Error & Record<string, unknown>;
+        rewritten.code = "E_REWRITTEN";
+        return rewritten;
+      }
+    });
+    let stub = harness.stub as any;
+
+    let caught: unknown;
+    try {
+      await stub.throwError();
+    } catch (e) {
+      caught = e;
+    }
+
+    if (!(caught instanceof Error)) throw new Error("invariant");
+    expect(caught).toBeInstanceOf(TypeError);
+    expect(caught.message).toBe("rewritten");
+    expect((caught as Error & Record<string, unknown>).code).toBe("E_REWRITTEN");
+  });
+
+  it("respects in-place mutation by onSendError to scrub heavy properties", async () => {
+    class ErrorTarget extends RpcTarget {
+      throwError() {
+        let err = new Error("with-secret") as Error & Record<string, unknown>;
+        err.code = "E_OK";
+        err.secret = "super-sensitive-data";
+        throw err;
+      }
+    }
+    await using harness = new TestHarness(new ErrorTarget(), {
+      onSendError: error => {
+        // Returning the same error after mutating it is a documented escape hatch for
+        // scrubbing fields the caller doesn't want to send.
+        delete (error as any).secret;
+        return error;
+      }
+    });
+    let stub = harness.stub;
+
+    let caught: unknown;
+    try {
+      await stub.throwError();
+    } catch (e) {
+      caught = e;
+    }
+
+    if (!(caught instanceof Error)) throw new Error("invariant");
+    expect(caught.message).toBe("with-secret");
+    expect((caught as Error & Record<string, unknown>).code).toBe("E_OK");
+    expect("secret" in caught).toBe(false);
+  });
+});
+
+describe("onRpcBroken", () => {
+  it("signals when the connection is lost", async () => {
+    class TestBroken extends RpcTarget {
+      getValue() { return 42; }
+      makeCounter() { return new Counter(0); }
+      hangingCall(): Promise<Counter> {
+        // This call will hang and be interrupted by disconnect
+        return new Promise(() => {}); // Never resolves
+      }
+      throwError(): Promise<Counter> { throw new Error("test error"); }
+    }
+
+    // Intentionally don't use `using` here because we expect the stats to be wrong after a
+    // disconnect.
+    let harness = new TestHarness(new TestBroken());
+    let stub = harness.stub;
+    expect(await stub.getValue()).toBe(42);
+
+    let errors: {which: string, error: any}[] = [];
+    stub.onRpcBroken(error => { errors.push({which: "stub", error}); });
+
+    let counter1Promise = stub.makeCounter();
+    counter1Promise.onRpcBroken(error => { errors.push({which: "counter1Promise", error}); });
+
+    let counter2 = await stub.makeCounter();
+    counter2.onRpcBroken(error => { errors.push({which: "counter2", error}); });
+
+    let counter1 = await counter1Promise;
+    counter1.onRpcBroken(error => { errors.push({which: "counter1", error}); });
+
+    let hangingPromise = stub.hangingCall();
+    hangingPromise.onRpcBroken(error => { errors.push({which: "hangingCall", error}); });
+
+    let throwingPromise = stub.throwError();
+    throwingPromise.onRpcBroken(error => { errors.push({which: "throwError", error}); });
+
+    // The method that threw should report brokenness immediately.
+    await throwingPromise.catch(err => {});
+    expect(errors).toStrictEqual([
+      {which: "throwError", error: new Error("test error")},
+    ]);
+
+    // onRpcBroken() when already broken just reports the error immediately.
+    throwingPromise.onRpcBroken(error => { errors.push({which: "throwError2", error}); });
+    expect(errors).toStrictEqual([
+      {which: "throwError", error: new Error("test error")},
+      {which: "throwError2", error: new Error("test error")},
+    ]);
+
+    // Simulate disconnect by making the transport fail
+    harness.clientTransport.forceReceiveError(new Error("test disconnect"));
+    await hangingPromise.catch(err => {});
+
+    // Now all the other errors were reported, in the order in which the callbacks were
+    // registered.
+    expect(errors).toStrictEqual([
+      {which: "throwError", error: new Error("test error")},
+      {which: "throwError2", error: new Error("test error")},
+      {which: "stub", error: new Error("test disconnect")},
+      {which: "counter1Promise", error: new Error("test disconnect")},
+      {which: "counter2", error: new Error("test disconnect")},
+      {which: "counter1", error: new Error("test disconnect")},
+      {which: "hangingCall", error: new Error("test disconnect")},
+    ]);
+  });
+});
+
+// =======================================================================================
+
+// Creates an RpcTarget that records whether its disposer has run, for verifying that a payload
+// containing (a copy of) it was properly disposed.
+function disposalSpy() {
+  let disposed = false;
+  class Disposable extends RpcTarget {
+    [Symbol.dispose]() { disposed = true; }
+  }
+  return { target: new Disposable(), wasDisposed: () => disposed };
+}
+
+describe("PromiseStubHook", () => {
+  it("disposes copied call arguments when the backing promise rejects", async () => {
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+    let hook = new PromiseStubHook(Promise.reject(new Error("nope")));
+    let result = hook.call([], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.pull()).rejects.toThrow("nope");
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+  });
+
+  it("disposes copied stream arguments when the backing promise rejects", async () => {
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+    let hook = new PromiseStubHook(Promise.reject(new Error("nope")));
+    let result = hook.stream(["write"], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.promise).rejects.toThrow("nope");
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+  });
+
+  it("delivers a call initiated before disposal", async () => {
+    let disposed = false;
+    class DisposableCounter extends Counter {
+      [Symbol.dispose]() { disposed = true; }
+    }
+
+    let inner = new RpcStub(new DisposableCounter(1));
+    let hook = new PromiseStubHook(Promise.resolve(unwrapStubTakingOwnership(<any>inner)));
+    await pumpMicrotasks();
+
+    let stub: RpcStub<Counter> = <any>new RawRpcStub(hook);
+    let result = stub.increment(2);
+    stub[Symbol.dispose]();
+
+    expect(disposed).toBe(false);
+    expect(await result).toBe(3);
+    expect(disposed).toBe(true);
+  });
+
+  it("disposes copied call arguments when the destination hook is broken", async () => {
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+    let hook = new PromiseStubHook(Promise.resolve(new ErrorStubHook(new Error("broken"))));
+    let result = hook.call([], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.pull()).rejects.toThrow("broken");
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+  });
+
+  it("disposes copied stream arguments when the destination hook is broken", async () => {
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+    let hook = new PromiseStubHook(Promise.resolve(new ErrorStubHook(new Error("broken"))));
+    let result = hook.stream(["write"], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.promise).rejects.toThrow("broken");
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+  });
+
+  it("disposes copied call arguments when the local call path fails", async () => {
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+    let hook = new PromiseStubHook(
+        Promise.resolve(new PayloadStubHook(RpcPayload.fromAppReturn({}))));
+    let result = hook.call(["nope"], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.pull()).rejects.toThrow("'nope' is not a function");
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+    hook.dispose();
+  });
+
+  it("disposes map captures when the destination hook is broken", () => {
+    let spy = disposalSpy();
+    let capture = unwrapStubTakingOwnership(<any>new RpcStub(spy.target));
+    let hook = new ErrorStubHook(new Error("broken"));
+    hook.map([], [capture], []);
+    expect(spy.wasDisposed()).toBe(true);
+  });
+
+  // A minimal contract-honoring callee: its call() takes ownership of `args` (disposing them)
+  // and then throws synchronously. Used to pin the division of labor: once the backing promise
+  // resolves, args ownership lies with the resolved callee, not with PromiseStubHook.
+  //
+  // Extends ErrorStubHook only to inherit harmless implementations of the methods these tests
+  // never invoke; note it does not override stream(), so the base StubHook.stream() is used.
+  class SyncThrowingHook extends ErrorStubHook {
+    constructor() { super(new Error("unused")); }
+    call(path: PropertyPath, args: RpcPayload): StubHook {
+      args.dispose();
+      throw new Error("sync failure");
+    }
+  }
+
+  it("leaves call args ownership with a resolved callee whose call() throws synchronously",
+      async () => {
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+    let hook = new PromiseStubHook(Promise.resolve(new SyncThrowingHook()));
+    let result = hook.call([], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.pull()).rejects.toThrow("sync failure");
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+  });
+
+  it("leaves stream args ownership with a resolved callee whose call() throws synchronously",
+      async () => {
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+    let hook = new PromiseStubHook(Promise.resolve(new SyncThrowingHook()));
+    // SyncThrowingHook inherits the default stream(), which delegates to call().
+    let result = hook.stream(["write"], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.promise).rejects.toThrow("sync failure");
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+  });
+
+  it("default stream() disposes the result hook when pull() throws synchronously", () => {
+    let resultHookDisposed = false;
+
+    class ThrowingPullHook extends SyncThrowingHook {
+      pull(): RpcPayload | Promise<RpcPayload> { throw new Error("pull failed"); }
+      dispose(): void { resultHookDisposed = true; }
+    }
+
+    class LocalCallHook extends SyncThrowingHook {
+      // Inherits the base StubHook.stream(), which delegates to call() + pull().
+      call(path: PropertyPath, args: RpcPayload): StubHook {
+        args.dispose();
+        return new ThrowingPullHook();
+      }
+    }
+
+    expect(() => new LocalCallHook().stream(["write"], RpcPayload.fromAppParams([])))
+        .toThrow("pull failed");
+    expect(resultHookDisposed).toBe(true);
+  });
+});
+
+describe("RpcImportHook argument disposal", () => {
+  it("call() disposes owned args when argument serialization fails", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+
+    let hook = unwrapStubTakingOwnership(<any>harness.stub.dup());
+
+    // The stub is serialized (and exported) before the Symbol makes devaluation fail, so this
+    // exercises both the Devaluator's export rollback and the disposal of the owned payload.
+    let payload = RpcPayload.fromAppParams([argument, Symbol("unserializable")]);
+    payload.ensureDeepCopied();
+
+    expect(() => hook.call(["square"], payload)).toThrow("Cannot serialize value");
+
+    hook.dispose();
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+  });
+
+  it("stream() disposes owned args when argument serialization fails", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    let spy = disposalSpy();
+    let argument = new RpcStub(spy.target);
+
+    let hook = unwrapStubTakingOwnership(<any>harness.stub.dup());
+
+    let payload = RpcPayload.fromAppParams([argument, Symbol("unserializable")]);
+    payload.ensureDeepCopied();
+
+    expect(() => hook.stream(["square"], payload)).toThrow("Cannot serialize value");
+
+    hook.dispose();
+    argument[Symbol.dispose]();
+    expect(spy.wasDisposed()).toBe(true);
+  });
+});
+
+// =======================================================================================
+
+describe("constructing RpcPromise from a promise", () => {
+  it("pipelines through a pending promise without pulling the resolution", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    let {promise, resolve} = Promise.withResolvers<RpcStub<TestTarget>>();
+    using stub = new RpcPromise<TestTarget>(promise);
+
+    using counter = stub.makeCounter(1);
+    let result = counter.increment(2);
+    resolve(harness.stub.dup());
+    expect(await result).toBe(3);
+
+    // Only the final result was pulled: neither the promise's resolution nor the intermediate
+    // counter was transmitted.
+    let sent = harness.clientTransport.sentLog;
+    expect(sent.some(msg => msg.startsWith('["push"'))).toBe(true);
+    expect(sent.filter(msg => msg.startsWith('["pull"'))).toHaveLength(1);
+  });
+
+  it("queues calls made before resolution and delivers them in order", async () => {
+    let calls: number[] = [];
+    class Recorder extends RpcTarget {
+      record(i: number) { calls.push(i); return i; }
+    }
+
+    let {promise, resolve} = Promise.withResolvers<Recorder>();
+    using stub = new RpcPromise<Recorder>(promise);
+
+    let results = [stub.record(1), stub.record(2), stub.record(3)];
+    expect(calls).toStrictEqual([]);
+
+    resolve(new Recorder());
+    expect(await Promise.all(results)).toStrictEqual([1, 2, 3]);
+    expect(calls).toStrictEqual([1, 2, 3]);
+  });
+
+  it("accepts a promise for a target, a remote stub, or a plain value", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    using target = new RpcPromise<Counter>(Promise.resolve(new Counter(1)));
+    expect(await target.increment()).toBe(2);
+
+    using remote = new RpcPromise<TestTarget>(Promise.resolve(harness.stub.dup()));
+    expect(await remote.square(3)).toBe(9);
+
+    using value = new RpcPromise<{foo: number}>(Promise.resolve({foo: 123}));
+    expect(await value.foo).toBe(123);
+  });
+
+  it("awaiting the RpcPromise yields the resolution", async () => {
+    using plain = new RpcPromise<{foo: number}>(Promise.resolve({foo: 123}));
+    expect(await plain).toStrictEqual({foo: 123});
+
+    await using harness = new TestHarness(new TestTarget());
+    using remote = new RpcPromise<TestTarget>(Promise.resolve(harness.stub.dup()));
+    let resolved = await remote;
+    expect(await resolved.square(4)).toBe(16);
+  });
+
+  it("reports rejection to queued calls, await, and onRpcBroken", async () => {
+    let error = new Error("nope");
+    using stub = new RpcPromise<Counter>(Promise.reject(error));
+
+    let broken: any[] = [];
+    stub.onRpcBroken(err => { broken.push(err); });
+
+    await expect(() => stub.increment()).rejects.toThrow("nope");
+    await expect(Promise.resolve(stub)).rejects.toThrow("nope");
+    expect(broken).toStrictEqual([error]);
+  });
+
+  it("does not report an unhandled rejection for an unused promise", async () => {
+    new RpcPromise<Counter>(Promise.reject(new Error("ignored")));
+    await pumpMicrotasks();
+  });
+
+  it("does not report an unhandled rejection for a disposed, unawaited queued call", async () => {
+    using stub = new RpcPromise<Counter>(Promise.reject(new Error("ignored")));
+    using result = stub.increment();  // never awaited; disposal alone must observe the error
+    await pumpMicrotasks();
+  });
+
+  it("does not report an unhandled rejection for a disposed, unawaited map() result", async () => {
+    using stub = new RpcPromise<number>(Promise.reject(new Error("ignored")));
+    using result = stub.map(i => i);  // never awaited; disposal alone must observe the error
+    await pumpMicrotasks();
+  });
+
+  it("disposes the eventual target when disposed before resolution", async () => {
+    let disposed = false;
+    class Disposable extends RpcTarget {
+      [Symbol.dispose]() { disposed = true; }
+    }
+
+    let {promise, resolve} = Promise.withResolvers<Disposable>();
+    let stub = new RpcPromise<Disposable>(promise);
+    stub[Symbol.dispose]();
+
+    resolve(new Disposable());
+    await pumpMicrotasks();
+    expect(disposed).toBe(true);
+  });
+
+  it("delivers a call initiated before disposal", async () => {
+    let disposed = false;
+    class DisposableCounter extends Counter {
+      [Symbol.dispose]() { disposed = true; }
+    }
+
+    let stub = new RpcPromise<DisposableCounter>(Promise.resolve(new DisposableCounter(1)));
+    await pumpMicrotasks();
+
+    let result = stub.increment(2);
+    stub[Symbol.dispose]();
+
+    expect(disposed).toBe(false);
+    expect(await result).toBe(3);
+    expect(disposed).toBe(true);
+  });
+
+  it("keeps an adopted RpcPromise lazy", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    using counter = new RpcPromise<Counter>(harness.stub.makeCounter(1));
+    expect(await counter.increment(2)).toBe(3);
+
+    let sent = harness.clientTransport.sentLog;
+    expect(sent.filter(msg => msg.startsWith('["pull"'))).toHaveLength(1);
+  });
+
+  it("transmits nothing when constructed from a remote property promise", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    using counter = harness.stub.makeCounter(5);
+    await pumpMicrotasks();  // let the makeCounter push flush
+
+    let source = counter.value;
+    let wrapped = new RpcPromise<number>(source);
+
+    // Construction shares the source's hook and path; the get() producing an independent hook
+    // happens lazily on first await, so nothing goes over the wire yet.
+    let sentBefore = harness.clientTransport.sentLog.length;
+    await pumpMicrotasks();
+    expect(harness.clientTransport.sentLog.length).toBe(sentBefore);
+
+    expect(await wrapped).toBe(5);
+
+    // The source property promise remains usable.
+    expect(await source).toBe(5);
+  });
+
+  it("does not invoke a local getter when constructed from a property promise", async () => {
+    let reads = 0;
+    class Gettable extends RpcTarget {
+      get prop() { ++reads; return 42; }
+    }
+
+    using stub = new RpcStub(new Gettable());
+    let source = stub.prop;
+    let wrapped = new RpcPromise<number>(source);
+
+    await pumpMicrotasks();
+    expect(reads).toBe(0);
+
+    expect(await wrapped).toBe(42);
+    expect(await source).toBe(42);
+  });
+
+  it("consumes the source when adopting an existing RpcPromise", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    let source = harness.stub.makeCounter(1);
+    using wrapper = new RpcPromise<Counter>(source);
+
+    // The source was neutered: using it now reports the standard disposed error, and disposing
+    // it is a harmless no-op that doesn't affect the wrapper.
+    await expect(source.increment(1)).rejects.toThrow(
+        "Attempted to use RPC stub after it has been disposed.");
+    source[Symbol.dispose]();
+
+    expect(await wrapper.increment(2)).toBe(3);
+  });
+
+  it("stays lazy when a deferred promise is resolved with dup()", async () => {
+    await using harness = new TestHarness(new TestTarget());
+
+    using counter = harness.stub.makeCounter(1);
+
+    // Resolving with the RpcPromise itself would let the native promise machinery assimilate it
+    // as a thenable, pulling the resolution. dup() returns a non-thenable stub, which the
+    // resolution adopts, keeping calls pipelined.
+    let {promise, resolve} = Promise.withResolvers<RpcStub<Counter>>();
+    using stub = new RpcPromise<Counter>(promise);
+
+    let result = stub.increment(2);
+    resolve(counter.dup());
+    expect(await result).toBe(3);
+
+    let sent = harness.clientTransport.sentLog;
+    expect(sent.filter(msg => msg.startsWith('["pull"'))).toHaveLength(1);
+  });
+
+  it("preserves brokenness of a bare stub it was constructed from", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    using stub = new RpcPromise<TestTarget>(<any>harness.stub.dup());
+
+    let errors: any[] = [];
+    stub.onRpcBroken(error => { errors.push(error); });
+
+    harness.clientTransport.forceReceiveError(new Error("test disconnect"));
+    await pumpMicrotasks();
+    expect(errors).toStrictEqual([new Error("test disconnect")]);
+  });
+
+  it("keeps disposal idempotent when constructed from a bare stub", async () => {
+    let disposals = 0;
+    class Disposable extends RpcTarget {
+      [Symbol.dispose]() { ++disposals; }
+    }
+
+    let inner = new RpcStub(new Disposable());
+    let outer = new RpcPromise<Disposable>(<any>inner);
+    inner[Symbol.dispose]();
+    outer[Symbol.dispose]();
+
+    await pumpMicrotasks();
+    expect(disposals).toBe(1);
+  });
+
+  it("resolves when awaited after construction from a bare local stub", async () => {
+    // Regression test: the constructor previously adopted a bare stub's hook directly, producing
+    // a promise whose pipelined calls worked but whose await rejected, because non-promise hooks
+    // don't implement pull().
+    using stub = new RpcPromise<Counter>(<any>new RpcStub(new Counter(1)));
+
+    expect(await stub.increment(2)).toBe(3);
+    let resolved = await stub;
+    expect(await resolved.increment(3)).toBe(6);
+  });
+});
+
+// =======================================================================================
+
+describe("HTTP requests", () => {
+  it("can perform a batch HTTP request", async () => {
+    let cap = newHttpBatchRpcSession<TestTarget>(`http://${inject("testServerHost")}`);
+
+    let promise1 = cap.square(6);
+
+    let counter = cap.makeCounter(2);
+    let promise2 = counter.increment(3);
+    let promise3 = cap.incrementCounter(counter, 4);
+
+    expect(await Promise.all([promise1, promise2, promise3]))
+        .toStrictEqual([36, 5, 9]);
+  });
+
+  it("rejects non-POST requests with 405", async () => {
+    let response = await fetch(`http://${inject("testServerHost")}`, { method: "GET" });
+    expect(response.status).toBe(405);
+    await response.text();
+  });
+});
+
+describe("WebSockets", () => {
+  it("can open a WebSocket connection", async () => {
+    let url = `ws://${inject("testServerHost")}`;
+
+    let cap = newWebSocketRpcSession<TestTarget>(url);
+
+    expect(await cap.square(5)).toBe(25);
+
+    {
+      let counter = cap.makeCounter(2);
+      expect(await counter.increment(3)).toBe(5);
+    }
+
+    {
+      let counter = new Counter(4);
+      expect(await cap.incrementCounter(counter, 9)).toBe(13);
+    }
+  });
+});
+
+describe("MessagePorts", () => {
+  it("can communicate over MessageChannel", async () => {
+    // Create a MessageChannel for communication
+    let channel = new MessageChannel();
+
+    // Set up server side with a test object
+    let serverMain = new TestTarget();
+    newMessagePortRpcSession(channel.port1, serverMain);
+
+    // Set up client side
+    using clientStub = newMessagePortRpcSession<TestTarget>(channel.port2);
+
+    // Test basic method call
+    let result = await clientStub.square(5);
+    expect(result).toBe(25);
+
+    // Test nested object
+    let counter = await clientStub.makeCounter(10);
+    expect(await counter.increment()).toBe(11);
+    expect(await counter.increment(5)).toBe(16);
+
+    // Test method that takes a stub as parameter
+    let incrementResult = await clientStub.incrementCounter(counter, 2);
+    expect(incrementResult).toBe(18);
+  });
+
+  it("handles errors correctly", async () => {
+    let channel = new MessageChannel();
+
+    let serverMain = new TestTarget();
+    newMessagePortRpcSession(channel.port1, serverMain);
+    using clientStub = newMessagePortRpcSession<TestTarget>(channel.port2);
+
+    // Test error handling
+    await expect(() => clientStub.throwError()).rejects.toThrow("test error");
+  });
+
+  it("sends close signal when server stub is disposed", async () => {
+    let channel = new MessageChannel();
+
+    let serverMain = new TestTarget();
+    let serverStub = newMessagePortRpcSession(channel.port1, serverMain);
+    using clientStub = newMessagePortRpcSession<TestTarget>(channel.port2);
+
+    // Test that connection works initially
+    let result = await clientStub.square(3);
+    expect(result).toBe(9);
+
+    // Set up broken callback on client
+    let brokenPromise = new Promise<void>((resolve, reject) => {
+      clientStub.onRpcBroken(reject);
+    });
+
+    // Dispose the server stub, which should send a close signal
+    serverStub[Symbol.dispose]();
+
+    // Wait for the client to detect the broken connection
+    await expect(() => brokenPromise).rejects.toThrow(
+        new Error("Peer closed MessagePort connection."));
+  });
+});
+
+// =======================================================================================
+
+describe("WritableStream over RPC", () => {
+  it("can send a WritableStream and receive writes", async () => {
+    // Create a WritableStream that collects chunks
+    let chunks: string[] = [];
+    let closeCalled = false;
+    let stream = new WritableStream<string>({
+      write(chunk) { chunks.push(chunk); },
+      close() { closeCalled = true; }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream<string>) {
+        // Write to the stream
+        let writer = stream.getWriter();
+        await writer.write("hello");
+        await writer.write("world");
+        await writer.close();
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    await harness.stub.receiveStream(stream);
+
+    expect(chunks).toEqual(["hello", "world"]);
+    expect(closeCalled).toBe(true);
+  });
+
+  it("supports complex chunk types", async () => {
+    let receivedChunks: unknown[] = [];
+    let stream = new WritableStream({
+      write(chunk) { receivedChunks.push(chunk); }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream) {
+        let writer = stream.getWriter();
+        await writer.write({ name: "test", value: 42 });
+        await writer.write([1, 2, 3]);
+        await writer.write(new Date(1234567890000));
+        await writer.close();
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    await harness.stub.receiveStream(stream);
+
+    expect(receivedChunks).toHaveLength(3);
+    expect(receivedChunks[0]).toEqual({ name: "test", value: 42 });
+    expect(receivedChunks[1]).toEqual([1, 2, 3]);
+    expect(receivedChunks[2]).toEqual(new Date(1234567890000));
+  });
+
+  it("propagates write errors back", async () => {
+    let writeCount = 0;
+    let stream = new WritableStream({
+      write(chunk) {
+        writeCount++;
+        if (writeCount > 2) {
+          throw new Error("Write limit exceeded");
+        }
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream) {
+        let writer = stream.getWriter();
+        await writer.write("first");
+        await writer.write("second");
+        // The third write will fail, and the error will propagate when we try to close
+        await writer.write("third");
+        await writer.close();
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    await expect(() => harness.stub.receiveStream(stream)).rejects.toThrow("Write limit exceeded");
+    expect(writeCount).toBe(3);
+  });
+
+  it("aborts stream on disconnect without close", async () => {
+    let abortReason: any = null;
+    let stream = new WritableStream({
+      write(chunk) {},
+      abort(reason) { abortReason = reason; }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      receiveStream(stream: WritableStream) {
+        // Start writing but don't close - just return immediately
+        let writer = stream.getWriter();
+        writer.write("data");
+        // Note: not calling writer.close()
+      }
+    }
+
+    // Don't use the normal harness since we need to control disposal differently
+    let clientTransport = new TestTransport("client");
+    let serverTransport = new TestTransport("server", clientTransport);
+
+    let client = new RpcSession(clientTransport);
+    let server = new RpcSession(serverTransport, new StreamReceiver());
+
+    let stub: any = client.getRemoteMain();
+    await stub.receiveStream(stream);
+
+    // Wait a bit for the write to be processed
+    await pumpMicrotasks();
+
+    // Dispose the client, which should cause the stream to be aborted
+    stub[Symbol.dispose]();
+
+    // Wait for the abort to propagate
+    await pumpMicrotasks();
+
+    expect(abortReason).not.toBeNull();
+    expect(abortReason.message).toContain("disposed without calling close");
+  });
+
+  it("handles abort() from receiver", async () => {
+    let abortReason: any = null;
+    let stream = new WritableStream({
+      write(chunk) {},
+      abort(reason) { abortReason = reason; }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream) {
+        let writer = stream.getWriter();
+        await writer.write("data");
+        await writer.abort("User requested abort");
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    await harness.stub.receiveStream(stream);
+
+    // Wait for abort to propagate
+    await pumpMicrotasks();
+
+    expect(abortReason).toBe("User requested abort");
+  });
+
+  it("can send WritableStream in nested object", async () => {
+    let chunks: string[] = [];
+    let stream = new WritableStream<string>({
+      write(chunk) { chunks.push(chunk); }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveData(data: { stream: WritableStream<string>, label: string }) {
+        let writer = data.stream.getWriter();
+        await writer.write(`${data.label}: hello`);
+        await writer.close();
+        return "done";
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result = await harness.stub.receiveData({ stream, label: "test" });
+
+    expect(result).toBe("done");
+    expect(chunks).toEqual(["test: hello"]);
+  });
+
+  it("handles multiple concurrent writes efficiently", async () => {
+    let chunks: number[] = [];
+    let stream = new WritableStream<number>({
+      async write(chunk) {
+        // Simulate some async processing
+        await new Promise(resolve => setTimeout(resolve, 10));
+        chunks.push(chunk);
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream<number>) {
+        let writer = stream.getWriter();
+        // Write multiple chunks without awaiting each one
+        // (The implementation should pipeline these)
+        let writes = [];
+        for (let i = 0; i < 5; i++) {
+          writes.push(writer.write(i));
+        }
+        await Promise.all(writes);
+        await writer.close();
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    await harness.stub.receiveStream(stream);
+
+    expect(chunks).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("applies backpressure when window fills up", async () => {
+    let writesReceived = 0;
+    let closeReceived = false;
+
+    let stream = new WritableStream<string>({
+      write(chunk) { writesReceived++; },
+      close() { closeReceived = true; }
+    });
+
+    // Track how many writes the sender has initiated (on the server side).
+    let writesSent = 0;
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream<string>) {
+        let writer = stream.getWriter();
+        // Each chunk is ~40KB when serialized, so ~7 writes fill the 256KB window.
+        let chunk = "x".repeat(40000);
+        for (let i = 0; i < 20; i++) {
+          writesSent++;
+          await writer.write(chunk);
+        }
+        await writer.close();
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+
+    // Fence the client transport. The initial RPC (client → server) still gets through since the
+    // fence is on the client's receive side. But write RPCs (server → client) will accumulate in
+    // the client's queue, so no resolve messages get sent back to the server, and the server's
+    // flow control window never refills.
+    harness.clientTransport.fence();
+
+    let rpcPromise = harness.stub.receiveStream(stream);
+
+    // Pump microtasks until `writesSent` stops advancing.
+    //
+    // Actually, we use setTimeout(0) instead of pumpMicrotasks() because some platforms' streams
+    // implementations sometimes require falling back to the macro event loop to make progress.
+    // In particular, this test hangs on workerd (in the closeReceived loop, later) about 1/4
+    // of the time if we are using pumpMicrotasks() instead of setTimeout(0). webkit also seems
+    // to be affected.
+    for (;;) {
+      let oldWritesSent = writesSent;
+      await new Promise(resolve => setTimeout(resolve, 0));
+      if (writesSent == oldWritesSent) break;
+    }
+
+    // With a 64KB window and ~10KB per write, the sender should have been blocked after about
+    // 7 writes. Without flow control, all 20 writes would be sent.
+    expect(writesSent).toBeGreaterThanOrEqual(5);
+    expect(writesSent).toBeLessThanOrEqual(10);
+    expect(writesReceived).toBe(0);  // Client hasn't received any writes yet.
+    expect(closeReceived).toBe(false);
+
+    // Release the fence and let everything complete.
+    harness.clientTransport.releaseFence();
+
+    while (!closeReceived) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    expect(writesSent).toBe(20);
+    expect(writesReceived).toBe(20);
+    expect(closeReceived).toBe(true);
+    await rpcPromise;
+  });
+
+  it("applies backpressure when custom transport omits stream message size", async () => {
+    let writesReceived = 0;
+    let closeReceived = false;
+
+    let stream = new WritableStream<string>({
+      write(chunk) { writesReceived++; },
+      close() { closeReceived = true; }
+    });
+
+    let writesSent = 0;
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream<string>) {
+        let writer = stream.getWriter();
+        let chunk = "x".repeat(40000);
+        for (let i = 0; i < 20; i++) {
+          writesSent++;
+          await writer.write(chunk);
+        }
+        await writer.close();
+      }
+    }
+
+    let clientTransport = new ObjectTestTransport();
+    let serverTransport = new ObjectTestTransport(clientTransport);
+    let client = new RpcSession<StreamReceiver>(clientTransport);
+    new RpcSession(serverTransport, new StreamReceiver());
+    using clientStub = client.getRemoteMain();
+
+    clientTransport.fence();
+
+    clientStub.receiveStream(stream).catch(() => {});
+
+    for (;;) {
+      let oldWritesSent = writesSent;
+      await new Promise(resolve => setTimeout(resolve, 0));
+      if (writesSent == oldWritesSent) break;
+    }
+
+    expect(writesSent).toBeGreaterThan(1);
+    expect(writesSent).toBeLessThan(20);
+    expect(writesReceived).toBe(0);
+    expect(closeReceived).toBe(false);
+
+    clientTransport.releaseFence();
+  });
+
+  it("uses the size reported by a custom transport's send() for flow control", async () => {
+    // Mirror image of the previous test: the sending side's transport reports a tiny encoded
+    // size from send(), so even though the chunks are large (and their *estimated* size would
+    // fill the flow control window after a few writes, as proven above), all 20 writes proceed
+    // without blocking. This proves the number returned by send() is what feeds flow control.
+    let writesReceived = 0;
+    let closeReceived = false;
+
+    let stream = new WritableStream<string>({
+      write(chunk) { writesReceived++; },
+      close() { closeReceived = true; }
+    });
+
+    let writesSent = 0;
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream<string>) {
+        let writer = stream.getWriter();
+        let chunk = "x".repeat(40000);
+        for (let i = 0; i < 20; i++) {
+          writesSent++;
+          await writer.write(chunk);
+        }
+        await writer.close();
+      }
+    }
+
+    class SizeReportingTestTransport extends ObjectTestTransport {
+      sendCount = 0;
+      send(message: unknown): number {
+        super.send(message);
+        ++this.sendCount;
+        return 10;  // report a tiny encoded size, regardless of the actual message
+      }
+    }
+
+    let clientTransport = new ObjectTestTransport();
+    let serverTransport = new SizeReportingTestTransport(clientTransport);
+    let client = new RpcSession<StreamReceiver>(clientTransport);
+    new RpcSession(serverTransport, new StreamReceiver());
+    using clientStub = client.getRemoteMain();
+
+    // Fence the client so it never processes incoming messages, and thus never sends acks.
+    clientTransport.fence();
+
+    let promise = clientStub.receiveStream(stream);
+
+    for (;;) {
+      let oldWritesSent = writesSent;
+      await new Promise(resolve => setTimeout(resolve, 0));
+      if (writesSent == oldWritesSent) break;
+    }
+
+    // All writes completed despite no acks, because the reported sizes never filled the window.
+    expect(writesSent).toBe(20);
+    expect(serverTransport.sendCount).toBeGreaterThan(0);
+    expect(writesReceived).toBe(0);
+    expect(closeReceived).toBe(false);
+
+    // Let the messages through and verify everything arrives.
+    clientTransport.releaseFence();
+    await promise;
+    expect(writesReceived).toBe(20);
+    expect(closeReceived).toBe(true);
+  });
+
+  it("uses stream messages instead of push+pull+release", async () => {
+    // Verify that WritableStream writes use the optimized "stream" message type,
+    // which avoids sending separate "pull" and "release" messages.
+    let chunks: string[] = [];
+    let stream = new WritableStream<string>({
+      write(chunk) { chunks.push(chunk); },
+      close() {}
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream<string>) {
+        let writer = stream.getWriter();
+        await writer.write("hello");
+        await writer.write("world");
+        await writer.close();
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+
+    // Collect all messages sent by the server (which appear in the client's queue).
+    let serverMessages: any[] = [];
+    let origServerSend = harness.serverTransport.send;
+    harness.serverTransport.send = function(message: string) {
+      serverMessages.push(JSON.parse(message));
+      return origServerSend.call(this, message);
+    };
+
+    // Collect all messages sent by the client (which appear in the server's queue).
+    let clientMessages: any[] = [];
+    let origClientSend = harness.clientTransport.send;
+    harness.clientTransport.send = function(message: string) {
+      clientMessages.push(JSON.parse(message));
+      return origClientSend.call(this, message);
+    };
+
+    await harness.stub.receiveStream(stream);
+    await pumpMicrotasks();
+
+    expect(chunks).toEqual(["hello", "world"]);
+
+    // Server sends: write("hello"), write("world"), close() — these should use "stream".
+    let serverStreamMsgs = serverMessages.filter(m => m[0] === "stream");
+    let serverPushMsgs = serverMessages.filter(m => m[0] === "push");
+
+    // The write() and close() calls should all be "stream" messages (3 total).
+    expect(serverStreamMsgs.length).toBe(3);
+
+    // The server should NOT have sent any "push" messages for the stream writes.
+    // (There may be other push messages for non-stream calls, but we filter by looking
+    // at the pipeline target — stream writes target the writable stream export.)
+    // Actually, the only "push" from the server should be none for stream operations.
+    expect(serverPushMsgs.length).toBe(0);
+
+    // Client should NOT have sent any "pull" or "release" messages for stream writes.
+    // The only client messages should be the initial "push" for the RPC call, a "pull"
+    // for it, and the "release" for the RPC result — not for individual stream writes.
+    let clientPullMsgs = clientMessages.filter(m => m[0] === "pull");
+    let clientReleaseMsgs = clientMessages.filter(m => m[0] === "release");
+
+    // There should be exactly 1 pull (for the top-level receiveStream call).
+    expect(clientPullMsgs.length).toBe(1);
+
+    // Release messages: 1 for the top-level receiveStream result, plus 1 for the
+    // writable stream export itself (passed in params). No releases for stream writes.
+    expect(clientReleaseMsgs.length).toBeLessThanOrEqual(2);
+  });
+
+  it("unblocks a backpressure-blocked write when an in-flight write errors", async () => {
+    let writeCount = 0;
+    let stream = new WritableStream<string>({
+      write(chunk) {
+        writeCount++;
+        if (writeCount >= 2) {
+          throw new Error("Simulated write failure");
+        }
+      },
+      close() {},
+      abort() {}
+    });
+
+    let writerError: any = null;
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: WritableStream<string>) {
+        let writer = stream.getWriter();
+        let chunk = "x".repeat(100000);
+        try {
+          for (let i = 0; i < 20; i++) {
+            await writer.write(chunk);
+          }
+          await writer.close();
+        } catch (err) {
+          writerError = err;
+          throw err;
+        }
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    harness.clientTransport.fence();
+
+    let rpcDone = false;
+    let rpcError: any = null;
+    let rpcPromise = harness.stub.receiveStream(stream).then(
+      () => { rpcDone = true; },
+      (err: any) => { rpcDone = true; rpcError = err; }
+    );
+
+    for (let i = 0; i < 100; i++) {
+      await pumpMicrotasks();
+    }
+
+    harness.clientTransport.releaseFence();
+
+    let settled = false;
+    let timeout = new Promise<void>(resolve => setTimeout(() => {
+      settled = true;
+      resolve();
+    }, 500));
+
+    await Promise.race([
+      (async () => {
+        while (!rpcDone && !settled) {
+          await pumpMicrotasks();
+          await new Promise(resolve => setTimeout(resolve, 5));
+        }
+      })(),
+      timeout
+    ]);
+
+    expect(rpcDone).toBe(true);
+    expect(rpcError).not.toBeNull();
+    expect(rpcError.message).toContain("Simulated write failure");
+  });
+});
+
+describe("WritableStream stub argument disposal", () => {
+  it("disposes copied call arguments when a WritableStream call is invalid", async () => {
+    let disposed = false;
+    class Disposable extends RpcTarget {
+      [Symbol.dispose]() { disposed = true; }
+    }
+
+    let argument = new RpcStub(new Disposable());
+    let hook = new PromiseStubHook(
+        Promise.resolve(streamImpl.createWritableStreamHook(new WritableStream())));
+    let result = hook.call(["not", "a", "method"], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.pull()).rejects.toThrow("only supports direct method calls");
+    argument[Symbol.dispose]();
+    expect(disposed).toBe(true);
+    hook.dispose();
+  });
+
+  it("disposes copied call arguments when the WritableStream stub was disposed", async () => {
+    let disposed = false;
+    class Disposable extends RpcTarget {
+      [Symbol.dispose]() { disposed = true; }
+    }
+
+    let streamHook = streamImpl.createWritableStreamHook(new WritableStream());
+    streamHook.dispose();
+
+    let argument = new RpcStub(new Disposable());
+    let hook = new PromiseStubHook(Promise.resolve(streamHook));
+    let result = hook.call(["write"], RpcPayload.fromAppParams([argument]));
+
+    await expect(result.pull()).rejects.toThrow("after it was disposed");
+    argument[Symbol.dispose]();
+    expect(disposed).toBe(true);
+  });
+});
+
+describe("transport encoding levels", () => {
+  class EchoService extends RpcTarget {
+    echo(value: unknown): unknown {
+      return value;
+    }
+  }
+
+  // Native values should survive a round trip through a custom-encoding transport at every
+  // non-string level: base64 bytes at "jsonCompatible", raw Uint8Array at
+  // "jsonCompatibleWithBytes", and native structured-clone types at "structuredClonable".
+  for (let level of ["jsonCompatible", "jsonCompatibleWithBytes", "structuredClonable"] as const) {
+    it(`round-trips native types over a ${level} transport`, async () => {
+      let clientTransport = new ObjectTestTransport(undefined, level);
+      let serverTransport = new ObjectTestTransport(clientTransport, level);
+      let client = new RpcSession<EchoService>(clientTransport);
+      new RpcSession(serverTransport, new EchoService());
+      using stub = client.getRemoteMain();
+
+      let bytes = await stub.echo(new Uint8Array([1, 2, 3])) as Uint8Array;
+      expect(new Uint8Array(bytes)).toStrictEqual(new Uint8Array([1, 2, 3]));
+
+      let typedArray = await stub.echo(new Uint32Array([0x01020304, 0xa0b0c0d0])) as Uint32Array;
+      expect(Object.getPrototypeOf(typedArray)).toBe(Uint32Array.prototype);
+      expect(typedArray).toStrictEqual(new Uint32Array([0x01020304, 0xa0b0c0d0]));
+
+      let date = await stub.echo(new Date(1234567890)) as Date;
+      expect(date).toBeInstanceOf(Date);
+      expect(date.getTime()).toBe(1234567890);
+
+      expect(await stub.echo(123n)).toBe(123n);
+    });
+  }
+
+  it("aborts the receive loop when the transport is aborted", async () => {
+    let transport = new ObjectTestTransport();
+    let pending = transport.receive();
+    transport.abort(new Error("boom"));
+    await expect(pending).rejects.toThrow("boom");
+  });
+});
+
+describe("ReadableStream over RPC", () => {
+  it("can send a ReadableStream and read all chunks", async () => {
+    let stream = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue("hello");
+        controller.enqueue("world");
+        controller.close();
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: ReadableStream<string>) {
+        let chunks: string[] = [];
+        let reader = stream.getReader();
+        while (true) {
+          let { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value!);
+        }
+        return chunks;
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result = await harness.stub.receiveStream(stream);
+
+    expect(result).toEqual(["hello", "world"]);
+  });
+
+  it("can return a ReadableStream from an RPC call", async () => {
+    class StreamProvider extends RpcTarget {
+      getStream(): ReadableStream<string> {
+        return new ReadableStream({
+          start(controller) {
+            controller.enqueue("from");
+            controller.enqueue("server");
+            controller.close();
+          }
+        });
+      }
+    }
+
+    await using harness = new TestHarness(new StreamProvider());
+    let stream: any = await harness.stub.getStream();
+
+    let chunks: string[] = [];
+    let reader = stream.getReader();
+    while (true) {
+      let { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+
+    expect(chunks).toEqual(["from", "server"]);
+  });
+
+  it("can send ReadableStream in nested object", async () => {
+    let stream = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue("nested");
+        controller.close();
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveData(data: { stream: ReadableStream<string>, label: string }) {
+        let reader = data.stream.getReader();
+        let chunks: string[] = [];
+        while (true) {
+          let { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value!);
+        }
+        return `${data.label}: ${chunks.join(",")}`;
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result = await harness.stub.receiveData({ stream, label: "test" });
+
+    expect(result).toBe("test: nested");
+  });
+
+  it("can send ReadableStream in nested object (partial read)", async () => {
+    let stream = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue("first");
+        controller.enqueue("second");
+        controller.close();
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveData(data: { stream: ReadableStream<string>, label: string }) {
+        // Only read the first chunk, then cancel the stream
+        let reader = data.stream.getReader();
+        let { value } = await reader.read();
+        await reader.cancel();
+        return `${data.label}: ${value}`;
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result = await harness.stub.receiveData({ stream, label: "test" });
+
+    expect(result).toBe("test: first");
+  });
+
+  it("supports complex chunk types", async () => {
+    let stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue({ name: "test", value: 42 });
+        controller.enqueue([1, 2, 3]);
+        controller.enqueue(new Date(1234567890000));
+        controller.close();
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: ReadableStream) {
+        let chunks: unknown[] = [];
+        let reader = stream.getReader();
+        while (true) {
+          let { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+        return chunks;
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result: any = await harness.stub.receiveStream(stream);
+
+    expect(result).toHaveLength(3);
+    expect(result[0]).toEqual({ name: "test", value: 42 });
+    expect(result[1]).toEqual([1, 2, 3]);
+    expect(result[2]).toEqual(new Date(1234567890000));
+  });
+
+  it("propagates stream errors to the reader", async () => {
+    let stream = new ReadableStream({
+      pull(controller) {
+        controller.enqueue("ok");
+        controller.error(new Error("Stream failed"));
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: ReadableStream) {
+        let reader = stream.getReader();
+        let chunks: string[] = [];
+        try {
+          while (true) {
+            let { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+        } catch (err: any) {
+          return `chunks=${chunks.join(",")}, error: ${err.message}`;
+        }
+        return `chunks=${chunks.join(",")}, no error`;
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result = await harness.stub.receiveStream(stream);
+    expect(result).toContain("error:");
+    expect(result).toContain("Stream failed");
+  });
+
+  it("handles many chunks", async () => {
+    let count = 100;
+    let stream = new ReadableStream<number>({
+      start(controller) {
+        for (let i = 0; i < count; i++) {
+          controller.enqueue(i);
+        }
+        controller.close();
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: ReadableStream<number>) {
+        let sum = 0;
+        let reader = stream.getReader();
+        while (true) {
+          let { done, value } = await reader.read();
+          if (done) break;
+          sum += value!;
+        }
+        return sum;
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result = await harness.stub.receiveStream(stream);
+
+    // Sum of 0..99
+    expect(result).toBe(4950);
+
+    // HACK: We have to pump more mitrotasks than usual here because every chunk write has to be
+    //   disposed.
+    // TODO: Optimize out the need to dispose each stream write or find some other fix here.
+    for (let i = 0; i < 64; i++) {
+      await pumpMicrotasks();
+    }
+  });
+
+  it("can send both ReadableStream and WritableStream in same message", async () => {
+    let readStream = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue("input");
+        controller.close();
+      }
+    });
+
+    let outputChunks: string[] = [];
+    let writeStream = new WritableStream<string>({
+      write(chunk) { outputChunks.push(chunk); },
+      close() {}
+    });
+
+    class StreamProcessor extends RpcTarget {
+      async process(input: ReadableStream<string>, output: WritableStream<string>) {
+        let reader = input.getReader();
+        let writer = output.getWriter();
+        while (true) {
+          let { done, value } = await reader.read();
+          if (done) break;
+          await writer.write(`processed: ${value}`);
+        }
+        await writer.close();
+        return "done";
+      }
+    }
+
+    await using harness = new TestHarness(new StreamProcessor());
+    let result = await harness.stub.process(readStream, writeStream);
+
+    expect(result).toBe("done");
+    expect(outputChunks).toEqual(["processed: input"]);
+  });
+
+  it("cancels a ReadableStream in a result when the whole result is disposed", async () => {
+    if (navigator.userAgent === "Cloudflare-Workers") {
+      // There's currently some bugs in workerd which prevent this test from working there:
+      //     https://github.com/cloudflare/workerd/pull/6066
+      // When that gets fixed, remove this early return.
+      return;
+    }
+
+    let cancelCalled = false;
+
+    class StreamProvider extends RpcTarget {
+      getStream(): ReadableStream<string> {
+        return new ReadableStream({
+          start(controller) {
+            // Enqueue a few chunks and leave the stream open (not closed).
+            // This simulates a stream the caller might not fully consume.
+            controller.enqueue("chunk-1");
+            controller.enqueue("chunk-2");
+          },
+          cancel() {
+            cancelCalled = true;
+          }
+        });
+      }
+    }
+
+    // Don't use the standard harness — the disposal tracking bug causes leaked exports
+    // that would trip the checkAllDisposed assertion and mask the real test failure.
+    let clientTransport = new TestTransport("client");
+    let serverTransport = new TestTransport("server", clientTransport);
+
+    let client = new RpcSession(clientTransport);
+    let server = new RpcSession(serverTransport, new StreamProvider());
+
+    let stub: any = client.getRemoteMain();
+
+    // Get the stream result but don't read from it.
+    let streamResult = await stub.getStream();
+
+    // Dispose the result without reading — this should cascade and cancel the
+    // underlying ReadableStream on the server.
+    streamResult[Symbol.dispose]();
+
+    // Wait for disposal to propagate across the RPC boundary.
+    for (let i = 0; i < 64; i++) {
+      await pumpMicrotasks();
+    }
+
+    expect(cancelCalled).toBe(true);
+  });
+
+  it("can send an RpcTarget as a stream chunk and call methods on it", async () => {
+    // The sender enqueues a pass-by-reference RpcTarget into a ReadableStream. The receiver
+    // reads it back as a stub and can call methods on it, which route back to the sender.
+    class ChunkTarget extends RpcTarget {
+      square(i: number) { return i * i; }
+      get label() { return "chunk-target"; }
+    }
+
+    let stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new ChunkTarget());
+        controller.close();
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: ReadableStream) {
+        let reader = stream.getReader();
+        let { value } = await reader.read();
+        using chunk = value as any;
+        let result = {
+          squared: await chunk.square(5),
+          label: await chunk.label,
+        };
+        // Drain the closing `done` chunk so the underlying pipe is released.
+        await reader.read();
+        return result;
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result: any = await harness.stub.receiveStream(stream);
+
+    expect(result.squared).toBe(25);
+    expect(result.label).toBe("chunk-target");
+  });
+
+  it("can return a ReadableStream containing RpcTargets and call methods on chunks", async () => {
+    // The server returns a ReadableStream whose chunks are RpcTargets. The client reads them
+    // as stubs and can call methods that route back to the server.
+    class ChunkTarget extends RpcTarget {
+      square(i: number) { return i * i; }
+      get label() { return "server-chunk"; }
+    }
+
+    class StreamProvider extends RpcTarget {
+      getStream(): ReadableStream {
+        return new ReadableStream({
+          start(controller) {
+            controller.enqueue(new ChunkTarget());
+            controller.close();
+          }
+        });
+      }
+    }
+
+    await using harness = new TestHarness(new StreamProvider());
+    let stream: any = await harness.stub.getStream();
+
+    let reader = stream.getReader();
+    let { value } = await reader.read();
+    using chunk = value as any;
+
+    expect(await chunk.square(6)).toBe(36);
+    expect(await chunk.label).toBe("server-chunk");
+
+    // Drain the closing `done` chunk so the underlying pipe is released.
+    let { done } = await reader.read();
+    expect(done).toBe(true);
+  });
+
+  it("can send multiple RpcTargets as stream chunks", async () => {
+    class ChunkTarget extends RpcTarget {
+      constructor(private id: number) { super(); }
+      getId() { return this.id; }
+    }
+
+    let stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new ChunkTarget(1));
+        controller.enqueue(new ChunkTarget(2));
+        controller.enqueue(new ChunkTarget(3));
+        controller.close();
+      }
+    });
+
+    class StreamReceiver extends RpcTarget {
+      async receiveStream(stream: ReadableStream) {
+        let reader = stream.getReader();
+        let ids: number[] = [];
+        let chunks: any[] = [];
+        try {
+          while (true) {
+            let { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            ids.push(await value.getId());
+          }
+          return ids;
+        } finally {
+          for (let chunk of chunks) {
+            chunk[Symbol.dispose]();
+          }
+        }
+      }
+    }
+
+    await using harness = new TestHarness(new StreamReceiver());
+    let result: any = await harness.stub.receiveStream(stream);
+
+    expect(result).toEqual([1, 2, 3]);
+  });
+});
+
+// =======================================================================================
+
+describe("Fetch API types over RPC", () => {
+  it("can send Headers over RPC", async () => {
+    class HeaderServer extends RpcTarget {
+      getHeaders() {
+        return new Headers({"Content-Type": "text/html", "X-Server": "test"});
+      }
+      readHeader(headers: Headers, name: string) {
+        return headers.get(name);
+      }
+    }
+
+    await using harness = new TestHarness(new HeaderServer());
+    let stub = harness.stub as any;
+
+    // Server -> Client
+    let headers: Headers = await stub.getHeaders();
+    expect(headers).toBeInstanceOf(Headers);
+    expect(headers.get("content-type")).toBe("text/html");
+    expect(headers.get("x-server")).toBe("test");
+
+    // Client -> Server
+    let result = await stub.readHeader(new Headers({"Authorization": "Bearer abc"}), "authorization");
+    expect(result).toBe("Bearer abc");
+  });
+
+  it("can send Request with body over RPC", async () => {
+    class RequestServer extends RpcTarget {
+      async receiveRequest(req: Request) {
+        return {
+          url: req.url,
+          method: req.method,
+          body: await req.text(),
+          customHeader: req.headers.get("x-custom"),
+        };
+      }
+      getRequest() {
+        return new Request("http://example.com/api", {
+          method: "POST",
+          headers: {"X-Custom": "fromserver"},
+          body: "server body",
+        });
+      }
+    }
+
+    await using harness = new TestHarness(new RequestServer());
+    let stub = harness.stub as any;
+
+    // Client -> Server: send request with body and headers
+    let result = await stub.receiveRequest(new Request("http://test.com/path", {
+      method: "PUT",
+      headers: {"X-Custom": "hello"},
+      body: "request body",
+    }));
+    expect(result.url).toBe("http://test.com/path");
+    expect(result.method).toBe("PUT");
+    expect(result.body).toBe("request body");
+    expect(result.customHeader).toBe("hello");
+
+    // Server -> Client: receive request with body
+    let req: Request = await stub.getRequest();
+    expect(req).toBeInstanceOf(Request);
+    expect(req.url).toBe("http://example.com/api");
+    expect(req.method).toBe("POST");
+    expect(req.headers.get("x-custom")).toBe("fromserver");
+    expect(await req.text()).toBe("server body");
+  });
+
+  it("can send Response with body over RPC", async () => {
+    class ResponseServer extends RpcTarget {
+      async receiveResponse(resp: Response) {
+        return {
+          status: resp.status,
+          statusText: resp.statusText,
+          body: await resp.text(),
+          customHeader: resp.headers.get("x-custom"),
+        };
+      }
+      getResponse() {
+        return new Response("hello from server", {
+          status: 201,
+          statusText: "Created",
+          headers: {"X-Custom": "fromserver"},
+        });
+      }
+    }
+
+    await using harness = new TestHarness(new ResponseServer());
+    let stub = harness.stub as any;
+
+    // Client -> Server: send response with body and status
+    let result = await stub.receiveResponse(new Response("response body", {
+      status: 404,
+      statusText: "Not Found",
+      headers: {"X-Custom": "value"},
+    }));
+    expect(result.status).toBe(404);
+    expect(result.statusText).toBe("Not Found");
+    expect(result.body).toBe("response body");
+    expect(result.customHeader).toBe("value");
+
+    // Server -> Client: receive response with body
+    let resp: Response = await stub.getResponse();
+    expect(resp).toBeInstanceOf(Response);
+    expect(resp.status).toBe(201);
+    expect(resp.statusText).toBe("Created");
+    expect(resp.headers.get("x-custom")).toBe("fromserver");
+    expect(await resp.text()).toBe("hello from server");
+  });
+
+  it("can send Request without body over RPC", async () => {
+    class RequestServer extends RpcTarget {
+      async receiveRequest(req: Request) {
+        let hasBody = req.body !== null;
+        if (req.body === undefined) {
+          // Ugh, Firefox doesn't support `request.body`, try a different approach.
+          hasBody = (await req.arrayBuffer()).byteLength > 0;
+        }
+
+        return { url: req.url, method: req.method, hasBody };
+      }
+    }
+
+    await using harness = new TestHarness(new RequestServer());
+    let stub = harness.stub as any;
+    let result = await stub.receiveRequest(new Request("http://example.com"));
+    expect(result.url).toBe("http://example.com/");
+    expect(result.method).toBe("GET");
+    expect(result.hasBody).toBe(false);
+  });
+
+  it("can send Response without body over RPC", async () => {
+    class ResponseServer extends RpcTarget {
+      receiveResponse(resp: Response) {
+        return { status: resp.status, hasBody: resp.body !== null };
+      }
+    }
+
+    await using harness = new TestHarness(new ResponseServer());
+    let stub = harness.stub as any;
+    let result = await stub.receiveResponse(new Response(null, {status: 204}));
+    expect(result.status).toBe(204);
+    expect(result.hasBody).toBe(false);
+  });
+});
+
+// =======================================================================================
+
+describe("Blob over RPC", () => {
+  it("can send and receive a binary Blob", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let bytes = new TextEncoder().encode("hello from blob");
+    let blob = new Blob([bytes], {type: "application/octet-stream"});
+    using result = await harness.stub.echoBlob(blob);
+    expect(result).toBeInstanceOf(Blob);
+    expect(result.type).toBe("application/octet-stream");
+    expect(new Uint8Array(await result.arrayBuffer())).toStrictEqual(bytes);
+  });
+
+  it("preserves Blob MIME type", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let blob = new Blob(["<h1>hello</h1>"], {type: "text/html; charset=utf-8"});
+    using result = await harness.stub.echoBlob(blob);
+    expect(result.type).toBe("text/html; charset=utf-8");
+    expect(await result.text()).toBe("<h1>hello</h1>");
+  });
+
+  it("can send an empty Blob", async () => {
+    await using harness = new TestHarness(new TestTarget());
+    let blob = new Blob([], {type: "application/octet-stream"});
+    using result = await harness.stub.echoBlob(blob);
+    expect(result).toBeInstanceOf(Blob);
+    expect(result.size).toBe(0);
+    expect(result.type).toBe("application/octet-stream");
+  });
+
+  it("can send a Blob as part of a compound return value", async () => {
+    class BlobServer extends RpcTarget {
+      makePayload() {
+        return {
+          name: "test.txt",
+          blob: new Blob(["file content"], {type: "text/plain"}),
+          size: 12,
+        };
+      }
+    }
+
+    await using harness = new TestHarness(new BlobServer());
+    let stub = harness.stub as any;
+    let result = await stub.makePayload();
+    expect(result.name).toBe("test.txt");
+    expect(result.blob).toBeInstanceOf(Blob);
+    expect(result.blob.type).toBe("text/plain");
+    expect(await result.blob.text()).toBe("file content");
+    expect(result.size).toBe(12);
+  });
+
+  it("can send multiple Blobs in the same call", async () => {
+    // Each Blob produces its own RpcPromise entry in the Evaluator's `promises` list; all must
+    // resolve before the payload is delivered to user code.
+    class BlobCombiner extends RpcTarget {
+      async concatenate(a: Blob, b: Blob) {
+        let [textA, textB] = await Promise.all([a.text(), b.text()]);
+        return `${textA}|${textB}`;
+      }
+    }
+
+    await using harness = new TestHarness(new BlobCombiner());
+    let stub = harness.stub as any;
+    let result = await stub.concatenate(
+      new Blob(["hello"], {type: "text/plain"}),
+      new Blob(["world"], {type: "text/plain"}),
+    );
+    expect(result).toBe("hello|world");
+  });
+
+  it("can receive an array of Blobs in one return value", async () => {
+    // Multiple RpcPromise entries produced from a single return value, all substituted before
+    // the array reaches user code.
+    class BlobFactory extends RpcTarget {
+      makeBlobs() {
+        return [
+          new Blob(["first"],  {type: "text/plain"}),
+          new Blob(["second"], {type: "text/plain"}),
+          new Blob(["third"],  {type: "text/plain"}),
+        ];
+      }
+    }
+
+    await using harness = new TestHarness(new BlobFactory());
+    let stub = harness.stub as any;
+    let [b1, b2, b3] = await stub.makeBlobs();
+    expect(await b1.text()).toBe("first");
+    expect(await b2.text()).toBe("second");
+    expect(await b3.text()).toBe("third");
+  });
+
+  it("round-trips a Blob with no MIME type", async () => {
+    // new Blob([bytes]) leaves .type as "" — the empty string must survive the round-trip
+    // and not become undefined or null.
+    await using harness = new TestHarness(new TestTarget());
+    let bytes = new TextEncoder().encode("untyped content");
+    let blob = new Blob([bytes]);
+    expect(blob.type).toBe("");
+    using result = await harness.stub.echoBlob(blob);
+    expect(result.type).toBe("");
+    expect(new Uint8Array(await result.arrayBuffer())).toStrictEqual(bytes);
+  });
+
+  it("preserves every possible byte value through the pipe", async () => {
+    // All 256 possible byte values in a single Blob — verifies the pipe mechanism
+    // neither corrupts nor truncates any byte.
+    await using harness = new TestHarness(new TestTarget());
+    let bytes = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) bytes[i] = i;
+    let blob = new Blob([bytes], {type: "application/octet-stream"});
+    using result = await harness.stub.echoBlob(blob);
+    expect(result.size).toBe(256);
+    expect(new Uint8Array(await result.arrayBuffer())).toStrictEqual(bytes);
+  });
+
+  it("can send a large Blob over RPC", async () => {
+    // 1 MB blob — exercises multi-chunk stream collection in streamToBlob().
+    // Timeout is raised because CI machines can be slow to pump 1 MB through the
+    // fake in-process transport (default 5 s is too tight on some runners).
+    // Skipped in workerd: the isolate drops its connection when a large in-process
+    // stream is pumped through it (infrastructure limit, not a code bug).
+    if (navigator.userAgent === "Cloudflare-Workers") return;
+    await using harness = new TestHarness(new TestTarget());
+    let size = 1024 * 1024;
+    let bytes = new Uint8Array(size);
+    for (let i = 0; i < size; i++) bytes[i] = i & 0xff;
+    let blob = new Blob([bytes], {type: "application/octet-stream"});
+    using result = await harness.stub.echoBlob(blob);
+    expect(result.size).toBe(size);
+    expect(new Uint8Array(await result.arrayBuffer())).toStrictEqual(bytes);
+  }, 30_000);
+
+  it("can pass a Blob through a local (loopback) stub", async () => {
+    // No network — payload goes through deepCopy() rather than the Evaluator. Blobs are
+    // immutable so deepCopy() returns them as-is, without going through the pipe path.
+    using stub = new RpcStub(new TestTarget());
+    let bytes = new TextEncoder().encode("loopback content");
+    let blob = new Blob([bytes], {type: "text/plain"});
+    let result = await stub.echoBlob(blob);
+    expect(result).toBeInstanceOf(Blob);
+    expect(result.type).toBe("text/plain");
+    expect(await result.text()).toBe("loopback content");
+    result[Symbol.dispose]();
+  });
+
+  it("disposing a result containing a Blob does not throw", async () => {
+    // Blobs have no owned resources; disposeImpl() must be a silent no-op.
+    class BlobServer extends RpcTarget {
+      makeBlob() { return new Blob(["hello"], {type: "text/plain"}); }
+    }
+
+    await using harness = new TestHarness(new BlobServer());
+    let stub = harness.stub as any;
+    let result = await stub.makeBlob();
+    expect(result).toBeInstanceOf(Blob);
+    // Dispose without reading — should never throw.
+    expect(() => result[Symbol.dispose]()).not.toThrow();
+  });
+
+  it("is encoded as a readable pipe on the wire", async () => {
+    // Verify the wire format: ["blob", type, ["readable", pipeId]] — always. There is no inline
+    // fast path; reading a Blob's bytes is inherently async so we always stream.
+    class Server extends RpcTarget {
+      receiveBlob(_blob: Blob) { return "ok"; }
+    }
+
+    let clientTransport = new TestTransport("client");
+    let serverTransport = new TestTransport("server", clientTransport);
+
+    let client = new RpcSession<Server>(clientTransport);
+    let server = new RpcSession(serverTransport, new Server());
+
+    serverTransport.fence();
+
+    let stub = client.getRemoteMain();
+    let blob = new Blob(["hello"], {type: "text/plain"});
+    let p = stub.receiveBlob(blob);
+
+    // The call message is dispatched synchronously (the pipe path does not require pre-reading
+    // bytes on the sending side), but yield once to be safe across environments.
+    await Promise.resolve();
+
+    let blobExpr: any = undefined;
+    for (let i = 0; i < serverTransport.pendingCount; i++) {
+      let msg = JSON.parse((serverTransport as any).queue[i]);
+      if (msg[0] === "push") {
+        let findBlob = (v: any): any => {
+          if (v instanceof Array && v[0] === "blob") return v;
+          if (v instanceof Array) for (let e of v) { let r = findBlob(e); if (r) return r; }
+          if (v && typeof v === "object") for (let k in v) { let r = findBlob(v[k]); if (r) return r; }
+          return undefined;
+        };
+        blobExpr = findBlob(msg);
+        if (blobExpr) break;
+      }
+    }
+
+    expect(blobExpr).toBeDefined();
+    expect(blobExpr[0]).toBe("blob");
+    expect(blobExpr[1]).toBe("text/plain");
+    expect(blobExpr[2]).toBeInstanceOf(Array);
+    expect(blobExpr[2][0]).toBe("readable");
+    expect(typeof blobExpr[2][1]).toBe("number"); // pipe ID
+
+    serverTransport.releaseFence();
+    await p;
+
+    stub[Symbol.dispose]();
+    await pumpMicrotasks();
+  });
+});
+
+describe("deserialization and transport correctness", () => {
+  it("does not let serialized error properties override Object.prototype members", () => {
+    // Wire format for an error is ["error", name, message, stack, propsBag]. The props bag
+    // carries own properties the sender attached to the error. These must be filtered the same
+    // way the plain-object deserializer filters them, so that keys like `__proto__`, `toString`,
+    // `valueOf`, `hasOwnProperty` and `toJSON` cannot be assigned onto the resulting error.
+    let wire = '["error","Error","boom","at test (x:1:1)",' +
+      '{"code":"E_TEST","toString":"nope","valueOf":"nope","hasOwnProperty":"nope",' +
+      '"toJSON":"nope","__proto__":{"polluted":true}}]';
+    let err = deserialize(wire) as Error & Record<string, unknown>;
+
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe("boom");
+
+    // The legitimate own property is still copied across.
+    expect(Object.prototype.hasOwnProperty.call(err, "code")).toBe(true);
+    expect(err.code).toBe("E_TEST");
+
+    // Object.prototype members and toJSON must not become own properties of the error.
+    for (let key of ["toString", "valueOf", "hasOwnProperty", "toJSON", "__proto__"]) {
+      expect(Object.prototype.hasOwnProperty.call(err, key)).toBe(false);
+    }
+
+    // The error's prototype and behavior are unchanged.
+    expect(Object.getPrototypeOf(err)).toBe(Error.prototype);
+    expect(typeof err.toString).toBe("function");
+    expect(err.toString()).toBe("Error: boom");
+    expect((err as any).polluted).toBeUndefined();
+    expect(({} as any).polluted).toBeUndefined();
+  });
+
+  it("does not let an error type name resolve to an Object.prototype member (type confusion)", () => {
+    // The error type name (value[1]) is attacker-controlled and is used to look up the error
+    // class in ERROR_TYPES. ERROR_TYPES must not resolve names to inherited Object.prototype
+    // members. Before it was given a null prototype, ERROR_TYPES["constructor"] resolved to
+    // `Object` (truthy, so the `|| Error` fallback was skipped), so `new Object(message)`
+    // produced a `String` wrapper rather than an `Error` -- an `instanceof Error` bypass that
+    // still carried the attacker's own-property bag. A name like "toString" resolved to a
+    // non-constructor and threw, aborting the RPC session.
+    let confused = deserialize(
+      '["error","constructor","attacker-payload",null,{"injected":true,"httpStatus":200}]'
+    ) as Error & Record<string, unknown>;
+
+    // Must be a real Error, not a type-confused String wrapper.
+    expect(confused).toBeInstanceOf(Error);
+    expect(confused).not.toBeInstanceOf(String);
+    expect(confused.name).toBe("Error");
+    expect(confused.message).toBe("attacker-payload");
+    // Legitimate (non-prototype) own properties still round-trip onto the correctly-typed Error.
+    expect(confused.injected).toBe(true);
+    expect(confused.httpStatus).toBe(200);
+
+    // Any Object.prototype member name used as the error type must fall back to Error and must
+    // never throw.
+    for (let name of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__",
+                      "isPrototypeOf", "propertyIsEnumerable"]) {
+      let err = deserialize(`["error",${JSON.stringify(name)},"msg"]`) as Error;
+      expect(err).toBeInstanceOf(Error);
+      expect(err.name).toBe("Error");
+      expect(err.message).toBe("msg");
+    }
+
+    // Legitimate built-in error types still resolve correctly.
+    expect(deserialize('["error","TypeError","t"]')).toBeInstanceOf(TypeError);
+    expect(deserialize('["error","RangeError","r"]')).toBeInstanceOf(RangeError);
+  });
+
+  it("delivers the unwrapped abort reason to onRpcBroken (not the payload wrapper)", async () => {
+    // Intentionally not using `using` here: the session is deliberately aborted below, so the
+    // end-of-test "everything disposed" check would not apply.
+    let harness = new TestHarness(new TestTarget());
+    let captured: any[] = [];
+    harness.stub.onRpcBroken(error => { captured.push(error); });
+
+    // Feed the server a malformed message so its read loop throws. The server responds by
+    // sending an ["abort", reason] message back to the client, exercising the client's "abort"
+    // handler. That handler must forward the unwrapped reason value, not the payload wrapper.
+    await harness.clientTransport.send('["not a valid message"]');
+    await pumpMicrotasks();
+
+    expect(captured.length).toBe(1);
+    let error = captured[0];
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error.message)).toContain("bad RPC message");
+  });
+
+  it("truncates an over-long WebSocket close reason on a code-point boundary", async () => {
+    let closeArgs: { code: number, reason: string }[] = [];
+    let closeThrew = false;
+    let listeners: Record<string, ((ev: any) => void)[]> = {};
+
+    let fakeWs: any = {
+      readyState: (globalThis as any).WebSocket.OPEN,
+      addEventListener(type: string, cb: (ev: any) => void) {
+        (listeners[type] ||= []).push(cb);
+      },
+      send(_message: string) { return Promise.resolve(); },
+      close(code: number, reason: string) {
+        // Mimic the real contract: an over-long reason throws.
+        if (new TextEncoder().encode(reason).length > MAX_CLOSE_REASON_BYTES) {
+          closeThrew = true;
+          throw new Error("close reason too long");
+        }
+        closeArgs.push({ code, reason });
+      },
+    };
+
+    newWebSocketRpcSession(fakeWs);
+
+    // Peer-supplied abort reason that straddles the limit with a multi-byte character: the 2-byte
+    // "é" begins at the last allowed byte, so truncation must drop the partial "é" rather than emit
+    // a replacement character (itself 3 bytes, which would re-exceed the limit).
+    let reason = "a".repeat(MAX_CLOSE_REASON_BYTES - 1) + "\u00e9";
+    for (let cb of listeners["message"] || []) cb({ data: JSON.stringify(["abort", reason]) });
+    await pumpMicrotasks();
+
+    expect(closeThrew).toBe(false);
+    expect(closeArgs.length).toBe(1);
+    expect(closeArgs[0].code).toBe(3000);
+    let sentReason = closeArgs[0].reason;
+    expect(new TextEncoder().encode(sentReason).length).toBeLessThanOrEqual(MAX_CLOSE_REASON_BYTES);
+    expect(sentReason).not.toContain("\uFFFD");
+    expect(sentReason).toBe("a".repeat(MAX_CLOSE_REASON_BYTES - 1));
+  });
+});
