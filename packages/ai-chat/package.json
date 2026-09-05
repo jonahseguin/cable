@@ -1,0 +1,84 @@
+{
+  "name": "@cloudflare/ai-chat",
+  "version": "0.11.0",
+  "description": "Cloudflare Agents (x) AI SDK Chat",
+  "keywords": [
+    "cloudflare",
+    "agents",
+    "ai",
+    "sdk",
+    "chat"
+  ],
+  "type": "module",
+  "repository": {
+    "directory": "packages/ai-chat",
+    "type": "git",
+    "url": "git+https://github.com/cloudflare/agents.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cloudflare/agents/issues"
+  },
+  "dependencies": {
+    "nanoid": "^5.1.16"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/react": "^19.2.17",
+    "agents": "workspace:*",
+    "ai": "^7.0.0",
+    "react": "^19.2.7",
+    "zod": "^4.5.4"
+  },
+  "peerDependencies": {
+    "@ai-sdk/react": "^3.0.0 || ^4.0.0",
+    "agents": ">=0.23.0 <1.0.0",
+    "ai": "^6.0.0 || ^7.0.0",
+    "react": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js",
+      "require": "./dist/types.js"
+    },
+    "./ai-chat-v5-migration": {
+      "types": "./dist/ai-chat-v5-migration.d.ts",
+      "import": "./dist/ai-chat-v5-migration.js",
+      "require": "./dist/ai-chat-v5-migration.js"
+    }
+  },
+  "author": "Cloudflare Inc.",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsx ./scripts/build.ts",
+    "test": "vitest --run",
+    "test:react": "vitest --project react",
+    "test:workers": "vitest --project workers",
+    "test:e2e": "vitest --run -c src/e2e-tests/vitest.config.ts",
+    "test:e2e:deployed": "vitest --run -c src/e2e-tests/vitest.deployed.config.ts",
+    "test:e2e:playwright": "playwright test --config e2e/playwright.config.ts",
+    "test:e2e:playwright:llm": "playwright test --config e2e/playwright.llm.config.ts"
+  }
+}

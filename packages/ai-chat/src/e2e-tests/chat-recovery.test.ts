@@ -1,0 +1,482 @@
+/**
+ * E2E test: chat recovery after process eviction.
+ *
+ * 1. Start wrangler dev with ChatRecoveryTestAgent
+ * 2. Send a chat message via WebSocket (starts a slow stream inside runFiber)
+ * 3. Kill the process mid-stream (SIGKILL)
+ * 4. Restart wrangler with the same persist directory
+ * 5. Verify: onChatRecovery fired, partial text persisted, fiber row cleaned up
+ */
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
+import { setDefaultAutoSelectFamily, Socket } from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import fs from "node:fs";
+
+// Disable happy-eyeballs dual-stack racing. When a probe `fetch`/WebSocket
+// connects to a server that is mid-SIGKILL/restart, the abandoned racing socket
+// can throw a connect-time `setTypeOfService` EINVAL that surfaces as an
+// unhandled error and fails an otherwise-green chaos run.
+setDefaultAutoSelectFamily(false);
+
+// Write-time variant of the same hazard: undici's `writeH1` calls
+// `socket.setTypeOfService(...)` on every request when the socket exposes it.
+// Against a server being torn down (SIGKILL/restart) the underlying
+// `setsockopt(IP_TOS)` syscall returns EINVAL, which Node throws *synchronously*
+// inside undici — there is no `fetch`/WebSocket call site to catch it, so it
+// surfaces as an unhandled exception and fails an otherwise-green run. We never
+// use IP type-of-service in these probes, so make the optional setter
+// best-effort: still apply it on healthy sockets, swallow the benign teardown
+// EINVAL.
+{
+  const proto = Socket.prototype as unknown as {
+    setTypeOfService?: (tos: number) => unknown;
+  };
+  const original = proto.setTypeOfService;
+  if (typeof original === "function") {
+    proto.setTypeOfService = function (this: unknown, tos: number) {
+      try {
+        return original.call(this, tos);
+      } catch {
+        return this;
+      }
+    };
+  }
+}
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PORT = 18798;
+// Use a literal IPv4 address rather than `localhost`: resolving `localhost`
+// triggers happy-eyeballs dual-stack racing, which intermittently throws a
+// connect-time `setTypeOfService` EINVAL on the abandoned socket while probing
+// a server that is mid-SIGKILL/restart.
+const AGENT_URL = `http://127.0.0.1:${PORT}`;
+const AGENT_NAME = "chat-recovery-e2e";
+const PERSIST_DIR = path.join(__dirname, ".wrangler-chat-e2e-state");
+
+type RecoveryStatus = {
+  recoveryCount: number;
+  contexts: Array<{
+    streamId: string;
+    requestId: string;
+    partialText: string;
+  }>;
+  messageCount: number;
+  assistantMessages: number;
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function killProcessOnPort(port: number): void {
+  try {
+    const output = execSync(
+      `lsof -tiTCP:${port} -sTCP:LISTEN 2>/dev/null || true`
+    )
+      .toString()
+      .trim();
+    if (output) {
+      for (const pid of output.split("\n").filter(Boolean)) {
+        try {
+          process.kill(Number(pid), "SIGKILL");
+        } catch {
+          // Already dead
+        }
+      }
+    }
+  } catch {
+    // lsof not available
+  }
+}
+
+function startWrangler(): ChildProcess {
+  const configPath = path.join(__dirname, "wrangler.jsonc");
+  const child = spawn(
+    "npx",
+    [
+      "wrangler",
+      "dev",
+      "--config",
+      configPath,
+      "--port",
+      String(PORT),
+      "--persist-to",
+      PERSIST_DIR
+    ],
+    {
+      cwd: __dirname,
+      stdio: ["pipe", "pipe", "pipe"],
+      detached: true,
+      env: { ...process.env, NODE_ENV: "test" }
+    }
+  );
+
+  child.stdout?.on("data", (data: Buffer) => {
+    const line = data.toString().trim();
+    if (line) console.log(`[wrangler] ${line}`);
+  });
+  child.stderr?.on("data", (data: Buffer) => {
+    const line = data.toString().trim();
+    if (line) console.log(`[wrangler:err] ${line}`);
+  });
+
+  return child;
+}
+
+async function waitForReady(maxAttempts = 60, delayMs = 1000): Promise<void> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fetch(`${AGENT_URL}/`);
+      // Drain the body so the connection is released rather than left open,
+      // which would leak sockets across the kill/restart churn.
+      await res.body?.cancel();
+      if (res.status > 0) return;
+    } catch {
+      // Not ready
+    }
+    await sleep(delayMs);
+  }
+  throw new Error("Wrangler did not start in time");
+}
+
+async function waitForPortFree(maxAttempts = 30, delayMs = 500): Promise<void> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fetch(`${AGENT_URL}/`);
+      await res.body?.cancel();
+    } catch {
+      return;
+    }
+    await sleep(delayMs);
+  }
+  throw new Error(`Port ${PORT} did not free in time`);
+}
+
+function killProcess(child: ChildProcess): Promise<void> {
+  return new Promise((resolve) => {
+    if (!child.pid) {
+      resolve();
+      return;
+    }
+    const fallback = setTimeout(resolve, 3000);
+    child.on("exit", () => {
+      clearTimeout(fallback);
+      resolve();
+    });
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {
+      try {
+        process.kill(child.pid, "SIGKILL");
+      } catch {
+        // Already dead
+      }
+    }
+  });
+}
+
+async function restartWrangler(child: ChildProcess): Promise<ChildProcess> {
+  await killProcess(child);
+  await waitForPortFree();
+  const next = startWrangler();
+  await waitForReady();
+  return next;
+}
+
+async function callAgent(
+  method: string,
+  args: unknown[] = []
+): Promise<unknown> {
+  const url = `${AGENT_URL}/agents/chat-recovery-test-agent/${AGENT_NAME}`;
+
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+    const id = crypto.randomUUID();
+
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error(`RPC call ${method} timed out`));
+    }, 10000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: "rpc", id, method, args }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data as string);
+        if (msg.type === "rpc" && msg.id === id) {
+          clearTimeout(timeout);
+          ws.close();
+          if (msg.success) {
+            resolve(msg.result);
+          } else {
+            reject(new Error(msg.error || "RPC failed"));
+          }
+        }
+      } catch {
+        // Ignore non-RPC messages
+      }
+    };
+
+    ws.onerror = (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    };
+  });
+}
+
+async function pollUntil<T>(
+  label: string,
+  read: () => Promise<T>,
+  done: (value: T) => boolean,
+  options?: { attempts?: number; delayMs?: number }
+): Promise<T> {
+  const attempts = options?.attempts ?? 30;
+  const delayMs = options?.delayMs ?? 1000;
+  let lastError: unknown;
+
+  for (let i = 0; i < attempts; i++) {
+    await sleep(delayMs);
+    try {
+      const value = await read();
+      console.log(`[test] ${label} poll ${i + 1}:`, value);
+      if (done(value)) return value;
+    } catch (error) {
+      lastError = error;
+      console.log(`[test] ${label} poll ${i + 1}: error`);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Timed out waiting for ${label}`);
+}
+
+async function waitForRecovery(): Promise<RecoveryStatus> {
+  return pollUntil(
+    "ai-chat recovery",
+    () => callAgent("getRecoveryStatus") as Promise<RecoveryStatus>,
+    (status) => status.recoveryCount > 0
+  );
+}
+
+function sendChatMessage(userMessage: string): Promise<void> {
+  const url = `${AGENT_URL}/agents/chat-recovery-test-agent/${AGENT_NAME}`;
+
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+
+    const timeout = setTimeout(() => {
+      ws.close();
+      resolve();
+    }, 3000);
+
+    ws.onopen = () => {
+      const requestId = crypto.randomUUID();
+      const body = JSON.stringify({
+        messages: [
+          {
+            id: `user-${Date.now()}`,
+            role: "user",
+            parts: [{ type: "text", text: userMessage }]
+          }
+        ]
+      });
+
+      ws.send(
+        JSON.stringify({
+          type: "cf_agent_use_chat_request",
+          id: requestId,
+          init: { method: "POST", body }
+        })
+      );
+
+      setTimeout(() => {
+        clearTimeout(timeout);
+        ws.close();
+        resolve();
+      }, 2000);
+    };
+
+    ws.onerror = (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    };
+  });
+}
+
+describe("chat recovery e2e", () => {
+  let wrangler: ChildProcess | null = null;
+
+  beforeEach(() => {
+    killProcessOnPort(PORT);
+    try {
+      fs.rmSync(PERSIST_DIR, { recursive: true, force: true });
+    } catch {
+      // OK
+    }
+  });
+
+  afterEach(async () => {
+    if (wrangler) {
+      await killProcess(wrangler);
+      wrangler = null;
+    }
+    killProcessOnPort(PORT);
+    try {
+      fs.rmSync(PERSIST_DIR, { recursive: true, force: true });
+    } catch {
+      // OK
+    }
+  });
+
+  it("should recover chat after process kill via persisted alarm", async () => {
+    wrangler = startWrangler();
+    await waitForReady();
+
+    await sendChatMessage("Tell me something interesting");
+
+    await sleep(3000);
+
+    const hasFibers = (await callAgent("hasFiberRows")) as boolean;
+    console.log(`[test] Fiber rows before kill: ${hasFibers}`);
+
+    console.log("[test] Killing wrangler (SIGKILL)...");
+    await killProcess(wrangler);
+    wrangler = null;
+    await waitForPortFree();
+
+    console.log("[test] Restarting wrangler...");
+    wrangler = startWrangler();
+    await waitForReady();
+    console.log("[test] Wrangler restarted");
+
+    let recovered = false;
+    for (let i = 0; i < 30; i++) {
+      await sleep(1000);
+      try {
+        const status = (await callAgent("getRecoveryStatus")) as {
+          recoveryCount: number;
+          messageCount: number;
+          assistantMessages: number;
+        };
+        console.log(
+          `[test] Poll ${i + 1}: recovered=${status.recoveryCount}, messages=${status.messageCount}, assistant=${status.assistantMessages}`
+        );
+        if (status.recoveryCount > 0) {
+          recovered = true;
+          break;
+        }
+      } catch {
+        console.log(`[test] Poll ${i + 1}: error (agent not ready)`);
+      }
+    }
+
+    expect(recovered).toBe(true);
+
+    const status = (await callAgent("getRecoveryStatus")) as {
+      recoveryCount: number;
+      contexts: Array<{
+        streamId: string;
+        requestId: string;
+        partialText: string;
+      }>;
+      messageCount: number;
+      assistantMessages: number;
+    };
+
+    expect(status.recoveryCount).toBeGreaterThanOrEqual(1);
+    expect(status.messageCount).toBeGreaterThanOrEqual(1);
+
+    // Recovery schedules a continuation/retry that re-runs the (slow) turn in a
+    // fresh fiber, so a fiber row legitimately exists *while* that turn streams.
+    // Poll until it settles rather than racing the in-flight continuation.
+    const fiberRowsAfter = await pollUntil(
+      "ai-chat fiber cleanup",
+      () => callAgent("hasFiberRows") as Promise<boolean>,
+      (has) => has === false
+    );
+    expect(fiberRowsAfter).toBe(false);
+  });
+
+  it("should continue an interrupted turn from a non-empty partial response", async () => {
+    wrangler = startWrangler();
+    await waitForReady();
+
+    await sendChatMessage("Tell me something interesting");
+
+    // Wait long enough for the slow mock model to stream a few chunks AND for
+    // ResumableStream to flush them to its durable buffer before the kill, so
+    // recovery sees a non-empty partial and takes the CONTINUE path (resume the
+    // same assistant message) rather than the empty-partial RETRY path. (test 1
+    // kills at 3s precisely to exercise the retry branch.)
+    await sleep(6000);
+
+    expect((await callAgent("hasFiberRows")) as boolean).toBe(true);
+
+    console.log("[test] Killing wrangler (SIGKILL)...");
+    await killProcess(wrangler);
+    wrangler = null;
+    await waitForPortFree();
+
+    console.log("[test] Restarting wrangler...");
+    wrangler = startWrangler();
+    await waitForReady();
+
+    const status = await waitForRecovery();
+    expect(status.recoveryCount).toBeGreaterThanOrEqual(1);
+    // A non-empty partial is what distinguishes the continue path from retry.
+    expect(status.contexts[0].partialText.length).toBeGreaterThan(0);
+
+    // The continuation resumes the SAME turn: once it settles there is exactly
+    // one assistant message (not a fresh re-run appended as a second one) and
+    // the fiber row is cleaned up.
+    const settled = await pollUntil(
+      "ai-chat continue settle",
+      () => callAgent("getRecoveryStatus") as Promise<RecoveryStatus>,
+      (s) => s.assistantMessages >= 1
+    );
+    expect(settled.assistantMessages).toBe(1);
+
+    const fiberRowsAfter = await pollUntil(
+      "ai-chat fiber cleanup",
+      () => callAgent("hasFiberRows") as Promise<boolean>,
+      (has) => has === false
+    );
+    expect(fiberRowsAfter).toBe(false);
+  });
+
+  it("should still recover after repeated restart churn around an interrupted turn", async () => {
+    wrangler = startWrangler();
+    await waitForReady();
+
+    await sendChatMessage("Tell me something long and interesting");
+    await sleep(3000);
+
+    const hasFibers = (await callAgent("hasFiberRows")) as boolean;
+    expect(hasFibers).toBe(true);
+
+    for (let i = 0; i < 2; i++) {
+      console.log(`[test] AIChat restart churn cycle ${i + 1}`);
+      wrangler = await restartWrangler(wrangler);
+      await sleep(250);
+    }
+
+    const status = await waitForRecovery();
+    expect(status.recoveryCount).toBeGreaterThanOrEqual(1);
+    expect(status.messageCount).toBeGreaterThanOrEqual(1);
+
+    // Recovery schedules a continuation/retry that re-runs the (slow) turn in a
+    // fresh fiber, so a fiber row legitimately exists *while* that turn streams.
+    // Poll until it settles rather than racing the in-flight continuation.
+    const fiberRowsAfter = await pollUntil(
+      "ai-chat fiber cleanup",
+      () => callAgent("hasFiberRows") as Promise<boolean>,
+      (has) => has === false
+    );
+    expect(fiberRowsAfter).toBe(false);
+  });
+});

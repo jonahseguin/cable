@@ -1,0 +1,20 @@
+{
+  "author": "",
+  "dependencies": {
+    "nanoid": "^5.1.16"
+  },
+  "devDependencies": {
+    "chalk": "^5.6.2"
+  },
+  "description": "The anthropic patterns, implemented with cloudflare agents",
+  "keywords": [],
+  "license": "ISC",
+  "name": "@cloudflare/agents-anthropic-patterns",
+  "private": true,
+  "scripts": {
+    "deploy": "vite build && wrangler deploy",
+    "start": "vite dev"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

@@ -1,0 +1,4866 @@
+# @cloudflare/agents
+
+## 0.22.0
+
+### Minor Changes
+
+- [#2071](https://github.com/cloudflare/agents/pull/2071) [`9620b58`](https://github.com/cloudflare/agents/commit/9620b58fcc78035e1dd9a65a647455f83328bc28) Thanks [@ben-reitz](https://github.com/ben-reitz)! - Make durable chat recovery unconditional for `AIChatAgent` and `Think`.
+
+  Every chat turn now runs in a recovery fiber, including WebSocket, programmatic, retry, and continuation paths. `chatRecovery` accepts `true` or a configuration object; `false` is no longer supported. Previously compiled JavaScript that still supplies `false` safely receives the default recovery configuration.
+
+  To keep durable bookkeeping while preventing automatic inference after an interruption, return `{ continue: false }` from `onChatRecovery()`. Use durable cancellation, side-effect, or spend state in that hook and tune `chatRecovery` budgets when retries must be bounded.
+
+- [#2133](https://github.com/cloudflare/agents/pull/2133) [`d536067`](https://github.com/cloudflare/agents/commit/d536067ce69dfbe82db6c31f4b4d5042792088de) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Vendor the required PartyServer runtime into `agents/lifecycle` and add a reusable Durable Object lifecycle for startup, request interception, alarms, and WebSockets. `Agent` now directly extends Cloudflare's `DurableObject` and composes the same lifecycle used by standalone objects; standalone hosts use the explicit `Lifecycle.install(this)` factory (or the expanded `new ...` plus `installHandlers()` form). Both Agent subclasses and standalone hosts use the existing `routeAgentRequest()` API and `/agents` URL prefix; the lifecycle entry point does not introduce a second public router.
+
+  Lifecycle WebSockets always use Cloudflare's Hibernation API; the `static options.hibernate` switch and in-memory connection mode are removed. Named Durable Objects use native `ctx.id.name`, while a read-only `__ps_name` fallback migrates objects created by older releases without writing new compatibility state.
+
+- [#2058](https://github.com/cloudflare/agents/pull/2058) [`381b9bb`](https://github.com/cloudflare/agents/commit/381b9bb319e2123771eaa82ad485d0f2d28652f1) Thanks [@ben-reitz](https://github.com/ben-reitz)! - Throttle chat UI updates by default in `useAgentChat`
+
+  Streaming writes chat state once per chunk, and each write re-renders. When
+  chunks arrive in a burst — a resumed stream replaying a long turn, for
+  example — React reaches its 50-render limit and throws "Maximum update depth
+  exceeded", which the AI SDK reports as a failed turn even though the server
+  completed it ([#1913](https://github.com/cloudflare/agents/issues/1913)).
+
+  `useAgentChat` now coalesces those updates every 50ms, which removes about 78%
+  of renders on a fast stream and matches the value the AI SDK documents. The
+  first chunk of a stream is never delayed. Pass `throttle: false` to render
+  every chunk as it arrives, or a number to change the interval. The deprecated
+  `experimental_throttle` is still honoured. Message snapshots, functional
+  updates, and streamed continuations resolve against the current chat store, so
+  coalescing renders cannot roll assistant content back to an older snapshot.
+
+- [#1897](https://github.com/cloudflare/agents/pull/1897) [`29b0107`](https://github.com/cloudflare/agents/commit/29b01079e4cf1ae82918b019f97a247317f49912) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Add `Scheduler`, a reusable Lifecycle capability for persistent delayed, dated, cron, and interval callbacks, under `agents/schedules`. Scheduled callbacks are registered on the Scheduler itself (`new Scheduler({ callbacks: { ... } })`), and `set()` / `every()` type both the callback name and the payload against that registration, so the typed scheduling surface and the runtime dispatch target are the same object. `LifecycleCapability` supplies every capability with storage, readiness, startup state, alarm coordination, a host invocation boundary, best-effort events, and generic capability routing — Scheduler consumes only that standard surface plus its callbacks and policy options, so any host that installs it configures nothing else. Lifecycle owns the physical Durable Object alarm and routes matching capability messages between Agent facets through one internal transport aperture, preserving existing root-owned facet schedule rows without Scheduler-specific Agent RPC methods or an Agent adapter. `Agent` uses the same Scheduler behind its existing APIs — name-based `this.schedule(60, "methodName")` keeps dispatching to Agent methods through a composition-root resolver — and preserves callback context, observability, retries, OOM handling, and alarm behavior. MCP now receives storage from Lifecycle when installed. Explicit destruction disposes live capability resources once, then clears shared Durable Object storage with `deleteAll()`. Think workflow notifications now contribute their wake time through Lifecycle instead of writing the physical alarm directly. The previous `agents/schedule` parser entry point remains as a deprecated compatibility alias. Agent exposes the composition root as experimental `this.lifecycle` and `this.scheduler` properties. The `agents/lifecycle` entry point and the capability surfaces built on it (`Scheduler`, installing `MCPClientManager` directly as a capability) are experimental and may change between releases; Agent's established APIs are unaffected.
+
+  Compatibility notes: `MCPClientManagerOptions.storage` is removed — the manager receives storage from the Lifecycle it is installed on, so standalone construction with an explicit `DurableObjectStorage` is no longer supported. Scheduled callbacks now receive the documented parsed `Schedule` object as their second argument (previously the raw storage row, whose `payload` was an unparsed JSON string). The internal `_cf_*ForFacet` schedule RPC methods are replaced by the generic `_cf_routeLifecycle` capability aperture; facets always run the same deployed script, so no coordination is required.
+
+- [#2161](https://github.com/cloudflare/agents/pull/2161) [`ded09c6`](https://github.com/cloudflare/agents/commit/ded09c6f7b35326b8907ae3552ce9228b88089d2) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Remove the published `agents` command-line binary. Its advertised `init`, `dev`, `deploy`, and `mcp` commands were placeholders that printed "not implemented yet" and exited successfully. Use the documented C3 starter, Vite and Wrangler commands, and MCP APIs instead.
+
+- [#1895](https://github.com/cloudflare/agents/pull/1895) [`4ba9a37`](https://github.com/cloudflare/agents/commit/4ba9a375208c2e8209fb407aa3567553e3644067) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Make `MCPClientManager` a reusable Durable Object lifecycle capability. It now owns schema initialization, persisted HTTP and RPC connection restoration, and OAuth callback interception when installed with `Lifecycle.use()`, while preserving `Agent.this.mcp` and the existing Agent MCP APIs. `agents/lifecycle` exports the `LifecycleObject` host interface and canonical `getCurrentAgent()` accessor; Lifecycle supplies that context to host hooks while capability hooks remain self-contained.
+
+### Patch Changes
+
+- [#2027](https://github.com/cloudflare/agents/pull/2027) [`e87ad62`](https://github.com/cloudflare/agents/commit/e87ad62bb6df735cc2910f7dc20edd62111b6410) Thanks [@cjol](https://github.com/cjol)! - Route asynchronous callable and streaming responses through the facet WebSocket frame that originated each RPC.
+
+- [#1978](https://github.com/cloudflare/agents/pull/1978) [`b7c7696`](https://github.com/cloudflare/agents/commit/b7c76964b329b9b5911c0c9a34b8b0f514fffafd) Thanks [@Ankcorn](https://github.com/Ankcorn)! - Add Agents SDK instrumentation and agent instance identity attributes to SDK-created spans.
+
+- [#2050](https://github.com/cloudflare/agents/pull/2050) [`3b43c33`](https://github.com/cloudflare/agents/commit/3b43c337f468688f30d7ea0ff78fdff37d9a5163) Thanks [@ben-reitz](https://github.com/ben-reitz)! - Batch replayed chunks during stream resume so long turns do not exceed React's
+  update limit and report a false error.
+
+- [#2120](https://github.com/cloudflare/agents/pull/2120) [`b038440`](https://github.com/cloudflare/agents/commit/b0384407915cacc9d81951e369466feae4389db0) Thanks [@ben-reitz](https://github.com/ben-reitz)! - Keep Session compaction overlays scoped to their selected conversation branch and preserve deterministic ordering for overlays created in the same second.
+
+- [#2090](https://github.com/cloudflare/agents/pull/2090) [`2f957bc`](https://github.com/cloudflare/agents/commit/2f957bc2a3ffb7aee14792bb3cb658ad3176ed93) Thanks [@ben-reitz](https://github.com/ben-reitz)! - Keep sub-agent WebSocket operations routable and ordered across live and delayed contexts and before broadcasts, report routing failures, and preserve nested sub-agent broadcasts across RPC callbacks.
+
+- [#2131](https://github.com/cloudflare/agents/pull/2131) [`bf94bb2`](https://github.com/cloudflare/agents/commit/bf94bb2f8242f2ad46f6c6c88e56ee5e196cc706) Thanks [@ben-reitz](https://github.com/ben-reitz)! - Fall back to no-op tracing when an older Workers runtime exposes tracing without `startActiveSpan`, preventing Agent initialization from failing.
+
+## 0.21.0
+
+### Minor Changes
+
+- [#2052](https://github.com/cloudflare/agents/pull/2052) [`f9d71d6`](https://github.com/cloudflare/agents/commit/f9d71d65ffb31cb45c8594b5f3bd4eeb4a8560d1) Thanks [@cjol](https://github.com/cjol)! - Expose `WebSocketChatTransport` and its connection types from the framework-neutral `agents/chat/transport` entry point. React peers are now optional for framework-neutral clients and servers.
+
+  Existing users of `agents/chat/react` or `@cloudflare/ai-chat/react` must continue to declare compatible `react` and `@ai-sdk/react` dependencies explicitly.
+
+- [#2091](https://github.com/cloudflare/agents/pull/2091) [`4d2084c`](https://github.com/cloudflare/agents/commit/4d2084c1580395aac7df1f622d5a1f7a8a40beed) Thanks [@cjol](https://github.com/cjol)! - Accept AI SDK flexible schemas in `agentTool`, including Valibot adapters, while preserving schema-driven input inference and structured output validation. Zod is no longer a peer requirement of `@cloudflare/ai-chat`.
+
+  Existing custom schemas that no longer type-check as AI SDK `FlexibleSchema` must use the schema library's AI SDK adapter or wrap raw JSON Schema with `jsonSchema()`. Validation-only Standard Schema implementations are insufficient because tool inputs must expose JSON Schema to the model.
+
+- [#2098](https://github.com/cloudflare/agents/pull/2098) [`fe82e05`](https://github.com/cloudflare/agents/commit/fe82e0524b7ffce9d75d3f55a8b48baeae2bd58b) Thanks [@cjol](https://github.com/cjol)! - Add connection-scoped Kitesurf support to Browser Tools through the `browser: "kitesurf"` session option. Unsupported durable session, Live View, recording, pause/resume, and Kitesurf-backed Quick Action surfaces remain unavailable.
+
+  Existing Browser Tools users should note:
+
+  - Large base64 values returned outside the canonical `{ type: "browser_screenshot", mediaType, data }` shape are now redacted. Return screenshots in that shape or store binary output elsewhere.
+  - TanStack browser tools have one output channel, so screenshot output is reduced to the compact model-facing summary rather than returning raw base64 data.
+
+- [#1948](https://github.com/cloudflare/agents/pull/1948) [`aed6d8f`](https://github.com/cloudflare/agents/commit/aed6d8f8506087d405613e768454e4f0c0ae7ea1) Thanks [@ericclemmons](https://github.com/ericclemmons)! - Pass Workflow [`retention`](https://developers.cloudflare.com/workflows/build/workers-api/#workflowinstancecreateoptions) through `Agent.runWorkflow()`.
+
+### Patch Changes
+
+- [#2037](https://github.com/cloudflare/agents/pull/2037) [`1bca2a6`](https://github.com/cloudflare/agents/commit/1bca2a62435dee1a75914c8840d028b832913d0f) Thanks [@cjol](https://github.com/cjol)! - Add `buildAgentPath()` and `buildAgentUrl()` for constructing canonical root-first Agent and sub-agent addresses for external HTTP requests, WebSocket connections, callbacks, and webhooks. React sub-agent connections now share the same descendant path encoder.
+
+- [#2051](https://github.com/cloudflare/agents/pull/2051) [`b9343a0`](https://github.com/cloudflare/agents/commit/b9343a0dadb5a49e998eb7b57ecbbbcc38308d6e) Thanks [@AntoniTok](https://github.com/AntoniTok)! - Stream forwarded request bodies into sub-agents instead of buffering them in the parent Durable Object.
+
+  `Agent._cf_forwardToFacet` and `routeSubAgentRequest` both did `forwardInit.body = await req.arrayBuffer()` before dispatching to a child facet, materialising the entire request body in the parent's isolate. Two consequences:
+
+  - The read sat **in front of** application-level validation. `Agent.fetch` returns before `onRequest` whenever the path matches `/sub/{class}/{name}`, so an app that carefully bounded request bodies in `onRequest` still had an unbounded read ahead of it — and no way to bound it itself.
+  - The cost was **per hop**. A nested `/sub/.../sub/...` address re-materialised the same bytes at every level.
+
+  Both call sites now pass `req.body` through as a stream. Measured on `wrangler dev --local` with a handler that never reads the body, peak RSS across the `workerd` processes for a single POST:
+
+  | Request body | facet route, before | facet route, after | canonical route (control) |
+  | ------------ | ------------------- | ------------------ | ------------------------- |
+  | 16 MB        | +75 MB              | +4 MB              | +2 MB                     |
+  | 64 MB        | +268 MB             | +4 MB              | +2 MB                     |
+  | 128 MB       | +546 MB             | +4 MB              | +2 MB                     |
+
+  This restores the behaviour from before [#1443](https://github.com/cloudflare/agents/issues/1443), which switched to an explicit `RequestInit` in order to set a header on WebSocket upgrades and re-attached the body with `arrayBuffer()` as a side effect. The `Upgrade` header handling from that fix is unchanged.
+
+  One behavioural note: backpressure now reaches the client. A child that returns without reading the body will cause the remainder of the upload to be cancelled, where previously the parent drained it in full. Existing handlers that require the complete upload must consume or stream `request.body` before returning.
+
+- [#2034](https://github.com/cloudflare/agents/pull/2034) [`efcb316`](https://github.com/cloudflare/agents/commit/efcb3167b72bcab2bab6e49036f6cee74d35b187) Thanks [@cjol](https://github.com/cjol)! - Send Browser Run extraction schemas under `response_format.json_schema`, matching the Quick Actions `/json` contract.
+
+  Direct `browserExtract()` and `runQuickAction()` callers must rename `response_format.schema` to `response_format.json_schema`. The model-facing `browser_extract` tool still accepts its schema in the top-level `schema` field.
+
+- [#2023](https://github.com/cloudflare/agents/pull/2023) [`2b2b598`](https://github.com/cloudflare/agents/commit/2b2b5980e1945cf55f5a11626bc395e7c460516f) Thanks [@threepointone](https://github.com/threepointone)! - Treat `useAgentChat` observer error frames as terminal responses.
+
+  Plain-text error bodies are no longer parsed as stream chunks or merged into an empty assistant message. Error frames now clear observer streaming, replay, recovery, and tool-continuation state even when they omit `done`, matching the transport-owned stream behavior.
+
+  Existing observer UIs that displayed error bodies as assistant messages must move those diagnostics to a dedicated error surface.
+
+- [#1996](https://github.com/cloudflare/agents/pull/1996) [`753a674`](https://github.com/cloudflare/agents/commit/753a6748c1d20e56a300bedab6174e43acb33a79) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Update PartyServer and the Cloudflare Workers development toolchain for `@cloudflare/workers-types` v5 compatibility. New Think projects now use Workers Types v5 with matching Wrangler and Vite plugin versions.
+
+- [#1994](https://github.com/cloudflare/agents/pull/1994) [`6e77f62`](https://github.com/cloudflare/agents/commit/6e77f62e368279a5bbd11ee2c4b2f489693d0401) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Use `wrapAISDK()` as the single AI SDK v6 and v7 tracing integration, removing the separate `createAISDKTelemetry()` callback adapter that could not preserve the `invoke_agent` parent hierarchy. Mark asynchronously decided AI SDK v7 top-level approval spans when they outlive their invocation.
+
+  Existing `createAISDKTelemetry()` users must:
+
+  - Remove it from `registerTelemetry()` and per-call telemetry integrations.
+  - Wrap the AI SDK namespace and call the wrapped functions instead:
+
+    ```ts
+    import * as ai from "ai";
+    import { wrapAISDK } from "agents/observability/ai";
+
+    const tracedAI = wrapAISDK(ai, {
+      storeMessages: true,
+      storeTools: true,
+    });
+
+    await tracedAI.generateText(/* ... */);
+    ```
+
+  - Update telemetry queries that use the removed callback-only `cloudflare.agents.call.id` or `cloudflare.agents.tool_context.*` attributes.
+
+- [#2035](https://github.com/cloudflare/agents/pull/2035) [`5d66723`](https://github.com/cloudflare/agents/commit/5d66723c8c0cacb4d8808d6399074b80020786ef) Thanks [@cjol](https://github.com/cjol)! - Validate BrowserConnector tool arguments before execution and reject JSON-stringified Browser Run extraction schemas with an actionable error.
+
+  Existing callers that pass values outside the documented schemas must correct them before execution:
+
+  - Pass extraction schemas as JSON objects, not JSON strings.
+  - Pass the string returned in `attachToTarget().sessionId` to `cdp.send`, not the complete attachment result.
+
+- [#2049](https://github.com/cloudflare/agents/pull/2049) [`ce0e608`](https://github.com/cloudflare/agents/commit/ce0e608675e41794b02178dce0fb13bb62530aa8) Thanks [@cjol](https://github.com/cjol)! - Preserve spacing between streamed text segments separated by tool calls. Think messenger delivery and Voice now share the same boundary-aware text joining logic from `agents/chat`.
+
+  Existing users must:
+
+  - Replace imports of `textDeltaFromStreamChunk()` from `@cloudflare/think/messengers` with `TextStreamCallback`, passing it the complete structured stream events.
+  - Upgrade to `agents@0.21.0` when installing `@cloudflare/think@0.16.0` or `@cloudflare/voice@0.3.6`; both now require `agents >=0.20.2`.
+  - Update exact-text expectations if they relied on segments around tool calls being concatenated without a space.
+
+## 0.20.1
+
+### Patch Changes
+
+- [#1987](https://github.com/cloudflare/agents/pull/1987) [`ad015c2`](https://github.com/cloudflare/agents/commit/ad015c2e27bb0ca519c0b781f548e07134855cc4) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Update the MCP dependencies to stable `@modelcontextprotocol/client@2.0.0` and `@modelcontextprotocol/server@2.0.0`, and update the retained SDK v1 compatibility dependency to `@modelcontextprotocol/sdk@1.30.0`. Delegate SDK-backed SSE keepalives to the upstream transports so each stream has one timer, while preserving the Agents-owned keepalive on the legacy McpAgent WebSocket bridge.
+
+- [#1982](https://github.com/cloudflare/agents/pull/1982) [`e983026`](https://github.com/cloudflare/agents/commit/e983026b03933a641940d7d048f9fdee5634f875) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Fix AI SDK v7 telemetry, which produced spans with no token counts, no finish reason, no tool results and zero durations.
+
+  Spans that must not outlive their invocation now close at the end of it rather than at the first `await`. Closing at the handoff ended every WebSocket-turn span before its result existed, so every finish-time attribute was dropped. A span still open when its invocation ends is closed and marked `cloudflare.agents.span.truncated` instead of passing as complete, approval spans decided asynchronously included. A chat turn owns its own boundary rather than its caller's, so a turn that is not awaited — an ack-and-return submit, or an auto-continuation fired from a timer — is no longer cut short by the handler that started it. `generateText` is bounded on the same terms as `streamText`, and a turn that fails or is cancelled keeps the usage it already reported.
+
+  `chat` and `execute_tool` spans sit under their `invoke_agent` operation span on v7, where they were previously emitted as unrelated roots, and `tool_approval` segments sit under `execute_tool`.
+
+  v7 has no telemetry metadata bag, so identity and turn context arrive through `runtimeContext` and `telemetry.includeRuntimeContext`. Reserved keys project onto the attributes v6 already emits, so a query written against v6 traces still matches v7 ones; other included keys pass through as `cloudflare.agents.runtime_context.{key}`, and context the caller did not mark stays off the span.
+
+## 0.20.0
+
+### Minor Changes
+
+- [#1557](https://github.com/cloudflare/agents/pull/1557) [`447013d`](https://github.com/cloudflare/agents/commit/447013d086d4f1728749bbca445c02d3dc5052c4) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Add MCP SDK v2 client and server support. `MCPClientConnection` now uses the exact-pinned `@modelcontextprotocol/client@2.0.0-beta.5`. It probes for stateless MCP with `server/discover`, then falls back to the legacy `initialize` handshake on the same connection when needed. The SDK auto-fulfills stateless elicitation `input_required` results through the existing form and URL elicitation handlers while `callTool`, `getPrompt`, and `readResource` remain pending. OAuth reauthorization discards redirect-scoped discovery after token issuance and preserves discovery-triggered authentication, allowing a changed authorization server to be rediscovered and registered without reusing the prior issuer's credentials. Legacy pushed elicitation, Streamable HTTP, SSE, RPC, OAuth, and hibernation recovery remain supported. Codemode's MCP connector now uses an SDK-neutral structural boundary compatible with both MCP client generations.
+
+  Add MCP SDK v2 support to `createMcpHandler`. Pass a factory returning `McpServer` or `Server` from the exact-pinned `@modelcontextprotocol/server@2.0.0-beta.5` peer dependency to serve stateless MCP with legacy compatibility by default. The new `agents/mcp/server` entry exports the stateless Agents handler without retaining `McpAgent`, `WorkerTransport`, MCP client transports, PartyServer, or SDK v1 modules. The returned handler remains callable for Worker dispatch and exposes the lower-level SDK `fetch(request, options?)` method plus typed `notify` methods; upstream `close` and event-bus internals are not part of the Agents surface. The retained v1 server APIs use the exact-pinned `@modelcontextprotocol/sdk@1.29.0` peer dependency.
+
+  The legacy compatibility fallback now uses SDK v2's web-standard transport, including fail-fast handling for unsupported server-to-client requests, active-request teardown, and the same 25-second Cloudflare SSE keepalive previously supplied by `WorkerTransport`. It returns `405` for session-only GET and DELETE requests without constructing an application server. `createLegacyMcpHandler` remains an explicit public API for SDK v1 servers and complete WorkerTransport options.
+
+  The MCP client storage codec now preserves stateless discovery data with resumed HTTP sessions and preserves the binding name and props required to restore RPC servers. Stored HTTP session IDs from older Agents versions have no associated protocol version. The upgraded client discards those IDs and reconnects instead of sending an unsafe resumed request, so in-flight work tied to an old remote session does not resume.
+
+  The v2 callable handler maps verified provider-issued metadata from compatible `@cloudflare/workers-oauth-provider` releases to standard MCP `AuthInfo` while preserving `getMcpAuthContext().props`.
+
+  The Workers handler rejects malformed, opaque, and non-HTTP browser Origins. Its default allowlist includes localhost-class Origins, the endpoint's `workers.dev` hostname, and a concrete `corsOptions.origin` hostname. It applies matching Host checks to localhost and `workers.dev` endpoints. Custom-domain deployments with wildcard CORS can set `allowedHostnames` and `allowedOriginHostnames` explicitly, or set `allowedOriginHostnames: "*"` when trusted upstream middleware already enforces the required Origin policy. Requests without Origin remain valid for non-browser MCP clients. Default CORS preflights allow the stateless `Mcp-Method` and `Mcp-Name` request headers.
+
+  `@cloudflare/codemode` is now an optional peer. Applications that import `agents/skills` or `agents/browser` install Codemode explicitly; MCP-only applications no longer install it transitively.
+
+  Deprecations in this release:
+
+  - `McpAgent` is deprecated and feature-frozen as a stateful SDK v1 path. New servers should use an SDK v2 factory with `createMcpHandler` from `agents/mcp/server`.
+  - Passing an SDK v1 server to the overloaded `createMcpHandler` is deprecated for removal in the next major release. Move the server to an SDK v2 factory. Use `createLegacyMcpHandler` only to temporarily retain sessionful SDK v1 behavior while migrating.
+  - The explicit result-schema overloads `MCPClientManager.callTool(params, resultSchema, options)` and `withX402Client(...).callTool(confirm, params, resultSchema, options)` are deprecated. Use `callTool(params, options)` or `callTool(confirm, params, options)` instead.
+
+  `experimental_createMcpHandler` was already deprecated and remains scheduled for removal in the next major release. Its warning now directs users to an SDK v2 factory first and names `createLegacyMcpHandler` only as a temporary bridge for sessionful SDK v1 behavior.
+
+### Patch Changes
+
+- [#1981](https://github.com/cloudflare/agents/pull/1981) [`6c01c8d`](https://github.com/cloudflare/agents/commit/6c01c8d8e5cdb3158d180a2a3cc2b69ec90b8e90) Thanks [@agent-think](https://github.com/apps/agent-think)! - Recycle reusable Browser Run sessions after the platform reports HTTP 410 for an expired session.
+
+## 0.19.0
+
+### Minor Changes
+
+- [#1922](https://github.com/cloudflare/agents/pull/1922) [`cb4c1c7`](https://github.com/cloudflare/agents/commit/cb4c1c722d5a556ce68228d8e60f9c1df604ef81) Thanks [@cjol](https://github.com/cjol)! - Support both AI SDK v6 and v7.
+
+  The `ai` peer range is `ai@^6 || ^7` (and `@ai-sdk/react` is `@^3 || ^4`) across
+  `agents`, `@cloudflare/ai-chat`, `@cloudflare/codemode`, and `@cloudflare/think`.
+  Consumers can adopt AI SDK v7 or stay on v6 — no forced AI SDK upgrade when
+  bumping these packages.
+
+  Only the current implementations are covered. New optimisations and APIs made
+  available by AI SDK v7 (broader result-shape audits, stream helper migrations,
+  etc.) are intentionally out of scope.
+
+  How dual-version support works — `@cloudflare/think` calls the AI SDK through the
+  option names present in both majors (v7 keeps the v6 names as aliases), and
+  normalizes the genuine divergences at the boundary:
+
+  - Uses `stepCountIs`, `system`, `experimental_telemetry`, `onStepFinish`, and
+    `experimental_onToolCallFinish` (in v7 this alias resolves to
+    `onToolExecutionEnd` and fires once).
+  - The tool-execution-finished event is normalized across majors: v6's
+    `{ success, output, error, durationMs, stepNumber }` and v7's
+    `{ toolOutput, toolExecutionMs }` collapse to one `ToolCallResultContext`.
+    `stepNumber` is `undefined` under v7 (the v7 event no longer provides it).
+  - The UI message stream is built via the result's `toUIMessageStream()` method
+    (present in both majors); the standalone `toUIMessageStream({ stream })`
+    helper and `result.stream` are v7-only.
+  - The workspace read tool emits `{ type: "file-data", data, mediaType, filename }`
+    model output, accepted by both majors (v7's newer `{ type: "file", data: {
+type: "data", data } }` shape does not exist in v6).
+
+  Public API notes:
+
+  - `@cloudflare/think` keeps `system`, `onStepFinish`, and `experimental_telemetry`
+    where callers already use them, and also accepts `TurnConfig.telemetry`
+    (forwarded ahead of `experimental_telemetry` when present).
+  - `@cloudflare/ai-chat` updates the `AIChatAgent.onChatMessage` callback type
+    from `StreamTextOnFinishCallback` to `GenerateTextOnFinishCallback`.
+
+  Verified against both `ai@6` and `ai@7`: `@cloudflare/think` type-checks with
+  zero errors and its full workers test suite passes under each major.
+
+  Known limitations:
+
+  - `workers-ai-provider` (Think's default model provider) is fixed at v4 for AI
+    SDK v7. Consumers on `ai@6` who rely on Think's built-in default model may hit
+    a provider-version mismatch; passing their own `LanguageModel` avoids this.
+  - `chat@4.31.0` currently declares an `ai@^6` peer and does not yet advertise
+    v7 support; tracked separately.
+  - CI should exercise both an `ai@6` and an `ai@7` resolution to guard the matrix.
+
+### Patch Changes
+
+- Updated dependencies [[`cb4c1c7`](https://github.com/cloudflare/agents/commit/cb4c1c722d5a556ce68228d8e60f9c1df604ef81)]:
+  - @cloudflare/codemode@0.5.0
+
+## 0.18.0
+
+### Minor Changes
+
+- [#1860](https://github.com/cloudflare/agents/pull/1860) [`f5b1dd8`](https://github.com/cloudflare/agents/commit/f5b1dd814b5d7b415152afda053b5a52e086e12e) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Group SDK-managed initialization, startup, chat interactions, turns, and durable submissions into semantic phases. Storage-heavy setup, hydration, recovery, request persistence, and response persistence each receive a named bucket, keeping inference and tool spans visible without discarding lower-level Durable Object SQLite spans. Each span records agent identity, storage phase, a stable marker for UI grouping, and operation-specific metadata. No-op on runtimes without the `tracing` API.
+
+- [#1860](https://github.com/cloudflare/agents/pull/1860) [`f5b1dd8`](https://github.com/cloudflare/agents/commit/f5b1dd814b5d7b415152afda053b5a52e086e12e) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Add `agents/observability/ai` with `wrapAISDK` for AI SDK v6 and `createAISDKTelemetry` for AI SDK v7. Both project Cloudflare-native `invoke_agent {agent}`, `chat {model}`, and `execute_tool {tool}` spans using scalar OpenTelemetry GenAI attributes, including request settings, token usage, finish reasons, tool-call IDs, model-call time to first chunk, bounded AI SDK v6 approval lifecycle spans, and conditional AI Gateway log references. Payload storage is opt-in: `storeMessages` writes OTel-schema input/output message arrays to `chat` (`{ role, parts }`, canonical text/reasoning/tool parts, and output `finish_reason`; oldest messages are dropped past the budget while protecting the first two), and `storeTools` writes arguments/results to `execute_tool`. The flags themselves are never emitted as span attributes. Schemas, request headers, provider options, and raw errors remain excluded.
+
+### Patch Changes
+
+- [#1959](https://github.com/cloudflare/agents/pull/1959) [`a3cbed1`](https://github.com/cloudflare/agents/commit/a3cbed1d9944690cf856238f1466940def9a3101) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Cache MCP JSON Schema conversion for the current catalog on each live connection, and let Think agents skip direct MCP AI-tool exposure when those tools are exposed through Code Mode or another mechanism outside Think's automatic tool set.
+
+- [#1963](https://github.com/cloudflare/agents/pull/1963) [`3ce98ff`](https://github.com/cloudflare/agents/commit/3ce98ff084fcd5f0f8433e1f20352f0a170e3e4a) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Reconcile stale `useAgentChat` server-streaming state after an errored client reconnects.
+
+  Reconnect probes now include correlation IDs, and `STREAM_RESUME_NONE` distinguishes globally idle agents from active continuations owned by another connection. The hook clears fallback streaming state only for a correlated idle response. Reconnect opens are retained while a prior resume or status transition settles, in-flight handshakes are retransmitted on replacement sockets, and all AI SDK resume entry points share one serialization gate.
+
+- [#1944](https://github.com/cloudflare/agents/pull/1944) [`fff4131`](https://github.com/cloudflare/agents/commit/fff413112915cfafcbca013a764065abc6105db1) Thanks [@cjol](https://github.com/cjol)! - Make the `agents/vite` `turndown` stub fail with a diagnostic error when app code calls it directly, and document the `stubTurndown: false` opt-out for applications that use `turndown` themselves.
+
+- [#1926](https://github.com/cloudflare/agents/pull/1926) [`6861933`](https://github.com/cloudflare/agents/commit/6861933da2a73d699b6cc26a283cc1fee597f155) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Verify MCP OAuth callback state before changing a connection. Forged, expired, and replayed callbacks no longer disrupt the genuine authorization flow, and `addMcpServer()` refreshes auth URLs whose embedded state has expired.
+
+- [#1924](https://github.com/cloudflare/agents/pull/1924) [`c19d58a`](https://github.com/cloudflare/agents/commit/c19d58aeef5dbf18e6382de9dd773775aafdb6c8) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Harden MCP connection recovery: honor retry budgets for resolved connection failures, finish in-flight restore work before stable-id migration, and close connections replaced by the legacy `connect()` path.
+
+- [#1923](https://github.com/cloudflare/agents/pull/1923) [`33e59c4`](https://github.com/cloudflare/agents/commit/33e59c4af9a120fafea2d9dd7ceb1181d5813267) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Recover streamable HTTP connections when a server rejects a persisted session with HTTP 404. The client clears the stale session from memory and storage, initializes a new session, and rediscovers capabilities once.
+
+## 0.17.4
+
+### Patch Changes
+
+- [#1902](https://github.com/cloudflare/agents/pull/1902) [`a9d78c0`](https://github.com/cloudflare/agents/commit/a9d78c01379e7715f7fe33046e71bd9eaf3611ef) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Always apply the Worker-safe `CfWorkerJsonSchemaValidator` to MCP client connections by default.
+
+  `MCPClientConnection` now owns the default (merged in its constructor), so every construction path uses the Worker-safe validator unless the caller supplies their own — including the RPC `addMcpServer(name, namespace)` path via `MCPClientManager.connect()`, which previously skipped it. Without the default, the MCP SDK fell back to its AJV validator when a server exposed tools with `outputSchema`; AJV compiles schemas with `new Function`, which Workers disallows, failing discovery with "Code generation from strings disallowed for this context".
+
+  `connect()` now builds connections through `createConnection()` instead of duplicating construction, so the two paths can no longer drift. Caller-supplied `client.jsonSchemaValidator` overrides are respected on the live connection; because validator instances cannot survive JSON serialization, they are no longer persisted, and a previously persisted, serialization-degraded validator is ignored on restore — after hibernation the connection falls back to the Worker-safe default instead of failing discovery.
+
+- [#1903](https://github.com/cloudflare/agents/pull/1903) [`3ba6a78`](https://github.com/cloudflare/agents/commit/3ba6a78c1d585948453803524093d686394ce4d4) Thanks [@mattzcarey](https://github.com/mattzcarey)! - MCP client: url-mode elicitation support with a real elicitation handler
+
+  - Agents can now respond to server-initiated `elicitation/create` requests by
+    calling `this.mcp.configureElicitationHandlers({ form, url })`, typically in
+    `onStart()`. The advertised modes are persisted with each MCP server, so
+    connections restored after Durable Object hibernation re-advertise them at
+    the handshake and the handlers re-attach when onStart runs.
+  - Connections advertise elicitation modes based on what can actually be
+    handled: they advertise exactly the modes with configured handlers at the
+    initialize handshake; without handlers they advertise no elicitation
+    capability. An explicit
+    `client.capabilities.elicitation` (e.g. via `addMcpServer`) always wins,
+    is persisted with the server options, and survives hibernation — it is no
+    longer clobbered by a hardcoded value.
+
+- [#1925](https://github.com/cloudflare/agents/pull/1925) [`762998d`](https://github.com/cloudflare/agents/commit/762998da1c873701305a44c598e9c029617047b4) Thanks [@mattzcarey](https://github.com/mattzcarey)! - MCP client: consume the persisted capability seed at first use instead of at restore-time read
+
+  The capability stamp persisted on each MCP server row (used to re-advertise elicitation modes at the handshake after Durable Object hibernation) was read-and-cleared when the connection object was created, before any connection attempt. Wakes that never reached a handshake burned it: a restore that parked on a pending OAuth flow, or a wake interrupted between restore and `onStart` re-stamping the rows, left the next wake's connections negotiating without the elicitation capability until some later reconnect.
+
+  The stamp is now read without clearing and only cleared once a seeded handshake actually completes in a session that has not configured handlers, preserving the one-successful-restore semantics: after the seed is used in a completed handshake it no longer re-advertises stale modes, and any `configureElicitationHandlers` call still re-stamps every row. Sessions with handlers configured own their row stamps, so a handshake there (e.g. re-adding a server under a stable id) keeps the fresh stamp in place for the next wake.
+
+- [#1910](https://github.com/cloudflare/agents/pull/1910) [`9e1b733`](https://github.com/cloudflare/agents/commit/9e1b733426620642ae67b70a6fea63459e8a1e8c) Thanks [@mattzcarey](https://github.com/mattzcarey)! - MCP client: advertise no elicitation capability when no handler is configured
+
+  Connections without an elicitation handler previously advertised form-mode
+  elicitation while rejecting every elicitation request that arrived, so
+  spec-compliant servers chose elicitation over their fallback flows and the
+  tool call failed mid-flight. Connections now advertise the elicitation
+  capability only when it can be handled: form mode, URL mode, or both, based on
+  handlers configured via `this.mcp.configureElicitationHandlers({ form, url })`.
+  Connections without handlers advertise no elicitation capability, letting
+  servers fall back gracefully.
+
+  An explicit `client.capabilities.elicitation` declaration remains authoritative.
+  Only advertise modes your Agent can handle.
+
+- [#1869](https://github.com/cloudflare/agents/pull/1869) [`f274903`](https://github.com/cloudflare/agents/commit/f274903ee06123bc12cd5834d5187b7ffec4722e) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Fix `addMcpServer()` reporting `ready` for an HTTP MCP connection that was restored while OAuth is still in progress.
+
+  For an existing `AUTHENTICATING` connection, `addMcpServer()` now prefers the live authorization URL, otherwise returns a persisted absolute HTTP(S) authorization URL. If neither is available, it reconnects the existing connection without re-registering it: a new authorization URL is returned and persisted, a connected result is discovered before returning `ready`, and failed or incomplete OAuth results throw instead of falling through to `ready`.
+
+## 0.17.3
+
+### Patch Changes
+
+- [`58eea18`](https://github.com/cloudflare/agents/commit/58eea18f74dec943a5e9df3d78135f8980c445c4) Thanks [@threepointone](https://github.com/threepointone)! - trigger a release
+
+## 0.17.2
+
+### Patch Changes
+
+- [#1836](https://github.com/cloudflare/agents/pull/1836) [`0544aa2`](https://github.com/cloudflare/agents/commit/0544aa2c2ac6cb8e3d3438153efe53ca711aebe2) Thanks [@threepointone](https://github.com/threepointone)! - Fix `useAgentToolEvents` doubling streamed text in React StrictMode / SSR frameworks ([#1835](https://github.com/cloudflare/agents/issues/1835)).
+
+  The agent-tool-event reducer (`applyAgentToolEvent` → `applyToRun`) shallow-copied a run's `parts` array with `[...seeded.parts]` and then handed it to `applyChunkToParts`, which mutates part objects in place (e.g. `lastTextPart.text += delta`). Because the copied array still shared its element references with the previous state, those in-place mutations leaked back into `prev`. React double-invokes `setState` updaters in StrictMode and during dev hydration, so each `text-delta` chunk was applied twice against the same already-mutated `prev`, doubling every word. Affected Next.js, TanStack Start, Remix, and any `<React.StrictMode>` app. The reducer now clones each part before mutating, keeping it pure.
+
+- [#1838](https://github.com/cloudflare/agents/pull/1838) [`cc21f09`](https://github.com/cloudflare/agents/commit/cc21f094f49b287201ee7550548206dd0c3365ae) Thanks [@threepointone](https://github.com/threepointone)! - Fix reconnect-driven resume overlap throwing `Cannot read properties of undefined (reading 'state')` in `useAgentChat` ([#1837](https://github.com/cloudflare/agents/issues/1837)).
+
+  With `resume: true` (the default), the hook re-probes the stream from its WebSocket `onAgentOpen` handler on every reconnect. The AI SDK's `Chat.makeRequest` has no concurrency guard — every resume shares the single mutable `this.activeResponse`, and its `finally` finalizer reads `this.activeResponse.state.message` with a bare (unguarded) read before clearing it. Under a reconnect storm (flaky mobile link, or a Durable Object bounce on redeploy), a second resume could overwrite + clear `activeResponse` before an earlier resume's finalizer ran, so the earlier finalizer read `undefined` and threw. The old guard didn't close the window: `isAwaitingResume()` only covers the handshake (it flips false the instant `STREAM_RESUMING` resolves, before the AI SDK sets status to `submitted` in a later microtask) and `statusRef` is lagging React state. Resumes are now serialized via an in-flight flag, so a re-probe `resumeStream()` is never issued while one is still outstanding.
+
+## 0.17.1
+
+### Patch Changes
+
+- [#1826](https://github.com/cloudflare/agents/pull/1826) [`1bbd9bc`](https://github.com/cloudflare/agents/commit/1bbd9bca45834e7699969d83d203ec82f53a9bac) Thanks [@threepointone](https://github.com/threepointone)! - Add a tight, OOM-specific retry budget to chat recovery so a memory-limit crash loop seals fast and attributably ([#1825](https://github.com/cloudflare/agents/issues/1825)).
+
+  When a recovery turn hits a Durable Object memory-limit reset (the isolate exceeded its 128 MB limit), recovery now classifies it as a distinct, deterministic failure rather than a deploy-style transient. A memory reset re-OOMs on re-run (the turn's working set, not the platform, is the cause), so it must NOT be deferred and retried forever like a code-update/connection-lost transient. Each such crash bumps a durable per-incident `oomAttempts` counter; recovery retries a small number of times (new `chatRecovery.maxOomRetries`, default `3`) — in case the OOM was a transient spike — then seals with `reason="out_of_memory"`. This is far tighter than the generic `maxRecoveryWork` backstop because an OOM is attributable and each re-run re-runs the model.
+
+  This complements the finite `maxRecoveryWork` default: the OOM budget is the fast path for memory resets that surface as catchable errors thrown from recovery bookkeeping (e.g. storage/SQL rejections after the reset), while `maxRecoveryWork` remains a backstop for the hard-kill case where no in-isolate code runs to record the OOM.
+
+  Adds an **alarm-boundary circuit breaker** (`agents`) as the universal backstop for the case the in-DO budgets can't catch ([#1825](https://github.com/cloudflare/agents/issues/1825)): a memory-limit reset that bypasses them entirely — thrown before the budget code runs (e.g. boot-time state hydration OOMs), or whose own small writes also OOM under memory pressure. Left unhandled, such an error propagates out of `alarm()` and the platform auto-retries the alarm forever, re-running the doomed, billable turn each cycle. `Agent.alarm()` now intercepts ONLY Durable Object memory-limit resets at the outermost frame — where the heavy turn has unwound and GC has reclaimed its footprint, so the seal/purge writes can land where mid-turn ones OOMed. A durable strike counter tolerates a few resets (new `static options.maxAlarmMemoryLimitStrikes`, default `3`) — backing off the looping rows so the retry is not a hot loop — then seals the recovery (`out_of_memory`) and surgically purges only the looping schedule rows, leaving unrelated scheduled tasks intact. A new `alarm:memory_limit_reset` observability event is emitted. Everything except memory-limit resets re-throws exactly as before.
+
+  Also broadens and exports the `isDurableObjectMemoryLimitReset(error)` predicate from `agents` (a sibling to `isDurableObjectCodeUpdateReset` / `isPlatformTransientError`): it now matches the shared `"exceeded its memory limit"` fragment so truncated/reworded surfacings (observed in real [#1825](https://github.com/cloudflare/agents/issues/1825) logs) still classify.
+
+- [#1826](https://github.com/cloudflare/agents/pull/1826) [`1bbd9bc`](https://github.com/cloudflare/agents/commit/1bbd9bca45834e7699969d83d203ec82f53a9bac) Thanks [@threepointone](https://github.com/threepointone)! - Fix neverending chat-recovery retries when a Durable Object isolate runs out of memory mid-turn ([#1825](https://github.com/cloudflare/agents/issues/1825)).
+
+  `chatRecovery.maxRecoveryWork` now defaults to a generous finite backstop (`1000`) instead of `Infinity`. An isolate that exceeds its memory limit and is reset mid-stream has usually already streamed a little content, which bumps the durable progress counter. On the next wake recovery reads that as forward progress and **resets both progress-keyed bounds** — the attempt cap (`maxAttempts`) and the no-progress window (`noProgressTimeoutMs`) — and because each crash lands inside the alarm-debounce window the attempt counter is pinned too. With the work budget disabled (`Infinity`), no instrument could ever seal the turn, so recovery re-ran the turn (and its LLM calls) forever. The work meter is the one signal that keeps climbing across such a loop, so a finite default seals a runaway with `reason="work_budget_exceeded"` instead of looping.
+
+  Work only accrues from the first interruption until the turn completes, so a normal interrupted turn never approaches the cap. A very long agentic turn that legitimately produces a large amount of content under heavy interruption can raise `maxRecoveryWork` (or set it to `Infinity` to restore the previous fully-unbounded behavior, ideally paired with a `shouldKeepRecovering` predicate that bounds the runaway via real token/cost accounting).
+
+## 0.17.0
+
+### Minor Changes
+
+- [#1758](https://github.com/cloudflare/agents/pull/1758) [`6b46b04`](https://github.com/cloudflare/agents/commit/6b46b044c03e9fda280c9916fef6ec8b6baa7d73) Thanks [@threepointone](https://github.com/threepointone)! - Add progress signalling and durable milestones for agent-tool sub-agents
+  (cloudflare/agents#1758, rfc-detached-agent-tools §progress, phases 4a + 4b).
+
+  A sub-agent running as an agent tool (awaited or detached/background) can now
+  report mid-run progress:
+
+  ```ts
+  // Inside the child sub-agent (e.g. from a tool's execute):
+  await this.reportProgress({
+    fraction: 0.6,
+    phase: "deploying",
+    message: "Generating menu page…",
+  });
+  ```
+
+  These signals ride the child's own turn stream as a transient
+  `data-agent-progress` part, so they re-broadcast to the parent's connected
+  clients and surface on `AgentToolRunState.progress` via `useAgentToolEvents` — a
+  background-runs tray can render a live bar / phase / status line without drilling
+  in. Highlights:
+
+  - **`reportProgress({ fraction?, message?, phase?, data? }, { persist? })`** on
+    chat agents (`@cloudflare/think`, `AIChatAgent`); a no-op with a dev warning on
+    the base `Agent` and when called outside an active agent-tool run. The framework
+    resolves the run id from the active turn — no threading required. Bursts are
+    coalesced (latest-wins; a `fraction >= 1` "done" frame always flushes). `data`
+    is live-only unless `{ persist: true }`.
+  - **`onProgress(run, progress)`** parent hook, fired best-effort from the tail
+    for both awaited and detached runs.
+  - **Latest-snapshot persistence + recovery inspect.** The child stores a
+    `progress_json` + `last_signal_at` on its run row and surfaces it through
+    `inspectAgentToolRun().progress`, so a rehydrated parent reconstructs progress
+    after eviction.
+  - **Resetting no-progress budget for detached runs.** Once a detached child has
+    reported at least one signal, the backbone gives up if it then goes silent for
+    `detachedNoProgressBudgetMs` (default 1h; per-run override via
+    `detached: { noProgressBudgetMs }`), surfaced as `interrupted` with the
+    `no-progress` reason. A child that never reports is bounded only by the absolute
+    `detachedMaxBudgetMs` ceiling — we never give up on a run merely for being slow.
+
+  ## Durable milestones (phase 4b)
+
+  Naming a `milestone` promotes a signal from the ephemeral tier to a **durable**
+  one — there is still only one emit method:
+
+  ```ts
+  // Inside the child sub-agent:
+  await this.reportProgress({
+    milestone: "sources-gathered",
+    data: { sources: 2 },
+  });
+  ```
+
+  - **Persisted + replayable.** Each milestone is one row on the child
+    (`cf_agent_tool_milestones` / `cf_ai_chat_agent_tool_milestones`) with a
+    monotonic per-run `sequence`. It rides the stream as a **persisted**
+    `data-agent-milestone` part (vs. transient progress), so drill-in replay and a
+    rehydrated parent both see it. Surfaced via `inspectAgentToolRun().milestones`
+    and `AgentToolRunState.milestones` (deduped by `sequence`).
+  - **`onProgress` fires for milestones too** — the snapshot carries
+    `progress.milestone`, so a consumer can branch on milestone vs. ephemeral.
+  - **`detached: { onMilestones }` chat convenience** (`@cloudflare/think` and
+    `AIChatAgent`). When a configured milestone lands, the chat agent surfaces an
+    idempotent synthetic chat message (keyed/idempotent per `(runId, name)`)
+    _before_ the run finishes. Delivered from both the warm tail and the cold
+    backbone reconcile; the deterministic id collapses them to at-most-once. Two
+    modes (the `string[]` shorthand defaults to `"narrate"`):
+
+    - `"narrate"` (default) — a synthetic **assistant** message injected directly
+      (no inference): a cheap, honest status line that does not trigger a turn.
+    - `"react"` — a **user-role** turn so the model responds to the milestone
+      (steer, start dependent work). Costs a model turn.
+
+    ```ts
+    detached: { onMilestones: ["preview-ready"] } // narrate (default)
+    detached: { onMilestones: { names: ["needs-approval"], mode: "react" } }
+    ```
+
+    Override the wording via `formatDetachedMilestone(run, milestone)`. These
+    synthetic messages carry `metadata.source` so clients can render them as an
+    agent **event** rather than a human turn (the example does this).
+
+  The awaitable join point (`awaitAgentToolMilestone`, phase 4c) is intentionally
+  not included here — it is gated behind a design addendum.
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - Add typed action ledger observability events to the diagnostics channel event union.
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - Add typed `action:pause:*` (created/approved/rejected/swept) observability events to the diagnostics channel event union for durable-pause action approvals.
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - Add the `ReplyAttachment` type and an optional `attachments` field on `ChatResponseResult`, plus an `action:reply-attached` diagnostics event, to support the Think actions reply-attachment side-channel.
+
+- [#1799](https://github.com/cloudflare/agents/pull/1799) [`3c2afc9`](https://github.com/cloudflare/agents/commit/3c2afc9379f34fe51e401999ec03e9efc0fe93f2) Thanks [@threepointone](https://github.com/threepointone)! - Stop reconnecting on terminal WebSocket close events and expose terminal connection failures via `connectionError` / `onConnectionError` on `AgentClient`, `useAgent`, and `useAgentChat`.
+
+- [#1758](https://github.com/cloudflare/agents/pull/1758) [`6b46b04`](https://github.com/cloudflare/agents/commit/6b46b044c03e9fda280c9916fef6ec8b6baa7d73) Thanks [@threepointone](https://github.com/threepointone)! - Add first-class detached ("background") agent-tool runs with a durable
+  completion hook (cloudflare/agents#1752).
+
+  `runAgentTool(cls, { detached })` now dispatches a sub-agent **without blocking
+  the calling turn**, returning a `{ runId, agentType, status: "running" }` handle
+  immediately:
+
+  ```ts
+  // Fire-and-forget — observe via agent-tool-event frames + onAgentToolFinish.
+  const { runId } = await this.runAgentTool(ImportAgent, {
+    input,
+    detached: true
+  });
+
+  // Or wire a durable, eviction-surviving completion callback (by METHOD NAME,
+  // like schedule()):
+  await this.runAgentTool(ImportAgent, {
+    input,
+    detached: { onFinish: "onImportDone", maxBudgetMs: 60 * 60 * 1000 }
+  });
+
+  async onImportDone(run: AgentToolRunInfo, result: AgentToolLifecycleResult) {
+    // Branch on result.status: "completed" | "error" | "aborted" | "interrupted".
+    // A budget give-up arrives as interrupted / reason "budget-exceeded".
+  }
+  ```
+
+  Highlights:
+
+  - **Durable, exactly-once-on-the-happy-path completion.** A warm fast path
+    (low-latency while the isolate is alive) plus a self-scheduling reconcile
+    backbone (survives eviction / deploys) route through one guarded delivery
+    funnel. Two independent ledger slots (finish / give-up) with a claim+lease
+    mean a premature give-up can never dedupe a child's real late completion away.
+  - **No silent abandonment.** Detached runs are never sealed `interrupted` just
+    because their dispatching turn ended (the normal state for a background run);
+    the backbone owns them and re-arms on restart.
+  - **Bounded.** An absolute `maxBudgetMs` ceiling (default 24h, configurable via
+    the `detachedMaxBudgetMs` static option) gives up — surfaced as `interrupted`
+    with the new `budget-exceeded` reason — and tears the child down so an
+    abandoned run cannot hold a concurrency slot forever.
+  - **`cancelAgentTool(runId)`** cancels a detached (or awaited) run by id through
+    the same guarded path, so a wired `onFinish` still fires once with
+    `status: "aborted"`, and the terminal `agent-tool-event` is always broadcast
+    to connected clients (a cancelled run's UI settles immediately).
+  - **Recovery-safe delivery.** A chat host (`@cloudflare/think` / `AIChatAgent`)
+    runs the completion callback serialized on its turn queue, so an `onFinish`
+    that mutates chat state can never interleave with a live LLM turn. Concurrent
+    detached dispatches in one turn no longer race to arm multiple reconcile
+    backbones (arming is serialized).
+  - **Observability.** New events `agent_tool:detached:delivery_failed` (a wired
+    callback threw; the slot stays open for retry) and
+    `agent_tool:detached:live_count_warning` (edge-triggered when live detached
+    runs cross a threshold — a leak smoke alarm, since detached runs hold a
+    concurrency slot for their whole life).
+
+  A detached run deliberately does NOT inherit `options.signal` (it must outlive
+  the spawning turn); cancel it explicitly with `cancelAgentTool`.
+
+- [#1801](https://github.com/cloudflare/agents/pull/1801) [`c58b401`](https://github.com/cloudflare/agents/commit/c58b4015b7616581b3d7fca86a5fde6e49bd9cd3) Thanks [@threepointone](https://github.com/threepointone)! - Add the shared `agents/chat/react` entry with `useAgentChat`, chat transport helpers, and shared chat wire types. The hook also adds `syncMessagesToServer` so hosts with server-authoritative transcript storage can keep `setMessages` local-only.
+
+### Patch Changes
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - De-duplicate three adapter-spine helpers shared by `@cloudflare/ai-chat` and
+  `@cloudflare/think` into `agents/chat`.
+
+  Three fragments that were duplicated byte-for-byte across both hosts now live
+  once as shared, `@internal` primitives:
+
+  - `async-helpers.ts` — the `TIMED_OUT` sentinel, `awaitWithDeadline` (a
+    deadline-bounded promise race that always clears its timer), and
+    `drainInteractionApplies` (the substrate-free interaction-apply completeness
+    drain, parameterized by `hasPending` / `getTail`).
+  - `classifyAgentToolChildRecovery(storage)` (in `recovery-incident.ts`) — the
+    parent's agent-tool reattach incident scan, with `in-progress > failed > none`
+    precedence so a parent never gives up on a still-recovering child.
+  - `interceptAgentToolBroadcast(msg, hooks)` (in `agent-tools.ts`) — the [#1575](https://github.com/cloudflare/agents/issues/1575)
+    outgoing-frame snoop that forwards an agent-tool child's streamed progress to
+    its live tailers (or captures its error), parameterized by an
+    `AgentToolBroadcastHooks` substrate (the per-run forwarder / live-sequence /
+    last-error maps, the host's response-frame type, and the host run-lookup).
+
+  Both hosts delegate through their existing private method names and
+  `broadcast()` overrides (which still call `super.broadcast`), so every call site
+  is untouched. This is a pure internal de-duplication with no observable behavior
+  or API change: the new symbols are `@internal` sibling-package support, not
+  public API, and both hosts' existing test suites pass unchanged.
+  `@cloudflare/ai-chat` and `@cloudflare/think` need no changeset for this
+  extraction.
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - Add the `action:ledger:reclaimed` diagnostics event to `AgentObservabilityEvent`, emitted when a stale `pending` action ledger row is reclaimed and re-run under the Think pending-retry lease.
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - Add `channel:resolved`, `channel:delivered`, `notice:delivered`, and `notice:failed` observability events to `AgentObservabilityEvent` for the Think channels surface. These route to a dedicated `agents:channel` diagnostics channel and are reachable via the typed `subscribe("channel", cb)` API (new `ChannelEventMap` bucket) rather than falling through to the catch-all `lifecycle` channel.
+
+- [#1796](https://github.com/cloudflare/agents/pull/1796) [`058a781`](https://github.com/cloudflare/agents/commit/058a781dae3e28a52fbd81a8b4b1bbd9d07c19c0) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Make the `ai` peer optional again. The root `agents` runtime and declaration graph no longer reference AI SDK types; AI-specific entry points still require the peer when imported.
+
+- [#1802](https://github.com/cloudflare/agents/pull/1802) [`391b034`](https://github.com/cloudflare/agents/commit/391b0340299fa2079c8665ee5343c4667ed3ddcf) Thanks [@threepointone](https://github.com/threepointone)! - Ensure tool approval updates always retain a provider-facing approval id.
+
+  Older or hand-seeded transcripts can contain an `approval-requested` tool part
+  without an `approval.id`. When that part is approved and auto-continuation
+  re-enters inference, the AI SDK requires a matching approval id in the converted
+  model messages. Approval updates now synthesize a stable id from the
+  `toolCallId` when the transcript is missing one, preventing invalid prompt
+  errors while preserving existing approval metadata. `@cloudflare/ai-chat` now
+  routes its approval merge through the shared `toolApprovalUpdate` builder so it
+  benefits from the same fallback instead of its own divergent copy.
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - Extract the shared auto-continuation barrier into an `AutoContinuationController`
+  primitive in `agents/chat`.
+
+  The event-driven auto-continuation barrier (the tool-result → auto-continue flow,
+  [#1649](https://github.com/cloudflare/agents/issues/1649) / [#1650](https://github.com/cloudflare/agents/issues/1650)) was duplicated, line-for-line, across `@cloudflare/ai-chat`
+  (`AIChatAgent`) and `@cloudflare/think` (`Think`) — the coalesce timer, the
+  double-fire guard, the create/update/defer scheduling branch, and the
+  completeness-gated drain orchestration. It now lives once as
+  `AutoContinuationController`, parameterized over a small `AutoContinuationHost`
+  interface (the stream-active signal, the incomplete-batch / pending-interaction
+  predicates, the apply-drain primitive, and each host's continuation-turn
+  pipeline). Both hosts delegate to it through thin wrappers, so every call site is
+  untouched.
+
+  This is a pure internal de-duplication with no observable behavior or API change:
+  the new symbols are `@internal` sibling-package support, not public API, and both
+  hosts' existing test suites pass unchanged. `@cloudflare/ai-chat` and
+  `@cloudflare/think` need no changeset for this extraction.
+
+- [#1805](https://github.com/cloudflare/agents/pull/1805) [`60e53e0`](https://github.com/cloudflare/agents/commit/60e53e01a46d212a525d19aaac8835afb7ae27e2) Thanks [@threepointone](https://github.com/threepointone)! - Fix `useAgentChat` reordering a terminal/authoritative `CF_AGENT_CHAT_MESSAGES` snapshot when a protected streaming assistant is followed by a later assistant message ([#1778](https://github.com/cloudflare/agents/issues/1778)). The protected-tail merge is still applied for stale mid-stream snapshots, but when the incoming snapshot already contains the protected assistant followed by a newer assistant (e.g. a Think HITL denial that persists the denied tool message and then appends a follow-up assistant response), protection is cleared and the snapshot is rendered in its authoritative order instead of moving the protected assistant to the end.
+
+- [#1788](https://github.com/cloudflare/agents/pull/1788) [`3b2af54`](https://github.com/cloudflare/agents/commit/3b2af5444af5002cd54fd493452e03c721d31999) Thanks [@threepointone](https://github.com/threepointone)! - Converge recovery forward-progress crediting between `AIChatAgent` and `Think`.
+
+  Both hosts now credit the recovery no-progress counter through one shared, host-agnostic rule (`shouldCreditStreamProgress`): a progress milestone (a started text/reasoning segment or a settled tool input/output) credits unconditionally, and mid-segment streaming deltas (`text-delta`/`reasoning-delta`/`tool-input-delta`) credit at most once per throttle window via a per-isolate `StreamProgressCreditThrottle`. Previously `AIChatAgent` credited only on chunk-type milestones while `Think` credited on its flush cadence, so a long single content segment spanning repeated crashes could read as "no progress" under `AIChatAgent` and false-fire its `no_progress_timeout`. The new rule is never coarser than either host's prior cadence, so it can only delay or avoid a false no-progress timeout, never hasten give-up.
+
+- [#1430](https://github.com/cloudflare/agents/pull/1430) [`d1c4342`](https://github.com/cloudflare/agents/commit/d1c4342b03adac6d5962318e63c682009614a406) Thanks [@threepointone](https://github.com/threepointone)! - Support starting Agent workflows from sub-agent facets by preserving the originating facet path for callbacks and workflow Agent RPC.
+
+  - Route workflow callbacks, `this.agent` RPC, progress/completion/error, durable events, and state updates back to the exact originating facet via path-based dispatch.
+  - Match real Durable Object stub RPC semantics in path dispatch: reject built-in/prototype and JS-internal method names.
+  - Validate the workflow origin payload version so a mismatched SDK fails with a clear error instead of misreading the shape.
+  - Document the callback routing constraints (name-based resolution, sub-agent workflow tracking is facet-local, class names must survive bundling).
+
+- [#1818](https://github.com/cloudflare/agents/pull/1818) [`fa7bfec`](https://github.com/cloudflare/agents/commit/fa7bfec9e7a3524bfadf589b582aee1e960f4615) Thanks [@threepointone](https://github.com/threepointone)! - Stop a `tool-output-denied` chunk from clobbering a settled or user-approved
+  tool part in `agents/chat`.
+
+  `applyChunkToParts` now treats `tool-output-denied` as first-write-wins: it
+  leaves a part already in `output-available` / `output-error` / `output-denied`
+  untouched, and — importantly — no longer flips an `approval-responded`
+  (user-approved) part to `output-denied`. An auto-continuation that re-validates
+  the transcript can legitimately emit `tool-output-denied` for an approval the
+  AI SDK deems unneeded (e.g. a tool without `needsApproval`); previously that
+  silently turned a granted approval into a denial in the persisted message. This
+  matches the first-write-wins guards already on the `tool-input-*` handlers and
+  benefits both `@cloudflare/ai-chat` and `@cloudflare/think`.
+
+  `isReplayChunk` now recognizes the same replayed `tool-output-denied` (for a
+  part already settled or in `approval-responded`). The server-side guard only
+  protects the persisted message; without this, the stale denial chunk was still
+  stored in the resumable-stream buffer and broadcast to connected clients, where
+  AI SDK v6's in-place `updateToolPart` would regress the rendered tool part back
+  to `output-denied` (and replay it on reconnect). Filtering it at the broadcast
+  boundary keeps the client UI consistent with the persisted state.
+
+  `tool-approval-request` gains the same treatment on both paths: a
+  first-write-wins guard in `applyChunkToParts` (so a replayed approval request
+  can't regress an already-`approval-responded` or settled part back to
+  `approval-requested`, discarding the user's decision) and a matching
+  `isReplayChunk` branch (so the replayed request isn't stored or broadcast,
+  which would otherwise revert an approved tool to re-showing Approve/Reject on
+  the client and on reconnect).
+
+- [#1734](https://github.com/cloudflare/agents/pull/1734) [`cd2c430`](https://github.com/cloudflare/agents/commit/cd2c43075738a52093f8fb1b8261ce3871de2526) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Allow `McpAgent` server-to-client requests to send from callbacks that do not inherit the agent's async context, including callbacks reached through Worker Loader RPC.
+
+- [#1794](https://github.com/cloudflare/agents/pull/1794) [`b6ad4d5`](https://github.com/cloudflare/agents/commit/b6ad4d5bc078ede978b9b68fd7beb6ed3194f848) Thanks [@threepointone](https://github.com/threepointone)! - De-duplicate the orphan-persist core shared by `@cloudflare/ai-chat` and
+  `@cloudflare/think` into `agents/chat`.
+
+  The genuinely-common skeleton of both hosts' `_persistOrphanedStream` — the
+  accumulate loop plus the `getMessage → updateMessage(merge) XOR appendMessage`
+  upsert — now lives once as the `@internal` `persistReconstructedOrphan` helper.
+  The deliberately host-specific bits stay in the callers: the buffer flush, the
+  fallback id, the `prepare` hook (Think strips internal parts and may skip;
+  ai-chat resolves the persist-target id), the `merge` hook (Think replaces;
+  ai-chat reconciles partials), and broadcast (Think after; ai-chat inside its
+  store's `persistMessages`).
+
+  Pure internal de-duplication with no observable behavior or API change: the new
+  symbol is `@internal` sibling-package support, not public API, and both hosts'
+  recovery suites pass unchanged. `@cloudflare/ai-chat` and `@cloudflare/think`
+  need no changeset for this extraction.
+
+- [#1788](https://github.com/cloudflare/agents/pull/1788) [`3b2af54`](https://github.com/cloudflare/agents/commit/3b2af5444af5002cd54fd493452e03c721d31999) Thanks [@threepointone](https://github.com/threepointone)! - Export `reconcileOrphanPartial` from `agents/chat`.
+
+  This is the shared primitive that merges a freshly-reconstructed orphaned stream
+  partial onto an assistant message that already owns its target id (an early
+  persist at tool-approval time, or a continuation resuming the prior assistant
+  message). It keeps all existing parts, appends only reconstructed parts whose
+  `toolCallId` is not already present (so a recovery replay never duplicates a
+  tool call), and overlays incoming metadata onto existing — preserving an
+  in-place tool result that lives only in storage rather than letting a replayed
+  chunk re-advance it. `@cloudflare/ai-chat`'s orphan-persist path now uses it;
+  hosts whose orphan persist only runs at stream finalize don't need it (the
+  shared reconstruction is already idempotent by `toolCallId`).
+
+  Additive export only — no behavior change to existing APIs.
+
+- [#1788](https://github.com/cloudflare/agents/pull/1788) [`3b2af54`](https://github.com/cloudflare/agents/commit/3b2af5444af5002cd54fd493452e03c721d31999) Thanks [@threepointone](https://github.com/threepointone)! - Export the `OrphanPersistStore<M = UIMessage>` type from `agents/chat`.
+
+  This is the minimal message store the chat-recovery orphan-persist write goes
+  through — the write subset of `SessionProvider` (the `getMessage`,
+  `appendMessage`, and `updateMessage` methods). It is parameterized over the
+  host's message type so the seam itself is not AI-SDK-specific: the AI-SDK chat
+  hosts (`@cloudflare/ai-chat`, `@cloudflare/think`) instantiate it at the
+  `UIMessage` default, while `SessionProvider` satisfies it at its own
+  `SessionMessage`. Both hosts now route their orphan-persist write through a host
+  adapter typed against this interface, turning the previous by-convention
+  alignment into a type-enforced contract.
+
+  Additive export only — no behavior change to existing APIs.
+
+- [#1803](https://github.com/cloudflare/agents/pull/1803) [`c476265`](https://github.com/cloudflare/agents/commit/c476265c9f18a2a6eb5f01137515a8776ca8b63c) Thanks [@threepointone](https://github.com/threepointone)! - Fix AI SDK `status` getting stuck after a reconnect that races a turn's
+  pre-stream window ([#1784](https://github.com/cloudflare/agents/issues/1784)).
+
+  A turn is "accepted but pre-stream" while it is queued, debouncing, or awaiting
+  async setup before its resumable stream starts. A client that connected or sent
+  a `STREAM_RESUME_REQUEST` in that window was answered with `STREAM_RESUME_NONE`
+  ("nothing to resume"), so its short resume probe resolved `null` and AI SDK
+  `status` settled on `ready` even though the server went on to stream — leaving
+  the UI unable to render the in-flight turn until a full remount.
+
+  This adds a shared `PreStreamTurns` tracker (`agents/chat`) and a new
+  server→client `cf_agent_stream_pending` frame:
+
+  - The resume handshake now parks resume requests that arrive during the
+    pre-stream window and emits `STREAM_PENDING` ("keep waiting") instead of
+    `STREAM_RESUME_NONE`, then flushes parked connections into the normal
+    `STREAM_RESUMING` handshake once the stream actually starts (and releases them
+    with `STREAM_RESUME_NONE` if the turn is superseded/cleared before streaming).
+  - On `STREAM_PENDING` the client transport extends its resume probe from the
+    5s fast-path to a 60s backstop so the probe stays open across the gap.
+  - `useAgentChat` re-probes the stream on a transparent socket reopen (e.g. a
+    1006 reconnect that does not remount the component) so `status` recovers.
+  - Continuation affinity is relaxed via an optional `isConnectionPresent` host
+    hook so a transparent reconnect (whose connection id changed) can resume a
+    continuation whose original owner connection is gone.
+
+  Wired into both `AIChatAgent` and `@cloudflare/think`.
+
+  The pre-stream tracker is in-memory only; it is hibernation-safe because a turn
+  in its pre-stream window is an unresolved message-handler promise that pins the
+  Durable Object in memory, so eviction only happens once a stream is durably
+  recorded (and resumes via `ResumableStream`) or the turn has finished. Skipped
+  turns (supersede/generation change) settle without releasing parked
+  connections, so a client parked during the window survives onto the successor
+  turn instead of being cut loose by a premature `STREAM_RESUME_NONE`.
+
+- [#1794](https://github.com/cloudflare/agents/pull/1794) [`b6ad4d5`](https://github.com/cloudflare/agents/commit/b6ad4d5bc078ede978b9b68fd7beb6ed3194f848) Thanks [@threepointone](https://github.com/threepointone)! - Extract transcript repair into a shared `agents/chat` primitive.
+
+  `@cloudflare/think`'s `_repairToolTranscriptParts` — which flips an interrupted
+  tool call (a `tool-*` / `dynamic-tool` part with no settled result, left behind
+  when a stream was cut off mid-flight) into an errored tool-result so the next
+  provider call doesn't 400 with `AI_MissingToolResultsError`, and normalizes
+  malformed tool `input` — now lives once as the shared, `@internal`
+  `repairInterruptedToolParts` primitive (plus the `toolPartHasSettledResult`
+  terminal-state check) in `agents/chat`.
+
+  The primitive is pure (returns a new messages array plus repair stats; never
+  touches storage, broadcast, or events) and is parameterized by an overridable
+  `repairPart` hook plus an optional `shouldRepair(part)` skip predicate (defaults
+  to repairing every interrupted part), so both AI-SDK chat hosts can run repair
+  logic before re-entering inference on a recovered turn — a host whose default
+  errors the part (ai-chat) uses `shouldRepair` to leave a part still awaiting a
+  client interaction verbatim. `@cloudflare/think` delegates through its existing
+  `repairInterruptedToolPart` hook with no `shouldRepair` (repairs everything) — a
+  pure internal refactor with no observable behavior or API change; its suites pass
+  unchanged.
+
+- [#1772](https://github.com/cloudflare/agents/pull/1772) [`d4f27fe`](https://github.com/cloudflare/agents/commit/d4f27fededefebc17cf455218e952ff76ade847b) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Include each package's documentation in its published package.
+
+- [#1815](https://github.com/cloudflare/agents/pull/1815) [`b20d6f6`](https://github.com/cloudflare/agents/commit/b20d6f649c79f472e11b02bd6e065e1b645286f2) Thanks [@threepointone](https://github.com/threepointone)! - Move `just-bash` from a runtime dependency to an optional peer dependency so apps only install it when they use the skills bash runner.
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - Add stable approval descriptors for Think actions and preserve approval descriptor metadata on chat tool parts.
+
+- [#1790](https://github.com/cloudflare/agents/pull/1790) [`190ea81`](https://github.com/cloudflare/agents/commit/190ea814c4ea61c216509a431baa8be06d917256) Thanks [@threepointone](https://github.com/threepointone)! - Add `chat:turn:start` and `chat:turn:finish` observability events for Think
+  turn execution.
+
+## 0.16.2
+
+### Patch Changes
+
+- [#1767](https://github.com/cloudflare/agents/pull/1767) [`f03dee6`](https://github.com/cloudflare/agents/commit/f03dee651392381303630014a81bdc291e4a4722) Thanks [@threepointone](https://github.com/threepointone)! - Reduce Think Durable Object SQLite reads during normal wakes and text-only turns.
+
+  Think now avoids automatic media-eviction scans until hydration has been windowed or an oversized appended message has been observed. The shared resumable stream buffer also avoids per-wake metadata-column introspection by creating new tables with the current columns and lazily migrating legacy tables only when a stream write needs it.
+
+- [#1722](https://github.com/cloudflare/agents/pull/1722) [`9f8e14b`](https://github.com/cloudflare/agents/commit/9f8e14b019eb56bafa8b78d9dce5a02a15a6635f) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Fix two MCP client OAuth bugs found by the new conformance suite, and add MCP conformance testing.
+
+  - `MCPClientConnection` now finishes OAuth on the transport that received the 401. A fresh transport loses the resource metadata URL from the `WWW-Authenticate` header, so token exchange fell back to the default `/token` path and failed against authorization servers at non-default locations.
+  - `MCPClientConnection.init()` detaches the previous transport before reconnecting. Re-authorizing after a mid-session 401 (scope step-up, token revocation) previously failed permanently with "Already connected to a transport".
+  - Added the official `@modelcontextprotocol/conformance` suite (as used by the MCP TypeScript SDK) running against the MCP client (`Agent` + `MCPClientManager`), `McpAgent`, and `createMcpHandler` + `WorkerTransport` — all hosted in workerd via `wrangler dev`. See `packages/agents/conformance/README.md`.
+
+- [#1767](https://github.com/cloudflare/agents/pull/1767) [`f03dee6`](https://github.com/cloudflare/agents/commit/f03dee651392381303630014a81bdc291e4a4722) Thanks [@threepointone](https://github.com/threepointone)! - Cache the active branch tip in `AgentSessionProvider` so finding the latest leaf no longer scans the whole session on every read and append.
+
+  `latestLeafRow()` previously ran an anti-join over every message row (O(rows)) to locate the branch tip — on each hydration AND each auto-parent append, so on long transcripts it dominated a wake's read cost. The tip is now maintained in place on append/delete/clear; a cached tip is re-validated on read with an O(1) existence + still-childless check (so it self-heals if another writer deletes the tip or gives it a child), and the full scan only runs when that check fails or the cache is cold. Per-hydration and per-append tip lookups drop from O(rows) to O(1), and the full scan never runs more often than before.
+
+## 0.16.1
+
+### Patch Changes
+
+- [#1757](https://github.com/cloudflare/agents/pull/1757) [`92a5ba1`](https://github.com/cloudflare/agents/commit/92a5ba1798ce12047e1e6221968d44bd5ae30d6e) Thanks [@threepointone](https://github.com/threepointone)! - Bump the `partyserver` dependency to `^0.5.8`, which base64-encodes the
+  `x-partykit-props` header so props containing non-ASCII characters (e.g.
+  accented names) no longer trigger workerd's "header value contains non-ASCII
+  characters" warning (which throws a `TypeError` in browser fetch
+  implementations). The header is decoded back to the original Unicode payload on
+  the server, and raw-JSON values from older callers are still accepted for
+  backwards compatibility.
+
+- [#1754](https://github.com/cloudflare/agents/pull/1754) [`151d457`](https://github.com/cloudflare/agents/commit/151d457d320fccc9852fccbf168edfc54d72d9a3) Thanks [@threepointone](https://github.com/threepointone)! - Pin accepted WebSocket connections to `binaryType = "arraybuffer"`. On Worker
+  `compatibility_date`s `>= 2026-03-17` the runtime defaults a server WebSocket's
+  `binaryType` to `"blob"` (the `websocket_standard_binary_type` flag), so binary
+  frames arrive as `Blob` instead of `ArrayBuffer`. The Agent protocol and every
+  downstream consumer (e.g. `@cloudflare/voice` audio frames, user `onMessage`
+  handlers that check `message instanceof ArrayBuffer`) have always relied on
+  `ArrayBuffer`. The Agent now sets `connection.binaryType = "arraybuffer"` when a
+  connection is established, restoring the historical contract regardless of
+  compatibility date without requiring the `no_websocket_standard_binary_type`
+  flag. (The hibernatable `webSocketMessage` handler always delivers
+  `ArrayBuffer`, so this only affects non-hibernating agents.)
+
+  Also bumps the `partyserver` dependency to `^0.5.7`, which pins `binaryType` at
+  the connection layer (`accept()`), accepts non-hibernating connections in
+  half-open mode, and suppresses retryable transport-teardown errors on
+  already-closing/closed connections. With partyserver now pinning `binaryType`
+  itself, the Agent's own pin becomes defense-in-depth (kept for older partyserver
+  versions and custom connections) and runs once per connection per isolate
+  lifetime instead of on every state access.
+
+- [#1754](https://github.com/cloudflare/agents/pull/1754) [`151d457`](https://github.com/cloudflare/agents/commit/151d457d320fccc9852fccbf168edfc54d72d9a3) Thanks [@threepointone](https://github.com/threepointone)! - Add Browser Run Live View support to the browser tools. The `cdp` connector
+  gains a `getLiveViewUrl({ targetId?, mode? })` tool that returns a link a human
+  can open to watch and control a session in real time — the building block for
+  human-in-the-loop handoffs (login, MFA, CAPTCHA, sensitive input), paired with
+  the runtime's durable approval pause. `BrowserConnector` also exposes a
+  host-side `liveView()` helper for surfacing the shared session's Live View URLs
+  in your own UI; each `BrowserLiveViewTarget` includes the tab's current
+  `pageUrl` so you can label tabs and filter out blank/internal pages. New
+  `LiveViewMode`, `BrowserLiveView`, `BrowserLiveViewTarget`, and
+  `BrowserLiveViewUrl` types are exported from `agents/browser`.
+
+- [#1754](https://github.com/cloudflare/agents/pull/1754) [`151d457`](https://github.com/cloudflare/agents/commit/151d457d320fccc9852fccbf168edfc54d72d9a3) Thanks [@threepointone](https://github.com/threepointone)! - Add Browser Run Quick Actions to the browser tools: stateless, one-shot
+  browsing that needs only the `browser` binding — no Durable Object, loader, or
+  sandbox. New primitives in `agents/browser` (`browserMarkdown`,
+  `browserExtract`, `browserLinks`, `browserScrape`, `browserContent`,
+  `browserSnapshot`, `browserScreenshot`, `browserPdf`, plus `runQuickAction`)
+  wrap the `quickAction()` binding and unwrap its `{ success, result }` envelope.
+  A new `createQuickActionTools({ browser })` (from `agents/browser/ai`) returns
+  AI SDK tools (`browser_markdown`, `browser_extract`, `browser_links`,
+  `browser_scrape`, opt-in `browser_content`) so an agent can read a page as
+  Markdown, extract structured data with AI, or list/scrape elements in a single
+  call. Every result is bounded to `maxChars` (text truncated, oversized
+  arrays/objects summarized) to protect the context window, and host-only request
+  options (`cookies`, `authenticate`, `gotoOptions`, `viewport`, …) can be passed
+  once via `options` for authenticated or JavaScript-heavy pages without exposing
+  them to the model. `createBrowserTools`/`createBrowserRuntime` now expose these tools alongside the
+  durable `browser_execute` tool **by default** whenever a `browser` binding is
+  present (pass `quickActions: false` to opt out), and they resolve `ctx` from the
+  current Agent via `getCurrentAgent()` so `ctx` no longer has to be passed
+  explicitly from inside an Agent. Result bounding is shape-stable — arrays stay
+  arrays (trimmed), so the model sees a consistent type, except when even the
+  first element overflows the budget, where the result degrades to the
+  truncated-preview summary rather than a misleading empty array.
+  `runQuickAction`'s `params` are now typed per action. `@cloudflare/think/tools/browser` re-exports
+  `createQuickActionTools` and the Quick Action primitives/types so a Think agent
+  can expose them from `getTools()` with a single import. Quick Actions require a
+  Worker `compatibility_date` of `2026-03-24`+ and `remote: true` on the browser
+  binding for local `wrangler dev`.
+
+- [#1754](https://github.com/cloudflare/agents/pull/1754) [`151d457`](https://github.com/cloudflare/agents/commit/151d457d320fccc9852fccbf168edfc54d72d9a3) Thanks [@threepointone](https://github.com/threepointone)! - Add Browser Run session recording to the browser tools. Set `recording: true`
+  on the connector's `session` option (or `ConnectBrowserOptions`/
+  `createBrowserSession`) to opt a session into an rrweb capture of everything
+  the agent did in the browser — DOM changes, input, and navigation — finalized
+  when the session closes. Pairs with Live View: watch a session live, then
+  review the recording afterward for audit or debugging. A new
+  `getBrowserRecording({ accountId, apiToken, sessionId })` helper fetches a
+  finished recording via the Browser Rendering REST API, returning per-tab rrweb
+  event arrays (`BrowserRecording`) ready for `rrweb-player`.
+
+## 0.16.0
+
+### Minor Changes
+
+- [#1656](https://github.com/cloudflare/agents/pull/1656) [`4c2d1a7`](https://github.com/cloudflare/agents/commit/4c2d1a7f7f337bf426b0b35e3c9e8e4901c6360b) Thanks [@cjol](https://github.com/cjol)! - Rebuild `agents/browser` on the codemode connector runtime (experimental).
+
+  The browser tool surface is now a single durable tool, **`browser_execute`**: the model writes sandboxed code against a `cdp` connector (`cdp.send`, `cdp.attachToTarget`, `cdp.spec`, `cdp.getDebugLog`, …) instead of picking from several flat tools. Executions are recorded on a `CodemodeRuntime` Durable Object facet with abort-and-replay, so a run can pause for approval and resume with its browser session, tabs, and cookies intact.
+
+  - **`BrowserConnector`** — a `CodemodeConnector` (name `cdp`) that owns CDP sockets keyed by execution id. Sockets are released at the end of every execution pass (`onPassEnd`); browser sessions are torn down on terminal status (`disposeExecution`) — never on pause.
+  - **Session modes** — `one-shot` (default, fresh session per execution), `reuse` (named shared session), and `dynamic` (starts one-shot; the model can promote with `cdp.startSession()` after e.g. logging in). Shared sessions are tracked in durable storage and survive hibernation; `connector.sweep()` reclaims expired ones from a scheduled task.
+  - **Safe sweeping** — per-execution entries are touched on use and only swept after `maxExecIdleMs` (default 24h, matching the runtime's paused TTL), so a run awaiting approval keeps its browser. A swept entry leaves a tombstone so a later resume fails with a clear "expired or was swept" error instead of silently continuing in a fresh browser. Concurrent CDP calls share one in-flight socket connect instead of leaking the loser's WebSocket. Session-store locks wrap storage operations only — liveness probes and session create/delete happen outside the lock (with a commit re-check; a racing create's redundant session is deleted), so a hung Browser Rendering call can't serialize other session operations.
+  - **Stable attach handles** — `cdp.attachToTarget` returns `{ sessionId }` where the id is a stable handle bound to the target (not a raw CDP session id), so handles recorded before a pause still work after the resume reconnects. The object shape mirrors the real `Target.attachToTarget` response, which is what models expect.
+  - **Model-actionable CDP errors** — a "method wasn't found" failure on a `send` without a sessionId explains that page-scoped commands need `cdp.attachToTarget` first, and a missing `targetId` explains how to list/create targets.
+  - **`createBrowserTools({ ctx, browser, loader, session? })`** (AI SDK and TanStack AI variants) now requires the hosting Durable Object's `ctx` and returns `{ browser_execute }`; `createBrowserRuntime` additionally exposes the runtime handle and connector for host-side wiring (approvals, `sessionInfo`/`closeSession`/`sweep`). The previous `browser_search`/flat-tool surface and `createBrowserProvider` are removed.
+  - Worker entries must export the facet class: `export { CodemodeRuntime } from "agents/browser"`.
+
+  `agents/chat` gains `pausedExecutionUpdate`, a tool-part update that replaces a paused execution's output in the transcript with its resolved outcome (completed / rejected / paused again) — the transcript-side half of human-in-the-loop approvals for durable executions.
+
+- [#1746](https://github.com/cloudflare/agents/pull/1746) [`e45b5ec`](https://github.com/cloudflare/agents/commit/e45b5ece5fda6221b9a8d4f40a367616cad8584d) Thanks [@threepointone](https://github.com/threepointone)! - Fix RPC calls hanging forever during connection churn ([#1738](https://github.com/cloudflare/agents/issues/1738)).
+
+  `useAgent`'s RPC layer now survives socket replacement. `usePartySocket` creates a brand-new socket whenever connection options change (async query refresh, `enabled` toggle, path change) — previously, a call issued against a stale `agent` reference was buffered inside the permanently-closed old socket and its promise never settled, and a call transmitted just before replacement lost its response with no rejection either.
+
+  - `agent.call()` (and `agent.stub` / `agent.setState`) now route through the live socket, so stale references captured by mount-time effects keep working.
+  - RPC requests are only handed to a socket once it's open. Until then they're queued by the hook and flushed on the next open — including on a replacement socket. This is safe: queued requests were never transmitted, so they can't double-execute.
+  - Calls whose request was already transmitted are rejected with `Connection closed` when their socket closes or is replaced (the response is connection-bound and can never arrive). Calls in flight on a newer socket are no longer spuriously rejected by a stale close event from an old socket.
+  - Queued calls only follow the connection to the _same_ agent instance. If the hook is re-pointed at a different address (the `agent`, `name`, `basePath`, or path props change) before a queued call could be transmitted, the call is rejected instead of executing against an instance it wasn't composed for.
+  - `AgentClient` similarly keeps buffered (untransmitted) calls pending across transient disconnects — PartySocket re-sends them on reconnect — and only rejects calls the server actually received.
+  - Non-streaming calls now have a default 30s timeout as a backstop so lost responses reject instead of hanging. Configure per client via `defaultCallTimeout` (0 disables) on `useAgent` / `AgentClient`, or per call via the existing `timeout` option (`timeout: 0` opts out). Streaming calls are exempt.
+  - RPC responses that arrive with no matching pending call (e.g. after a timeout) now log a `console.warn` instead of being silently discarded.
+
+### Patch Changes
+
+- [#1742](https://github.com/cloudflare/agents/pull/1742) [`4b201a9`](https://github.com/cloudflare/agents/commit/4b201a972b72a76de68bc6c1f8436c2cc2be8c2b) Thanks [@threepointone](https://github.com/threepointone)! - Fix duplicated assistant text parts when a stream resume is replayed twice ([#1733](https://github.com/cloudflare/agents/issues/1733)).
+
+  The server intentionally sends `CF_AGENT_STREAM_RESUMING` for the same request from both `onConnect` and its `CF_AGENT_STREAM_RESUME_REQUEST` handler. When both offers reached the `useAgentChat` fallback path (e.g. the transport's resume handshake had already timed out), the client ACKed both, the full chunk buffer was replayed twice into the same accumulator, and the streaming reply rendered as two stacked text blocks until refresh.
+
+  - `useAgentChat` now fallback-ACKs a given resume offer at most once per socket (reset on close/reconnect). A repeated offer is still handed to a waiting transport resume handshake first, so a fallback-observed stream can become transport-owned. It also resets the matching trailing assistant message on **every** replayed non-continuation `start`, not only while the resume request id is still pending.
+  - The shared broadcast stream state machine re-initializes its accumulator on a replayed `start`, making replay idempotent under any number of replays.
+  - Replay frames now carry `continuation: true` for continuation streams (persisted in stream metadata and restored after hibernation), so a replayed continuation appends to the existing assistant message instead of being mistaken for a fresh turn.
+
+- [#1740](https://github.com/cloudflare/agents/pull/1740) [`6c9de59`](https://github.com/cloudflare/agents/commit/6c9de59a08ba151d62e7eb50a1f3d36eac2eafc4) Thanks [@threepointone](https://github.com/threepointone)! - Defer one-shot scheduled callbacks (and chat-recovery give-ups) on platform transients instead of consuming them mid-deploy ([#1730](https://github.com/cloudflare/agents/issues/1730)).
+
+  A mid-execution Durable Object code-update reset surfaces storage failures in two shapes: the verbatim reset/supersede messages (already deferred) and `SqlError: SQL query failed: Network connection lost.` — a wrapper that drops the CF `retryable` flag and dodges the reset matcher. The second shape burned the in-process retry budget inside the same few-seconds reset window (which outlasts the retry schedule by design) and then consumed the one-shot row on exhaustion, freezing the turn for minutes until incident re-detection — in the reported production capture, storage was healthy again 15 ms after the final attempt.
+
+  - **`agents`** — new cause-aware `isPlatformTransientError` classifier (exported, alongside `isDurableObjectCodeUpdateReset`): reset/supersede messages, `retryable`-flagged platform errors (excluding overloaded), and "Network connection lost.", looked up through wrapper `cause` chains. `_executeScheduleCallback` keeps in-process retries for connection-lost transients (a genuine blip heals fast) but on exhaustion of a one-shot row it now re-throws instead of swallowing, so the row survives and the alarm re-runs it in the healthy window that follows. Genuine application errors are still abandoned after `maxAttempts` exactly as before.
+  - **`@cloudflare/think`** — `_handleRecoveryCallbackError` now defers (re-throws) on any platform transient instead of terminalizing through a give-up whose own seal needs the storage that is down; the bookkeeping write on the defer path is best-effort. The defer path no longer marks the recovered submission `error` (which made the deferred re-run skip with `submission_not_running` — a self-defeating defer); it stays `running` for the re-run to pick up. The give-up now seals the incident `exhausted` only after the terminal writes succeed, so a transient mid-seal defers the whole give-up for an idempotent re-run instead of half-sealing.
+  - **`@cloudflare/ai-chat`** — same give-up seal ordering: the incident is sealed only after `_exhaustChatRecovery` (incl. the durable terminal record) succeeds, so a transient mid-seal preserves the one-shot row and the give-up re-runs in full on a healthy isolate.
+
+- [#1745](https://github.com/cloudflare/agents/pull/1745) [`99c9326`](https://github.com/cloudflare/agents/commit/99c9326bb14c2278fca1c149bc8d6731fd4a0e99) Thanks [@cjol](https://github.com/cjol)! - Make agent teardown reliable when the initiating request is already canceled ([#1625](https://github.com/cloudflare/agents/issues/1625)).
+
+  The MCP Streamable-HTTP session-DELETE handler ran `agent.destroy()` via the request's `ctx.waitUntil`. By the time the DELETE lands the client is usually gone, the runtime gives a canceled request's trailing work little to no grace, and the multi-step teardown (drop tables, delete alarm, delete all storage, dispose connections) was routinely cut short — leaving half-deleted session DOs whose tables the constructor silently recreated on the next wake. (The associated `waitUntil() tasks did not complete` log warning itself originates inside workerd's WebSocket handling and is unaffected by this change.)
+
+  Teardown is now deferred to the agent's own alarm invocation. The DELETE handler awaits two fast storage writes — a durable "condemned" marker plus an immediate alarm — and responds 204; the alarm then runs the real `destroy()` with a fresh execution budget. The marker is removed by the final `deleteAll()`, so it survives any interruption: `alarm()` checks it before any other work (including `onStart`) and finishes the teardown instead of resuming normal operation on a condemned agent, and `_scheduleNextAlarm()` keeps the destroy alarm armed rather than deleting it as "no work pending". `destroy()` itself now writes the marker first, so a direct destroy that gets interrupted converges the same way.
+
+  New internal API: `Agent._cf_scheduleDestroy()` (used by the MCP handler; unlike `destroy()` it does not abort the isolate, so callers don't need to swallow an abort error). No public API or storage-schema changes; the marker is a single internal KV record (`cf_agents_destroy_pending`).
+
+- [#1729](https://github.com/cloudflare/agents/pull/1729) [`1c8fdf5`](https://github.com/cloudflare/agents/commit/1c8fdf58b621282838af88fa85596453317df8f4) Thanks [@threepointone](https://github.com/threepointone)! - Fix runFiber recovery starving when a recovery scan leaves work behind. `_scheduleNextAlarm()` only armed a follow-up alarm for active keepAlive leases, due schedules, and facet runs — never for orphaned `cf_agents_runs` rows (or interrupted/pending managed ledger fibers) still awaiting recovery. Because orphaned fibers hold no keepAlive ref, a scan that yielded on `fiberRecoveryScanDeadlineMs` (or a pass that retained a repeatedly-throwing unmanaged hook for retry) would never get another alarm, so the remaining fibers were never recovered. The scheduler now arms a follow-up alarm whenever fiber recovery work is still outstanding, so multi-pass recovery resumes and eventually drains every fiber (and ages out poison rows via `fiberRecoveryMaxAgeMs`).
+
+  The follow-up alarm uses exponential backoff (capped at 5 minutes) while scans make no forward progress, so a repeatedly-throwing recovery hook — or a `fiberRecoveryMaxAgeMs: 0` ("retain forever") row whose hook keeps throwing — no longer wakes the Durable Object every `keepAliveIntervalMs`. A scan that recovers any fiber (including a scan-deadline yield that drained part of a large batch) resets the backoff, so legitimate multi-pass draining stays prompt.
+
+- [#1737](https://github.com/cloudflare/agents/pull/1737) [`bc43133`](https://github.com/cloudflare/agents/commit/bc43133824f87da86e6d62a15ee2f183ed1a3f84) Thanks [@cjol](https://github.com/cjol)! - Fix the two remaining [#1575](https://github.com/cloudflare/agents/issues/1575) gaps in how in-band stream errors (`{type: "error", errorText}` chunks inside an otherwise-healthy provider stream) are observed after the fact.
+
+  **Errored-stream replay (partial content was lost on reconnect).** A client reconnecting after an in-band error received the terminal error frame ([#1645](https://github.com/cloudflare/agents/issues/1645)) but not the content the model streamed before the error — the replay path only served `status = 'completed'` streams, so an errored stream's buffered chunks were unreachable, and the server pushes no messages on connect. `ResumableStream` gains `replayErroredChunksByRequestId`, and the resume-ACK terminal replay (`_replayTerminalOnAck` in both AIChatAgent and Think) now replays the errored stream's stored chunks before the `done: true, error: true` frame, so a reconnecting client observes the same sequence a live client did. No wire-format or schema changes: replayed chunks reuse the existing `replay: true` frame shape and the error text still comes from the durable terminal record.
+
+  **Agent-tool error attribution (cross-run contamination).** When an in-band error frame was broadcast on a child agent and the active run was unknown, the error was stamped onto every tailed run — so an unrelated turn's failure (or one of several overlapping runs) could mark healthy runs as `error`, and capture depended on a tailer being attached at the right moment. Frames are now attributed by the request id they carry: each agent-tool run is bound to its turn's request id when the turn starts (persisted on the run row at start rather than at terminal, so attribution survives a DO restart mid-run), and only the owning run's error/progress state is updated. Frame inspection also no longer requires an attached tailer, so error capture is independent of tailer timing.
+
+- [#1707](https://github.com/cloudflare/agents/pull/1707) [`d96a17c`](https://github.com/cloudflare/agents/commit/d96a17cfaa93a420b5565f4b6cbd81aebf029c13) Thanks [@threepointone](https://github.com/threepointone)! - Fix `keepAlive()` leaving a stale 30s heartbeat alarm after the lease is released. Previously the dispose returned by `keepAlive()` (and used by `keepAliveWhile()`) only decremented the in-memory ref count and never rescheduled the alarm, so a short-lived lease could permanently bump the next alarm to `now + keepAliveIntervalMs` with nothing to pull it back. The dispose now recomputes the alarm from persistent state when the last lease is released (mirroring the facet release path), clearing the heartbeat when no other work needs it. Fixes [#1704](https://github.com/cloudflare/agents/issues/1704) (root cause behind [#1703](https://github.com/cloudflare/agents/issues/1703)).
+
+- [#1724](https://github.com/cloudflare/agents/pull/1724) [`c18a446`](https://github.com/cloudflare/agents/commit/c18a446daa4547b886bf01ecd9719a23bf7905fc) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Fix SQLite memory amplification in `AgentSessionProvider.getHistory()` and add byte-budgeted history reads ([#1710](https://github.com/cloudflare/agents/issues/1710)).
+
+  The history path query previously selected `m.*` inside its recursive CTE, so every message blob was materialized in SQLite's recursion queue AND its `ORDER BY` sorter — 2-3 transient copies of the entire transcript inside the SQLite allocator, which in workerd shares the isolate's memory budget with the JS heap. On large media-heavy sessions this exhausted the allocator and surfaced as `SQLITE_NOMEM` on every wake. The CTE now recurses over `(id, parent_id, depth)` only and content is fetched separately in bounded chunks via `json_each`, which streams without materializing the result set. Leaf detection similarly no longer drags content blobs through its sorter.
+
+  New session APIs for hosts that need to bound wake-time memory:
+
+  - `Session.getRecentHistory(maxContentBytes, minRecentMessages?)` — returns the most recent messages on the active path that fit a byte budget (always at least the leaf, and at least `minRecentMessages` rows when provided — rows are individually capped at write time, so the floor keeps memory bounded), plus `truncated` and `totalContentBytes`. Backed by the optional `SessionProvider.getRecentHistory()`; falls back to a full read for providers that don't implement it, reporting the real serialized size and warning once that the budget cannot be enforced.
+  - `Session.getHistoryRowStats()` — per-row stored sizes AND roles for the active path WITHOUT loading content (optional `SessionProvider.getHistoryRowStats()`), so oversized rows can be found and processed one at a time.
+  - `Session.internal_rewriteMessage()` — maintenance write path that skips the full-history token-estimate status broadcast of a public `updateMessage()`, for framework passes (media eviction) that rewrite many rows with bounded memory.
+
+  Bounded init reads: the init-time loaded-skill restore scan is now skipped entirely when no skill-capable context provider is configured, and when one is, it reads row stats and fetches assistant messages ONE AT A TIME instead of materializing the full transcript (full-read fallback for providers without row stats). Content hydration chunks are additionally bounded by cumulative stored bytes (4MB), not just row count, removing the 50-near-cap-rows worst case.
+
+  Also adds `chat:onstart:degraded`, `chat:hydration:windowed`, and `chat:media:evicted` observability event types emitted by `@cloudflare/think`.
+
+- [#1748](https://github.com/cloudflare/agents/pull/1748) [`4ec3b07`](https://github.com/cloudflare/agents/commit/4ec3b07dae49008184ca39aa19b3aa5625abb98c) Thanks [@threepointone](https://github.com/threepointone)! - Ignore RPC responses when the WebSocket has already closed.
+
+  Async callable methods can finish after a client disconnects. The server now treats that closed-socket response delivery as a no-op instead of surfacing an uncaught `WebSocket send() after close()` error from the Workers runtime.
+
+- [#1712](https://github.com/cloudflare/agents/pull/1712) [`835e7b0`](https://github.com/cloudflare/agents/commit/835e7b0e0b7bb06c57b35ca3b330e4e962ccffed) Thanks [@threepointone](https://github.com/threepointone)! - Reclaim resumable-stream buffers from an alarm so idle chats don't leak storage ([#1706](https://github.com/cloudflare/agents/issues/1706))
+
+  Resumable-stream chunk buffers (`cf_ai_chat_stream_*`) were only swept lazily when a _subsequent_ stream completed. A chat that received a single turn and then went idle never triggered that sweep, so its buffers lingered in the Durable Object's SQLite for the lifetime of the DO.
+
+  `AIChatAgent` and `Think` now arm a scheduled cleanup alarm whenever a stream starts and whenever it finishes (completes or errors). Arming on start guarantees that a stream whose DO is evicted mid-flight and never reaches a finish still gets a future sweep instead of leaking. This is the safety net for the non-durable path (e.g. `chatRecovery: false`, the `AIChatAgent` default): those turns don't run inside `runFiber`, so there's no leftover `keepAlive` alarm and no fiber-recovery scan, and if the client never reconnects nothing else wakes the DO. (Durable `runFiber` turns already self-heal — the `keepAlive` alarm survives eviction, wakes the DO, and recovery finalizes the stream, which arms cleanup — so arming on start is belt-and-suspenders there.) The alarm sweeps aged buffers via the retention windows below and re-arms only while reclaimable rows remain, so a fully-swept DO stops waking itself. Arming is idempotent so high-turn-count chats never accumulate cleanup schedules; the in-callback re-arm uses a fresh (non-idempotent) row so it survives the one-shot deletion of the firing schedule. No per-turn Durable Object and no change to the session DO lifecycle are required.
+
+  Retention is now split into two short, purpose-specific windows instead of a single 24h threshold: completed/errored buffers are kept for a brief **10-minute** reconnect-and-replay grace (the assistant message is persisted separately, so the buffer is only needed to replay a just-finished stream or deliver a terminal error frame to a reconnecting client), while abandoned in-flight (`streaming`) rows are kept for **1 hour** so an interrupted turn has ample time to be resumed or recovered before its buffer is presumed dead. The abandoned-row sweep keys off **last chunk activity** rather than stream start time, so a long-running stream that is still emitting chunks is never reclaimed mid-flight.
+
+  `ResumableStream` gains `cleanup(now?)` (force a sweep, bypassing the lazy interval gate) and `hasReclaimableStreams()` to support alarm-driven cleanup.
+
+- [#1713](https://github.com/cloudflare/agents/pull/1713) [`18c438b`](https://github.com/cloudflare/agents/commit/18c438b05fbc95787b40b6d1c849e569aa253bb9) Thanks [@threepointone](https://github.com/threepointone)! - Support client tools on the Think sub-agent `chat()` RPC path ([#1709](https://github.com/cloudflare/agents/issues/1709))
+
+  `ChatOptions` now accepts `clientTools` (the same `ClientToolSchema[]` carried over the WebSocket chat protocol) and an `onClientToolCall` executor. This lets a parent agent that drives a Think sub-agent over `chat()` expose client-defined tools to the sub-agent and complete the tool round trip within the same turn:
+
+  ```ts
+  await child.chat(message, callback, {
+    signal,
+    clientTools: [
+      { name: "get_user_timezone", parameters: { type: "object" } },
+    ],
+    onClientToolCall: async ({ toolName, input }) =>
+      runClientTool(toolName, input),
+  });
+  ```
+
+  Without `onClientToolCall`, the schemas are still registered and the model's call is surfaced through the stream callback (execute-less), matching the WebSocket behavior. With it, the call is resolved inline so the turn can continue to completion — the RPC stream callback has no inbound result channel of its own.
+
+  Unlike the WebSocket path, the schemas and executor are kept per-turn and are NOT persisted: the executor is a live RPC reference that cannot survive an eviction, and there is no SPA to replay a `tool-result`. This keeps chat recovery correct — an eviction-interrupted client-tool call is repaired like a server tool (the model proceeds) rather than being mistaken for a pending human interaction and parking forever.
+
+  `agents/chat`'s `createToolsFromClientSchemas` gains an optional `{ execute }` delegate (and exports a new `ClientToolExecutor` type) to build the executable variant. Both additions are backward-compatible.
+
+- Updated dependencies [[`b2b6762`](https://github.com/cloudflare/agents/commit/b2b67623deab327042b99344d8ee530ae37a71b2), [`4c2d1a7`](https://github.com/cloudflare/agents/commit/4c2d1a7f7f337bf426b0b35e3c9e8e4901c6360b), [`4c2d1a7`](https://github.com/cloudflare/agents/commit/4c2d1a7f7f337bf426b0b35e3c9e8e4901c6360b)]:
+  - @cloudflare/codemode@0.4.0
+
+## 0.15.0
+
+### Minor Changes
+
+- [#1701](https://github.com/cloudflare/agents/pull/1701) [`6caa6e8`](https://github.com/cloudflare/agents/commit/6caa6e85a48c219b7ceef7a6e575f2812a0668b4) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Refactor `WorkerTransport` to extend the official MCP SDK's `WebStandardStreamableHTTPServerTransport` instead of being a hand-rolled implementation.
+
+  The wrapper is now a thin subclass that layers Workers-specific concerns on top of the SDK transport:
+
+  - **CORS** — preflight handling and response-header injection (`corsOptions`).
+  - **Persistent transport state** across DO hibernation via the existing `MCPStorageApi` adapter. `sessionId`, `initialized`, and `initializeParams` are snapshotted after each request and replayed on cold start so client capabilities are restored without a fresh initialize round-trip.
+  - **SSE keepalive** — preserves the issue [#1583](https://github.com/cloudflare/agents/issues/1583) fix. Uses the shared `KEEPALIVE_FRAME` (`: keepalive\n\n`) at `KEEPALIVE_INTERVAL_MS` (25s) from `sse-keepalive.ts`. Keepalive is unconditional on POST response streams and disabled on the standalone GET stream when an `eventStore` is configured (clients recover idle drops via `Last-Event-ID` instead).
+
+  Everything else — session validation, SSE streaming, protocol-version negotiation, event-store resumability, send/close lifecycle — is delegated to the SDK transport. Net: ~500 fewer lines of code to maintain.
+
+  The exported shape is unchanged: `WorkerTransport`, `WorkerTransportOptions`, `MCPStorageApi`, and `TransportState` keep the same names, and `WorkerTransportOptions` now also extends the SDK's transport options. The default `createMcpHandler` path (a fresh transport per request) is unaffected.
+
+  There are, however, a few observable behaviour changes for callers who used `WorkerTransport` directly or relied on its previous quirks:
+
+  - **`handleRequest`'s second argument is now `{ parsedBody?, authInfo? }`** (the SDK shape) instead of a positional `parsedBody`. `createMcpHandler` and `McpAgent` don't pass it, but callers invoking `transport.handleRequest(request, parsedBody)` directly must wrap it as `transport.handleRequest(request, { parsedBody })`.
+  - **`retryInterval` priming now follows the SDK contract.** Previously a `retry:` priming frame was written to _any_ GET SSE stream whenever `retryInterval` was set. The SDK only writes a priming event when an `eventStore` is configured and the negotiated protocol version is `>= 2025-11-25` (older clients can't parse the empty-`data:` priming frame), and on POST streams rather than the standalone GET stream. `retryInterval` is still accepted but only affects that SDK priming event.
+  - **`onerror` now fires on client/protocol validation failures.** The SDK invokes `onerror` for responses such as 400/405/406/415 and session-not-found. The old transport only surfaced internal errors, so handlers that log `onerror` will now see normal client mistakes.
+  - **`onsessionclosed` fires before the underlying `close()`** (and therefore before `onclose`) on DELETE, instead of after. Ordering only; the session id is still passed.
+  - **`started` is now read-only.** It was a writable instance field and is now a getter backed by the SDK's internal `_started` flag. Reading it (e.g. `createMcpHandler`'s reconnect guard) is unchanged; assigning to it is no longer supported.
+  - **`createMcpHandler` now forwards SDK transport options.** Because `WorkerTransportOptions` extends the SDK options, the handler passes through everything except its own `route`/`authContext`/`transport` fields — including `eventStore`, `retryInterval`, `onsessionclosed`, and the SDK DNS-rebinding options (`enableDnsRebindingProtection`, `allowedHosts`, `allowedOrigins`). The previous handler silently dropped these.
+
+  The SDK dependency is pinned exactly (`@modelcontextprotocol/sdk` `1.29.0`, no caret) because the wrapper relies on a handful of SDK internals for state restore and keepalive cleanup. The exact pin stops a patch release from shifting those out from under us, and the tests assert against the SDK field names so a bump fails CI loudly rather than breaking at runtime.
+
+## 0.14.5
+
+### Patch Changes
+
+- [#1613](https://github.com/cloudflare/agents/pull/1613) [`124a47a`](https://github.com/cloudflare/agents/commit/124a47a91c8a9db0bcf08ab931a5dd99a2fac663) Thanks [@threepointone](https://github.com/threepointone)! - Introduce the first Think framework layer for convention-driven agent apps.
+
+  This release adds a manifest-driven Vite plugin that discovers agents from the
+  `agents/` directory, generates a Worker entrypoint and virtual framework
+  modules, derives stable Durable Object class names, and merges framework-owned
+  Worker config defaults with user Wrangler config. It also keeps the Think Vite
+  plugin usable directly in normal Vite plugin arrays.
+
+  The framework now supports optional app server entries, manifest-scoped friendly
+  agent and sub-agent routing, deterministic route surfaces, colocated skill
+  detection, Worker Loader requirement diagnostics, and explicit diagnostics for
+  unsupported nested sub-agent conventions. Think currently supports top-level
+  agents and one sub-agent layer; deeper nesting is rejected with guidance so that
+  the routing and lifecycle model can be designed deliberately.
+
+  This framework layer is experimental: both the Vite plugin (once, on build
+  start) and the `think` CLI (on startup) emit a notice that the API may change
+  or be removed in any release. The core Think agent runtime is unchanged.
+
+  The Think CLI now includes `think init`, `think inspect`, and `think types`.
+  `think init` scaffolds a minimal Workers/Vite Think app, safely handles prompted
+  or named target directories, refuses unsafe migrations, and installs npm
+  dependencies by default. `think inspect` exposes manifest/config diagnostics in
+  text or JSON, while `think types` generates Think-owned declarations and can
+  optionally compose with Wrangler type generation.
+
+  This release also adds host-framework coverage for React Router and TanStack
+  Start, updates examples to use the convention-first framework shape, and hardens
+  Agents/worker-bundler virtual modules for bundled skill compatibility.
+
+- [#1613](https://github.com/cloudflare/agents/pull/1613) [`124a47a`](https://github.com/cloudflare/agents/commit/124a47a91c8a9db0bcf08ab931a5dd99a2fac663) Thanks [@threepointone](https://github.com/threepointone)! - Compile skill scripts ahead of time and remove the in-Worker bundler (drops ~14MB of `esbuild-wasm` from Worker bundles).
+
+  Skill scripts are now always compiled to self-contained JavaScript before they run, and the runtime no longer ships an in-Worker bundler (`@cloudflare/worker-bundler` is no longer a dependency of `agents`):
+
+  - The Agents Vite plugin compiles bundled skill scripts (`scripts/*.ts`/`.tsx`/`.js`/`.mjs`) with esbuild at build time — resolving sibling imports and stripping TypeScript — and marks them `precompiled`.
+  - Skills served from R2 or other dynamic sources must be compiled before upload. A new `compileSkillScript` helper is exported from `agents/skills/compile` for use in your publish/upload tooling.
+  - At runtime, a skill script that still needs compiling (raw TypeScript or a multi-file skill that wasn't bundled) throws a clear "must be compiled to a self-contained JavaScript module" error instead of silently bundling in-Worker.
+
+  **Breaking:** if you ship raw TypeScript or multi-file skill scripts to R2 (or another dynamic source) and relied on the in-Worker bundler to compile them at runtime, bundle them ahead of time (e.g. with `compileSkillScript`) before upload. Bundled skills handled by the Vite plugin require no changes. The previously-added `stubWorkerBundler` option has been removed (there is nothing left to stub).
+
+## 0.14.4
+
+### Patch Changes
+
+- [#1693](https://github.com/cloudflare/agents/pull/1693) [`6496c80`](https://github.com/cloudflare/agents/commit/6496c802d0334dff2114e21a6149acc6f3d30fe5) Thanks [@threepointone](https://github.com/threepointone)! - Fix `AIChatAgent` orphaned-stream recovery merging a new assistant turn into the previous assistant message ([#1691](https://github.com/cloudflare/agents/issues/1691)).
+
+  When a stream was interrupted before its final assistant message was persisted (Durable Object hibernation, deploy churn, isolate restart, reconnect), orphan recovery reconstructed the message from stored chunks. If those chunks carried no provider `start.messageId` — the common case — recovery fell back to the _last_ assistant message in history. That is correct for a continuation, but wrong for a normal new turn after a later user message: the recovered chunks for the new turn were appended onto the previous assistant message, corrupting both the persisted transcript and future model context.
+
+  The assistant message id allocated when a stream starts is now persisted in the resumable-stream metadata (`ResumableStream.start()` records `message_id`). When the reconstructed chunks carry no provider `start.messageId` — the common case, and the one that triggered the bug — orphan recovery now uses this stored id instead of the last-assistant fallback, so a new turn becomes its own message and a continuation still merges into the message it was extending (it stored the cloned last-assistant id). A provider `start.messageId`, when present, still wins, matching the live path which adopts it for new turns. Stream rows written before this release have no stored id and keep the previous behavior (provider id if present, otherwise the last assistant message). The metadata migration adds a single column, guarded by a schema check so it runs only once.
+
+  This also fixes two related variants of the same corruption on the durable (`chatRecovery`) continuation path:
+
+  - When a stream was persisted early (e.g. at a tool-approval pause) and then recovered, the merge re-appended chunks it had already stored, leaving two parts for the same tool call. Recovery now skips reconstructed parts whose `toolCallId` already exists on the message.
+  - When a new turn was interrupted before any assistant part was persisted — either because it was cut off in the window before the first chunk materialized, or because `onChatRecovery` returned `{ persist: false }` — recovery would "continue" it by cloning the previous assistant message, merging the new turn into it. Recovery now detects that the conversation leaf is still the user message (no partial to continue) and re-runs the turn fresh, so it becomes its own message.
+
+  `@cloudflare/think` is unaffected — its session-tree recovery already allocates a distinct message id per orphan and never falls back to the last assistant message.
+
+## 0.14.3
+
+### Patch Changes
+
+- [#1686](https://github.com/cloudflare/agents/pull/1686) [`1e49880`](https://github.com/cloudflare/agents/commit/1e498803fe26970aa264678d5ae3a2c96dd28258) Thanks [@threepointone](https://github.com/threepointone)! - Batch and pack chat-persistence SQLite writes to reduce rows written and round-trips.
+  - `agents`: `ResumableStream` now **packs** each buffered group of stream chunks into a single SQLite row (a JSON array of chunk bodies) instead of writing one row per chunk. Single-chunk and large-chunk segments are stored unwrapped, and a per-segment byte cap keeps rows within the 2 MB SQLite row limit. This cuts chunk rows written / stored / scanned-on-replay by up to ~10×. Reads (replay, orphan reconstruction, `getStreamChunks`) transparently unpack both packed segments and legacy per-chunk rows, so existing stored data keeps working. Adds shared `buildInClauseStrings` and `MAX_BOUND_PARAMS` helpers exported from `agents/chat`.
+  - `@cloudflare/ai-chat`: message cleanup (stale-row pruning and `maxPersistedMessages` enforcement) previously issued one `DELETE` per row in a loop; it now deletes rows in batched `DELETE ... WHERE id IN (...)` queries (capped at 100 bound parameters per query).
+  - `@cloudflare/think`: `deleteSubmissions()` cleanup previously issued one `DELETE` per terminal submission (up to 500 per call); it now deletes rows in batched `DELETE ... WHERE submission_id IN (...)` queries.
+  - `@cloudflare/ai-chat` & `@cloudflare/think`: chat-recovery incident TTL sweep previously deleted each stale incident with a separate awaited `storage.delete(key)` (which also defeats Durable Object write-coalescing); it now deletes incidents in batched `storage.delete(keys)` calls (up to 128 keys per call).
+
+## 0.14.2
+
+### Patch Changes
+
+- [#1684](https://github.com/cloudflare/agents/pull/1684) [`ab6dd95`](https://github.com/cloudflare/agents/commit/ab6dd95b791a60fe5a5806852e05d4eeffecf9fd) Thanks [@threepointone](https://github.com/threepointone)! - warn when `chatRecovery` is configured in `onStart()` (applied too late for wake recovery)
+
+  On every Durable Object wake the SDK evaluates chat-recovery budgets — and may seal an interrupted turn, firing `onExhausted` — **before** the user's `onStart()` runs (`_checkRunFibers()` is ordered ahead of `onStart()`). A `chatRecovery` config produced inside `onStart()` is therefore read as the built-in defaults at the moment recovery decides, so a configured `maxRecoveryWork` / `shouldKeepRecovering` / `onExhausted` silently never applies to the recovery that matters.
+
+  This is now documented on `ChatRecoveryConfig` and the `chatRecovery` fields of `Think` / `AIChatAgent`, and the SDK logs a one-time warning if it detects `chatRecovery` being reassigned during `onStart()`. The warning fires both for a custom config object and for `chatRecovery = true` (enabling recovery / its defaults too late); assigning `false` (disabling) in `onStart()` is intentionally not warned, since recovery already ran with the pre-`onStart()` value and disabling it afterward is a benign no-op for that wake. The fix is to assign `chatRecovery` as a class field or in the constructor.
+
+- [#1672](https://github.com/cloudflare/agents/pull/1672) [`f96a2ba`](https://github.com/cloudflare/agents/commit/f96a2bab7a668465b0e68c7f70b4b1b93ae53296) Thanks [@threepointone](https://github.com/threepointone)! - fix(chat-recovery): a turn making forward progress now survives unbounded deploy churn; add a work budget + `shouldKeepRecovering` runaway guard
+
+  Durable chat recovery used to bound a single incident with a non-resetting 15-minute wall-clock ceiling (`CHAT_RECOVERY_MAX_WINDOW_MS`). That ceiling was overloaded — it served as both a recovery-duration bound and a runaway-loop guard — and it terminated _healthy, actively-progressing_ turns that simply took longer than 15 minutes of wall-clock to finish while being repeatedly interrupted by a dense deploy window, sealing them with `reason="max_recovery_window_exceeded"` and discarding completed work.
+
+  The two jobs are now decoupled (see `design/rfc-chat-recovery-work-budget.md`):
+
+  - **Duration is no longer a bound for a progressing turn.** The non-resetting wall-clock ceiling is removed. A turn that keeps producing content survives unbounded deploy churn. Stuck turns are still sealed by the no-progress window (5 min, resets on progress); tight no-progress alarm loops by the attempt cap.
+  - **New runaway-loop guard, keyed to work, not time.** The existing durable, monotonic, reconnect-immune progress counter is reused as a work meter. `chatRecovery.maxRecoveryWork` caps the produced content/tool units since an incident opened; exceeding it seals with `reason="work_budget_exceeded"`. **Defaults to `Infinity`** — the SDK ships the mechanism but imposes no implicit cap, so it never terminates a progressing turn on its own.
+  - **New caller predicate.** `chatRecovery.shouldKeepRecovering(ctx)` is consulted per recovery attempt from the second onward (only when no hard bound has already sealed the incident); returning `false` seals with `reason="recovery_aborted"`. This is where integrators express token/cost/step budgets the SDK should not hardcode. A throwing predicate is logged and treated as "keep recovering".
+  - **The no-progress timeout is now configurable.** `chatRecovery.noProgressTimeoutMs` (default 5 min, resets on progress) is the primary stuck-turn bound, now overridable per agent instead of a hardcoded constant.
+
+  New public types from `agents/chat`: `ChatRecoveryProgressContext`. New `ChatRecoveryConfig` fields: `maxRecoveryWork`, `shouldKeepRecovering`, `noProgressTimeoutMs`. `ChatRecoveryExhaustedContext.reason` gains `work_budget_exceeded` and `recovery_aborted`; `max_recovery_window_exceeded` is retained as an open-string value but is no longer emitted.
+
+  Both `@cloudflare/ai-chat` and `@cloudflare/think` (which carries its own copy of the recovery engine) are updated identically. Defaults are unchanged except that a progressing turn is no longer terminated by wall-clock age.
+
+- [#1668](https://github.com/cloudflare/agents/pull/1668) [`d40cc8a`](https://github.com/cloudflare/agents/commit/d40cc8ac5c5200668fcb7739af700083608c4339) Thanks [@ghostwriternr](https://github.com/ghostwriternr)! - Fix RPC resource leaks in workflows.
+
+  Workflows that use `waitForApproval()` or `ThinkWorkflow.prompt()` now release their RPC stubs promptly, preventing resource leaks and the associated "RPC stub was not disposed" warnings in your logs.
+
+- [#1679](https://github.com/cloudflare/agents/pull/1679) [`c8d1d32`](https://github.com/cloudflare/agents/commit/c8d1d3256291c851144ac179ec6968ca4c46ca72) Thanks [@threepointone](https://github.com/threepointone)! - fix(sub-agents): a facet sub-agent no longer touches the root DO's WebSockets, fixing a production-only "Cannot perform I/O on behalf of a different Durable Object (Native)" crash ([#1677](https://github.com/cloudflare/agents/issues/1677))
+
+  A sub-agent (facet) that called `setState()`, `broadcast()`, or otherwise enumerated connections — directly or indirectly via the internal `_broadcastProtocol()` — could crash in production with `Cannot perform I/O on behalf of a different Durable Object. ... (I/O type: Native)`. It reproduced when the **root** Agent held a live (hibernatable) WebSocket connection and the child facet was freshly bootstrapped; it never reproduced in `wrangler dev`/miniflare, which made it hard to catch.
+
+  Root cause: the `Agent` overrides of `getConnections()` and `getConnection()` fell through to `super.getConnections()` / `super.getConnection()` for facets too. On a facet, that resolves to the **host/root DO's** hibernatable WebSockets, and reading their attachments from the facet's I/O context is a cross-DO native I/O access that workerd aborts. `setState()` tripped it only incidentally, because `_broadcastProtocol()` enumerates connections to compute its exclude list before sending anything.
+
+  Fix: a facet's client connections are all virtual (real sockets owned by the root and bridged in), so `getConnections()`/`getConnection()` now return only the facet's virtual sub-agent connections and never fall through to the host DO's sockets. Delivery of facet state updates to clients connected directly to the sub-agent is unchanged.
+
+- [#1670](https://github.com/cloudflare/agents/pull/1670) [`5d64940`](https://github.com/cloudflare/agents/commit/5d64940c2115822ef5ba4c8b35bfe5c2632ce11d) Thanks [@threepointone](https://github.com/threepointone)! - Fix: a deploy that interrupts an in-flight `runAgentTool` child no longer abandons the still-running child as `interrupted`.
+
+  Parent recovery re-attaches to a still-running child and tails it to its real terminal. Previously that re-attach used a flat 120s wall-clock budget that was **not** reset by the child's forward progress, so a healthy child whose recovery legitimately ran longer than the budget was sealed `interrupted` (and its already-completed work re-run from scratch), even while it was actively streaming.
+
+  The re-attach budget is now **progress-keyed**: it bounds how long the parent waits with _no_ forward progress from the child (resetting on every forwarded chunk), so a genuinely hung/silent child still seals `interrupted` after one no-progress window and can never block recovery forever, while a healthy child that keeps streaming is followed through to terminal. The parent re-arms (opens a fresh tail) **only when the child's stream closes cleanly while it is still advancing** — i.e. a re-evicted-but-progressing child. A full no-progress window (the child went silent) seals `no-progress` immediately even if the child streamed earlier in that window; it no longer grants a bonus window. This is both the honest stall signal and what keeps at most one pending tail reader alive per re-attach (no per-cycle reader accumulation).
+
+  `@cloudflare/think` and `@cloudflare/ai-chat` additionally finalize a child facet's own agent-tool run row as soon as its recovered turn settles — regardless of whether recovery took the continue path (`_chatRecoveryContinue`) or the pre-stream retry path (`_chatRecoveryRetry`) — so a re-attached parent collects the terminal result immediately instead of waiting out a full no-progress window after the child has already finished.
+
+  This release also adds:
+
+  - **Typed interrupted cause.** `RunAgentToolResult`, the `agentTool()` `AgentToolFailure` envelope, the `onAgentToolFinish` lifecycle result, and the `agent-tool-event` wire event (kind `"interrupted"`) now carry a machine-readable `reason` (`AgentToolInterruptedReason`: `"no-progress" | "window-exceeded" | "not-tailable" | "inspect-timeout" | "inspect-failed" | "recovery-deadline"`) and a `childStillRunning` boolean on `interrupted` results, so callers (and UIs) can branch on _why_ a run was abandoned (and whether the child is still running) instead of pattern-matching the human-readable `error` prose. `retryable` stays coarse (always `true` for `interrupted`); refine with `reason` / `childStillRunning`. These fields are **persisted** (schema bump), so they survive a reconnect replay — a client that reconnects after an interrupt reconstructs the same `reason` / `childStillRunning` a live client saw, rather than `undefined`. The persisted cause is cleared when a soft `interrupted` row is later repaired to `completed`/`error`.
+  - **Configurable re-attach budgets.** Two new public `AgentStaticOptions` — `agentToolReattachNoProgressTimeoutMs` (default 120000, the progress-keyed no-progress budget) and `agentToolReattachMaxWindowMs` (default **`Infinity`** — no implicit wall-clock cap) — let an Agent tune re-attach. The hard ceiling defaults to uncapped to mirror chat-recovery's `maxRecoveryWork: Infinity`: a re-attached parent follows a healthy, still-advancing child for as long as it makes progress — exactly as it would on the live (never-evicted) path — so it never abandons a long-running-but-healthy child that simply outlasts a fixed wall clock under deploy churn. A hung/silent child is bounded by the no-progress budget; a content-runaway is bounded uniformly (live and recovery) by the child's own `maxRecoveryWork` / `shouldKeepRecovering`. Integrators that want a hard wall-clock cap (and the `window-exceeded` child teardown it triggers) can set `agentToolReattachMaxWindowMs` to a finite value. Symmetrically, setting `agentToolReattachNoProgressTimeoutMs` to `Infinity` now means **"never seal on no-progress"** (a silent-but-alive child is followed until its stream closes or the hard ceiling fires) instead of silently skipping the wait — `0` remains the "don't wait, collect only an already-terminal child" sentinel.
+  - **Give-up teardown (ceiling only).** When the parent gives up at the hard `window-exceeded` ceiling — where the child has had its full recovery window and is truly exhausted — it now cancels the child (`childStillRunning: false`) so it stops consuming a fiber / keep-alive. `no-progress` give-ups stay **soft** (`childStillRunning: true`): the child is left running so a re-issue can still re-attach and repair it if it self-heals, preserving the repair-on-re-issue path. In both `@cloudflare/think` and `@cloudflare/ai-chat`, `cancelAgentToolRun` also aborts an in-flight chat-recovery turn (not just the original in-isolate run) and releases live tails — Think sweeps its `_submissionAbortControllers`, ai-chat its request `AbortRegistry` (`abortAllRequests`) — so a torn-down child stops grinding instead of finishing an orphaned recovered turn.
+
+- [#1680](https://github.com/cloudflare/agents/pull/1680) [`8f9500a`](https://github.com/cloudflare/agents/commit/8f9500a7cb172d69b781dcefb26b6700398f8f6c) Thanks [@threepointone](https://github.com/threepointone)! - Remove the now-redundant `_suppressProtocolBroadcasts` facet-bootstrap guard.
+
+  This flag was added in [#1425](https://github.com/cloudflare/agents/issues/1425) to stop `_broadcastProtocol()` from enumerating the
+  parent DO's WebSockets during facet bootstrap (the cross-DO Native I/O crash,
+  [#1410](https://github.com/cloudflare/agents/issues/1410)/[#1677](https://github.com/cloudflare/agents/issues/1677)). The proper fix in [#1679](https://github.com/cloudflare/agents/issues/1679) makes `getConnections()`/`broadcast()`
+  facet-safe at the source — on a facet they return only virtual sub-agent
+  connections and route through the parent bridge, never touching the parent's own
+  sockets. With that, suppressing broadcasts during bootstrap is unnecessary, and
+  removing it also lets legitimate state sync run during the bootstrap window.
+
+  The separate request/WebSocket/email native-handle clearing from [#1425](https://github.com/cloudflare/agents/issues/1425) is
+  retained, since [#1679](https://github.com/cloudflare/agents/issues/1679) does not cover that vector.
+
+- [#1675](https://github.com/cloudflare/agents/pull/1675) [`d915bc6`](https://github.com/cloudflare/agents/commit/d915bc6f6d8da70df8e3b97be185b773c28c309e) Thanks [@threepointone](https://github.com/threepointone)! - The skill runner now imports `just-bash` and `@cloudflare/codemode` statically instead of dynamically, and both have moved from optional peer dependencies to regular dependencies of `agents`. The dynamic imports were ineffective in bundled Workers (the bundler includes them eagerly regardless) and triggered `INEFFECTIVE_DYNAMIC_IMPORT` warnings when bundled alongside `@cloudflare/think`, which imports them statically. `@cloudflare/think` also now statically imports its internal `ExtensionManager` instead of dynamically, removing the third such warning.
+
+- [#1662](https://github.com/cloudflare/agents/pull/1662) [`df6c0d6`](https://github.com/cloudflare/agents/commit/df6c0d68d2195fa22c74ff0b7bb6801d15dd3eee) Thanks [@threepointone](https://github.com/threepointone)! - Add opt-in recovery for mid-turn context-window overflow.
+
+  Compaction only fires between turns (`Session.compactAfter` checks the threshold on `appendMessage`). A single long, tool-heavy turn grows the prompt step-by-step inside one `streamText` loop and can exceed the model's context window mid-turn, before the next pre-turn check — the provider then 400s (`"prompt is too long"` / `context_length_exceeded`) and the turn dies terminally. Think deliberately ships no provider-specific error matching, so it could neither detect nor recover from this.
+
+  This adds opt-in, provider-agnostic recovery (all default off — no behavior change unless enabled), configured through a single `contextOverflow` property on `Think`:
+
+  - **`classifyChatError(error, ctx)`** — the app maps a raw error (or the in-stream error string) to a `ChatErrorClassification` (`"context_overflow" | "rate_limit" | "transient" | "fatal" | "unknown"`). Same framework-owns-the-mechanism / app-owns-the-provider-knowledge split as `tokenCounter`. The classification is also threaded to `onChatError`/observers via `ChatErrorContext.classification`. The bundled, exported `defaultContextOverflowClassifier` covers the common providers (Anthropic, OpenAI, Google, Bedrock, …) for apps that do not need custom classification.
+  - **`contextOverflow.reactive`** + **`contextOverflow.maxRetries`** — when a turn fails with a `context_overflow` the app classified, Think discards the truncated partial, runs `session.compact()`, and re-runs the turn (bounded) from the compacted history instead of dying. The partial is intentionally not persisted: the retry restarts the turn from scratch, so keeping the cut-off partial would orphan a half-finished assistant message beside the recovered answer (and duplicate any tool work the retry re-issues). A no-op compaction or a spent budget surfaces the overflow terminally through `onChatError` with `classification: "context_overflow"` — never a silent end, never an infinite loop. Wired into the WebSocket, `chat()`/RPC, and programmatic (`saveMessages`/`submitMessages`) turn paths.
+  - **`contextOverflow.proactive`** — a `{ maxInputTokens, headroom?, maxCompactions? }` pre-step guard: when the previous step's model-reported `usage.inputTokens` crosses `maxInputTokens * (headroom ?? 0.9)`, Think compacts in place and feeds the recompacted history into the upcoming step, heading off the provider 400 before it happens. Keys off model-reported usage (every provider reports it), not provider error strings. Bounded per step loop by its own `maxCompactions` (default 1, independent of the reactive `maxRetries` budget).
+
+  Also adds a `chat:context:compacted` observability event (`agents`) emitted (once) on both proactive and reactive compaction.
+
+  Notes:
+
+  - Provider context-overflow errors always surface as in-stream error parts (confirmed against the AI SDK: `streamText` re-enqueues even top-level rejections as `{ type: "error" }` fullStream parts, and `toUIMessageStream` passes them through without throwing), so the in-stream seam catches them on every path; the thrown-error catch path does not need separate wiring.
+  - Recovery effectiveness depends on the app's compaction config — a no-op compaction cannot rescue an over-budget turn (handled gracefully: terminal, not a loop). A one-time warning fires if `contextOverflow.reactive` is enabled but `classifyChatError` was never overridden.
+
+- [#1675](https://github.com/cloudflare/agents/pull/1675) [`d915bc6`](https://github.com/cloudflare/agents/commit/d915bc6f6d8da70df8e3b97be185b773c28c309e) Thanks [@threepointone](https://github.com/threepointone)! - The `agents/vite` plugin now stubs `turndown` by default. `turndown` (pulled in transitively by `just-bash` for the workspace bash tool and skill runner) runs a top-level `require()` in its Node DOM fallback, which throws `ReferenceError: require is not defined` at Worker startup — even when the bash tool is never used. The plugin replaces it with an inert stub so Workers deploys stay clean. Opt out with `agents({ stubTurndown: false })` if your app uses `turndown` directly.
+
+## 0.14.1
+
+### Patch Changes
+
+- [#1659](https://github.com/cloudflare/agents/pull/1659) [`f99f890`](https://github.com/cloudflare/agents/commit/f99f89022ced86115fa81f652e49ecb74340dbf2) Thanks [@threepointone](https://github.com/threepointone)! - Recover one-shot scheduled work (alarms) killed by a `"This script has been upgraded…"` deploy/code-update, not just `"Durable Object reset because its code was updated."`.
+
+  `_executeScheduleCallback` only re-runs a one-shot schedule row after a superseded-isolate error if the error matched `/reset because its code was updated/i`. The platform also surfaces the same failure class as `"This script has been upgraded. Please send a new request to connect to the new version."` (a stub/connection to a superseded script), which fell through to the swallow-and-delete branch — the one-shot row was deleted and the work abandoned. For a queued submission this orphaned the pending row with no driver (no alarm, no retry) until something unrelated woke the Durable Object, leaving the user on an indefinite spinner.
+
+  The superseded-isolate matcher now recognizes both messages, so either causes the row to be preserved and re-run on the fresh isolate under the at-least-once alarm guarantee. `"Network connection lost."` is intentionally not included (it is a connection error that may succeed on in-process retry, not an isolate replacement).
+
+- [#1661](https://github.com/cloudflare/agents/pull/1661) [`41315b6`](https://github.com/cloudflare/agents/commit/41315b602c4d68dbd5cad99cc949fbf13e256c51) Thanks [@threepointone](https://github.com/threepointone)! - Enforce the `tool_use.input` invariant at the chat write boundary.
+
+  A streamed tool call that finishes with no `input_json_delta` events (the model called the tool with no args), or whose input surfaces as a stringified JSON blob, could persist a non-object `input` — `null`, `undefined`, `""`, an array, or a raw string. The Anthropic Messages API requires `tool_use.input` to be a JSON object and rejects every subsequent turn with `tool_use.input: Input should be an object` (verified against the live API: `{}` → 200, but `""`, `[]`, and `[{...}]` all → 400). Because the bad shape lives in durable storage, the session is wedged across reconnects, redeploys, and DO evictions.
+
+  `applyChunkToParts` (the shared accumulator used by `@cloudflare/ai-chat` and `@cloudflare/think`) now normalizes the finalized tool `input` on `tool-input-available` / `tool-input-error`: a plain object passes through untouched, a stringified-JSON object is parsed, and everything else (`null`/`undefined`/`""`/arrays/primitives/unparseable strings) collapses to `{}`. A new `normalizeToolInput` helper is exported from `agents/chat` so read-side transcript repair can enforce the same invariant.
+
+- [#1665](https://github.com/cloudflare/agents/pull/1665) [`13d6db0`](https://github.com/cloudflare/agents/commit/13d6db042315937ed8d393775f3d576d56984f44) Thanks [@threepointone](https://github.com/threepointone)! - Await Chat SDK state-agent cleanup scheduling during startup so tests and short-lived worker isolates do not leave dangling cleanup work.
+
+- [#1666](https://github.com/cloudflare/agents/pull/1666) [`01a0b35`](https://github.com/cloudflare/agents/commit/01a0b357a3fc5c7027e44e6687c898b1baeda66b) Thanks [@dcartertwo](https://github.com/dcartertwo)! - Fix MCP OAuth PKCE verifier lookup for overlapping authorization attempts.
+
+  `DurableObjectOAuthClientProvider` now binds pending PKCE verifiers to the OAuth callback state instead of storing a single verifier per client/server. Callback handling runs token exchange and verifier cleanup in the returned state's context, so older auth windows and retry churn no longer exchange an authorization code with another attempt's verifier.
+
+## 0.14.0
+
+### Minor Changes
+
+- [#1623](https://github.com/cloudflare/agents/pull/1623) [`4c8b371`](https://github.com/cloudflare/agents/commit/4c8b3712b11d2b07298e384e5884844272f4697a) Thanks [@threepointone](https://github.com/threepointone)! - `agentTool()` now returns a structured failure envelope instead of an opaque error string, so a parent agent can tell a transient interruption apart from a terminal failure.
+
+  Previously every non-completed sub-agent run collapsed to `{ ok: false, error: string }`. A child that was reset/superseded by a deploy or parent recovery (`interrupted`) looked identical to a genuine failure or an intentional cancellation, so the parent model would often parrot the interruption text back to the user as if the work had permanently failed.
+
+  The failure value is now `AgentToolFailure`:
+
+  ```ts
+  type AgentToolFailure = {
+    ok: false;
+    status: "error" | "aborted" | "interrupted";
+    error: string; // still human-readable
+    retryable: boolean;
+  };
+  ```
+
+  - `interrupted` → `retryable: true` (the run never reached a logical outcome; re-dispatching can succeed), and now surfaces the underlying interruption reason via `error`.
+  - `aborted` (intentional cancellation) and `error` (genuine failure) → `retryable: false`.
+
+  This is backward compatible for consumers that read `ok`/`error`; the new `status` and `retryable` fields let an orchestration harness (or a parent prompt convention) re-run an interrupted sub-agent automatically rather than reporting it as final. `AgentToolFailure` is exported from `agents`.
+
+- [#1636](https://github.com/cloudflare/agents/pull/1636) [`f5a0d00`](https://github.com/cloudflare/agents/commit/f5a0d00cf59b19cd4db54c7de6e441b8da669521) Thanks [@threepointone](https://github.com/threepointone)! - Expose recovery incident identity and enrich the `onExhausted` payload so
+  products can build a terminal-state policy without re-deriving anything ([#1631](https://github.com/cloudflare/agents/issues/1631)).
+
+  - `ChatRecoveryContext` (the `onChatRecovery` argument) now includes
+    `recoveryRootRequestId` — the stable request ID for the whole continuation
+    chain. Unlike `requestId`, it doesn't change across chained continuations, so
+    it's the right key for per-incident budget tracking / fresh-incident detection
+    without re-deriving identity from message IDs.
+  - `ChatRecoveryExhaustedContext` (the `onExhausted` argument) now carries
+    `recoveryRootRequestId`, `terminalMessage` (the exact text shown to the user),
+    `partialText` / `partialParts` (what the turn produced before it was given up
+    on), and `streamId` / `createdAt` — enough to render or persist a user-facing
+    terminal banner AND emit correlated terminal telemetry (e.g. time-since-turn-start,
+    stream correlation) directly, without re-deriving anything.
+
+  All fields are additive. Applied across `agents` (shared types),
+  `@cloudflare/think`, and `@cloudflare/ai-chat`.
+
+- [#1584](https://github.com/cloudflare/agents/pull/1584) [`87006e2`](https://github.com/cloudflare/agents/commit/87006e27498ee535feabd2a9bd207366f33621be) Thanks [@threepointone](https://github.com/threepointone)! - Add a framework-agnostic Agent Skills engine at `agents/skills`: skill sources (`fromManifest`, R2), a `SkillRegistry` that produces a catalog prompt and AI SDK activation tools (`activate_skill`, `read_skill_resource`, `run_skill_script`), binary-safe resource reads, and qualified cross-skill resource paths. Bundled skills are imported through the Agents Vite plugin with the `agents:skills` specifier (defaulting to a `./skills` directory), typed via ambient declarations shipped from `agents`. `@cloudflare/think` re-exports the engine as `skills` and wires `getSkills()` into the turn; any AI SDK caller (including `@cloudflare/ai-chat`) can build a `SkillRegistry` directly.
+
+  Skill loading is resilient: duplicate or failing sources are skipped with a warning (first source wins) instead of throwing. Optional, experimental script execution (`skills.runner`) runs function-style JavaScript/TypeScript (`export default run(input, ctx)` with `ctx = { skill, files, workspace, tools, output }`) plus path-based Python and Bash, all behind a single capability and permission bridge.
+
+- [#1648](https://github.com/cloudflare/agents/pull/1648) [`d6827ab`](https://github.com/cloudflare/agents/commit/d6827ab03fa703058e755d17e3f5db0cd90c94b6) Thanks [@threepointone](https://github.com/threepointone)! - Surface a live "recovering…" status to chat clients during durable recovery ([#1620](https://github.com/cloudflare/agents/issues/1620))
+
+  When a durable chat turn is interrupted (a deploy/eviction, or a stream-stall
+  watchdog abort) and resumes, clients had no "in progress" signal — the turn
+  looked frozen until it completed or a terminal error was replayed. A new
+  `cf_agent_chat_recovering` protocol frame is now broadcast on recovery schedule
+  and cleared on every terminal outcome (completed/skipped/failed/exhausted), so
+  the indicator can't spin forever. In `@cloudflare/think` it's also persisted and
+  replayed on connect, so a client that joins mid-recovery learns the turn is
+  working. `useAgentChat` exposes a new `isRecovering` flag (distinct from
+  `isStreaming` — a recovering turn isn't producing tokens yet); most UIs render
+  `isStreaming || isRecovering` as "busy". Backward-compatible: clients that don't
+  understand the frame ignore it.
+
+  > Note: `@cloudflare/ai-chat` broadcasts the live signal but does not yet replay
+  > it on connect (it has no idle-connect hydration path; tracked in [#1645](https://github.com/cloudflare/agents/issues/1645)).
+  > `@cloudflare/think` has both.
+
+  For recovery telemetry, subscribe to the `chat:recovery:*` observability events
+  and route them to your analytics sink.
+
+- [#1611](https://github.com/cloudflare/agents/pull/1611) [`02f9380`](https://github.com/cloudflare/agents/commit/02f93809587aca310ad39fa5683de57ee9f6e070) Thanks [@threepointone](https://github.com/threepointone)! - Add bounded, observable recovery foundations for durable chat turns and fibers.
+
+  - Add dedicated recovery observability channels/events for fibers, chat recovery, transcript repair, and agent-tool recovery.
+  - Bound internal framework fiber recovery hooks and parent agent-tool recovery scans so startup and recovery work cannot wedge indefinitely.
+  - Add shared chat recovery incident tracking with attempt counts, configurable `chatRecovery` defaults, and terminal exhaustion behavior for `AIChatAgent` and `Think`. Think recovery now exhausts after six failed attempts by default and sends a terminal error frame instead of spinning indefinitely.
+  - Keep the recovery attempt budget bounded even when an interrupted turn flips between `retry` and `continue` recovery kinds (the incident identity no longer includes the kind), guard a throwing `onExhausted` hook so the terminal UX is still delivered, mark incidents `failed` when the recovery dispatch throws, and reclaim incident records on success plus a TTL sweep for abandoned ones so durable storage does not grow without bound.
+  - Bound generic unmanaged fiber recovery with a configurable `fiberRecoveryMaxAgeMs` so a repeatedly-throwing `onFiberRecovered()` hook cannot re-trigger forever across restarts.
+  - Surface Think post-persist chat request failures through `onChatError(error, ctx)` and `chat:request:failed`.
+  - Repair incomplete Think tool-call transcripts before provider calls and allow `createCompactFunction()` to use a supplied token counter for tail budgeting.
+
+- [#1640](https://github.com/cloudflare/agents/pull/1640) [`edb126a`](https://github.com/cloudflare/agents/commit/edb126a72d1a6b52fa0057191d6d461ee902e914) Thanks [@threepointone](https://github.com/threepointone)! - Re-attach to a still-running sub-agent (`agentTool()`) run on parent recovery instead of abandoning and re-running it ([#1630](https://github.com/cloudflare/agents/issues/1630)).
+
+  When a parent agent was interrupted (deploy / Durable Object eviction) while a child `agentTool()` run was still in flight, recovery marked the run `interrupted` within a ~5s window and the parent re-issued the task — re-running the child's already-completed work. For long-running children under continuous deploys this surfaced to users as "the agent went all the way back and lost the files it already wrote."
+
+  Three changes fix this:
+
+  - **Stable child runId.** `agentTool()` now derives the child `runId` from the (recovery-preserved) tool call id (`agent-tool:<toolCallId>`) instead of minting a fresh `nanoid` per call. A turn re-run by chat recovery now resolves to the **same** idempotent child facet rather than spawning a brand-new one, so completed child work is never re-run.
+  - **Bounded re-attach.** A duplicate non-terminal `runId` (in `runAgentTool`) and a still-running child during startup reconciliation now **tail the live child to its real terminal result** and collect it, instead of immediately sealing `interrupted`. Re-attach is bounded by a generous wall-clock budget (`DEFAULT_AGENT_TOOL_REATTACH_TIMEOUT_MS`, 120s, internal): a child that keeps advancing toward terminal within the window is collected; a genuinely hung child still seals `interrupted` so recovery can never block forever.
+  - **Durable child-run reconcile.** A child facet self-heals its interrupted turn via its own `chatRecovery`, but that recovery path never wrote the child's agent-tool run row — so after a real eviction the row stranded `running` (think) / was force-errored (ai-chat) and the parent could never collect the recovered result. Both `@cloudflare/think` and `@cloudflare/ai-chat` now reconcile a stale child-run row from the durable transcript on inspect: while recovery is still resolving the row stays `running`; once it settles, a completed assistant response surfaces as `completed` (so the parent collects the real result) and an empty/failed recovery as `error`. This keeps the child's own (working) recovery path untouched.
+
+  No new public configuration. Adds an internal `agent_tool:recovery:reattach` observability event. `@cloudflare/think` and `@cloudflare/ai-chat` child tails are now read-only on consumer detach (a parent's re-attach budget expiring never cancels the still-running child).
+
+- [#1598](https://github.com/cloudflare/agents/pull/1598) [`f5e37bf`](https://github.com/cloudflare/agents/commit/f5e37bfa313634105fd0bdb7912498f9f92b24c6) Thanks [@threepointone](https://github.com/threepointone)! - Add `ThinkWorkflow` with durable `step.prompt()` support for Workflow-owned Think reasoning steps.
+
+### Patch Changes
+
+- [#1623](https://github.com/cloudflare/agents/pull/1623) [`4c8b371`](https://github.com/cloudflare/agents/commit/4c8b3712b11d2b07298e384e5884844272f4697a) Thanks [@threepointone](https://github.com/threepointone)! - Compaction: the Session's `tokenCounter` now also drives the bundled `createCompactFunction`'s boundary ("what to compress") decision, not just the fire/no-fire trigger. Fixes [#1593](https://github.com/cloudflare/agents/issues/1593).
+
+  Previously a `tokenCounter` configured on `Session.compactAfter()` only influenced _whether_ compaction fired; the boundary walk inside `createCompactFunction` still used the Workers-safe `chars/4` heuristic. On tool-heavy agent histories that heuristic under-counts badly, so the configured tail budget covered the entire history and `compressEnd <= compressStart` — compaction fired every turn but silently returned `null`, never shortening history (strictly worse than not configuring it).
+
+  Now the Session passes its counter to the compaction function via a new `CompactContext` argument, and `createCompactFunction` uses it for the tail-budget walk when no explicit `tokenCounter` was given on `CompactOptions`. So a single `tokenCounter` on `compactAfter()` drives both "should we compact?" and "what should we compact?". When the trigger fires but compaction still returns `null` (e.g. no counter configured and the heuristic protects everything), the Session logs a one-time warning instead of looping silently.
+
+  `CompactFunction` gains an optional second `context?: CompactContext` argument (backward compatible — existing one-arg functions are unaffected).
+
+  Note: the flowed counter is invoked per-message during the tail walk. A tokenizer-style counter gives accurate per-message budgeting; a usage-only counter that reports a fixed whole-prompt total degrades the tail budget to `minTailMessages` (compaction still runs and context stays bounded, but the byte budget is effectively ignored). For precise budgeting with such counters, pass an explicit per-message `CompactOptions.tokenCounter`.
+
+- [#1617](https://github.com/cloudflare/agents/pull/1617) [`5e60034`](https://github.com/cloudflare/agents/commit/5e60034e371577a2117ac4b39242e68fde3ebc93) Thanks [@threepointone](https://github.com/threepointone)! - Scheduled callbacks no longer drop their work when an alarm fires on an isolate
+  that a deploy has just superseded. In that window the first `ctx.storage` op
+  throws `Durable Object reset because its code was updated.` for the entire
+  invocation (code never reloads mid-invocation). Previously
+  `Agent._executeScheduleCallback` burned its in-process retries (all doomed),
+  swallowed the error, and `alarm()` deleted the one-shot row — permanently
+  abandoning the work even though the next fresh invocation would succeed. This
+  was a second deploy-churn abandonment path for chat recovery
+  (`_chatRecoveryContinue` / `_chatRecoveryRetry`) that the progress-aware budget
+  in `@cloudflare/think` / `@cloudflare/ai-chat` could not reach, because the
+  continuation was deleted before it could be re-detected.
+
+  For a one-shot schedule failing with this transient, the SDK now skips the
+  doomed in-process retries and re-throws so `alarm()` rejects: the one-shot row
+  survives and Cloudflare re-runs the alarm on a fresh isolate (= new code) under
+  the at-least-once alarm guarantee, so the work auto-resumes once the deploy
+  settles. All other callbacks and error classes keep the existing behavior.
+
+- [#1608](https://github.com/cloudflare/agents/pull/1608) [`7c17736`](https://github.com/cloudflare/agents/commit/7c17736fafa58c218181d7dcb30e36d3605d4395) Thanks [@cjol](https://github.com/cjol)! - Fix auto-continuation stream resumes so immediate client-tool resume requests attach to the pending continuation instead of receiving `cf_agent_stream_resume_none`.
+
+- [#1639](https://github.com/cloudflare/agents/pull/1639) [`6bac0f4`](https://github.com/cloudflare/agents/commit/6bac0f432a40f71ef6651cba778e2d909f20a0f9) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Prevent MCP Streamable HTTP result responses from crossing between concurrent
+  POST streams when a reused session receives duplicate in-flight JSON-RPC
+  request ids. Responses now prefer the live connection that originated their
+  request and return JSON-RPC internal errors instead of guessing when no origin
+  can safely disambiguate colliding streams.
+
+  Completion tracking for batched POST streams is now scoped per stream so an id
+  collision on another POST cannot prevent the original stream from closing.
+
+- [#1629](https://github.com/cloudflare/agents/pull/1629) [`7d38363`](https://github.com/cloudflare/agents/commit/7d383638970622cdde89b2330b1193ec5b91c204) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Fix server-side `needsApproval` tool continuations remaining stuck after the
+  user approves them. Think now keeps approved/denied/errored tool parts in the
+  model transcript, updates its live transcript before an immediate continuation,
+  and persists and broadcasts terminal tool output emitted for a prior assistant
+  message. Continuation response frames are also labelled consistently so
+  `useAgentChat` can apply streamed continuation updates to the active UI state.
+  A pending `approval-responded` tool is no longer mis-reported by the
+  incomplete-tool-call backstop, so approval continuations stop logging a false
+  "repair gap" warning and emitting a spurious `chat:transcript:repaired` event.
+
+  The cross-message tool result now flows through `StreamAccumulator`'s
+  `cross-message-tool-update` action and a shared, replay-safe
+  `crossMessageToolResultUpdate` builder (exported from `agents/chat`): it matches
+  terminal states for first-write-wins idempotency against provider replays (e.g.
+  the OpenAI Responses API, [#1404](https://github.com/cloudflare/agents/issues/1404)), preserves a streamed `preliminary` flag, and
+  lets `Think` skip redundant writes/broadcasts when a result is already settled.
+
+- [#1607](https://github.com/cloudflare/agents/pull/1607) [`f82d897`](https://github.com/cloudflare/agents/commit/f82d897822d5e59ed790b76025bb5d99efd2f647) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Tighten SSE resumability in `McpAgent`'s streamable HTTP transport.
+  Follow-up to [#1583](https://github.com/cloudflare/agents/issues/1583).
+
+  - **Final tool response is now actually replayable.** The previous code
+    stored the final response in the event store and then immediately
+    called `clearStream(streamId)` on `shouldClose`, deleting every event
+    for that stream — including the one just written. A client that lost
+    the connection mid-flight could reconnect with `Last-Event-ID` and
+    find nothing to replay. Fixed by flipping the order: write the SSE
+    event to the wire **first**, then drop the persisted
+    `streamId -> requestIds` mapping and clear the stored events. Every
+    event up to and including the final response is replayable while the
+    in-flight stream is open; the trade-off is that if the WS pipe is
+    enqueued but the client TCP dies before the bytes arrive, that one
+    final message is lost.
+
+  - **POST event store writes are unconditional**, matching the
+    standalone path. Previously the transport relied on a live WS
+    connection at `send()` time to record the event; if the client had
+    dropped (common during long tool calls on flaky networks) the event
+    was lost. Now the transport falls back to a persisted
+    `requestId -> streamId` reverse lookup (`McpAgent.getStreamForRequestId`),
+    stores the event, and writes to the wire only if a live connection is
+    still attached. Reconnecting with `Last-Event-ID` replays anything
+    that was missed.
+
+  - **Resumed connection registers under the source streamId**, matching
+    the SDK reference. For an active POST stream the persisted
+    `requestIds` are restored so future tool messages route to the new
+    WS. For the standalone listen stream the connection takes over that
+    role. For a completed POST the connection serves as a one-shot
+    replay channel. In every resumable case any prior connection bound
+    to the same streamId is closed, so there is at most one live
+    connection per stream and routing stays deterministic.
+
+  - **One stream per message, per the MCP spec.** The spec requires the
+    server to send each message on exactly one connected stream and
+    forbids broadcasting the same message across streams. Server-
+    initiated notifications go to the single standalone GET stream (the
+    transport supersedes any prior standalone GET when a new one opens),
+    and POST responses go to their own stream. Events are still stored
+    for replay when no live stream is attached.
+
+  - **Cleanup is immediate, not background.** Each POST stream's events
+    are cleared the moment the close frame is written. No alarms, no
+    metadata index, no sweep. Storage cost is bounded by the in-flight
+    POST streams plus the standalone GET stream. Multi-key deletes are
+    chunked at the Durable Object 128-key limit, and `replayEventsAfter`
+    uses an explicit `limit` so a pathological history can't OOM the DO.
+    Standalone GET events are not cleared automatically; they accumulate
+    for the lifetime of the session's Durable Object.
+
+  - **`DurableObjectEventStore` is exported** so callers embedding
+    `WorkerTransport` inside an Agent / Durable Object can wire up
+    resumability with `new DurableObjectEventStore(this.ctx.storage)`.
+
+- [#1602](https://github.com/cloudflare/agents/pull/1602) [`cfc75bc`](https://github.com/cloudflare/agents/commit/cfc75bc95498fb515af7e11d16f3f48ba0c5b363) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Fix SSE keepalive and enable resumability on the MCP transports ([#1583](https://github.com/cloudflare/agents/issues/1583)).
+
+  The MCP transports had a defective SSE keepalive (`event: ping\ndata: \n\n`
+  — a named event the SSE parser dispatched with empty data, firing
+  `addEventListener("ping", …)` on the client) and no recovery path for the
+  ~5 min Cloudflare edge idle-stream watchdog. This change makes
+  resumability the first-class recovery mechanism while keeping the
+  keepalive available when resumability isn't configured.
+
+  - **GET (standalone listen stream)** — when an `EventStore` is configured,
+    no keepalive; idle drops are recovered by clients reconnecting with
+    `Last-Event-ID`. Without an `EventStore`, the comment-frame keepalive
+    (`: keepalive\n\n` every 25s) keeps long-lived listeners alive.
+  - **POST (tool response stream)** — always keepalive. In-flight tool
+    calls survive the ~5 min idle watchdog. POST streams can additionally
+    be resumed via `Last-Event-ID` when an `EventStore` is configured: a
+    reconnecting GET inherits the original POST's `requestIds` so
+    subsequent tool messages route to the resumed connection.
+  - **Storage bounds** — `DurableObjectEventStore` now wraps each event
+    with a write timestamp and exposes `sweep(maxAgeMs)`. `McpAgent`
+    schedules a recurring sweep (default hourly, 24 hr TTL) so events from
+    abandoned POST streams whose clients never returned don't accumulate
+    forever in Durable Object storage. Streams that close cleanly are
+    cleared in full on the final response.
+
+  Also fixed: a pre-existing bug where an `McpAgent` GET stream that
+  reconnected with `Last-Event-ID` received the replayed backlog but
+  wasn't re-tagged as the standalone SSE stream, so subsequent
+  server-initiated notifications had no connection to land on.
+
+  All changes are additive — patch-level, no breaking changes.
+  `DurableObjectEventStore` is exported from `agents/mcp` for stateful
+  `WorkerTransport` callers (e.g. the elicitation example, which now
+  wires resumability via `eventStore: new DurableObjectEventStore(this.ctx.storage)`).
+
+- [#1641](https://github.com/cloudflare/agents/pull/1641) [`3aa1936`](https://github.com/cloudflare/agents/commit/3aa1936eb17bfff05eaa0dc225176bf408ddea78) Thanks [@threepointone](https://github.com/threepointone)! - Count a sub-agent's progress as the orchestrating parent's recovery progress
+
+  A parent turn whose work is "run a sub-agent and await its result" produced no
+  recoverable content of its own, so under deploy churn the **parent's** own
+  chat-recovery no-progress window could exhaust while the child was still
+  healthily streaming — abandoning the turn as `interrupted` and collecting an
+  interrupted result even though the child went on to complete. (Reproduced by
+  the `examples/deploy-churn --mode subagent` harness: the parent exhausted at
+  `attempt 6/6` with `progress: 1` while the child self-healed all 30 steps.)
+
+  Forwarding a child's stream to the parent's connections is now treated as
+  genuine forward progress for the parent's recovery budget: `Think` and
+  `AIChatAgent` advance their durable recovery-progress marker (throttled) each
+  time `_forwardAgentToolStream` forwards child output, so a parent that keeps
+  re-attaching to and streaming a live child survives churn indefinitely. The
+  credit is only granted when the child actually produces output — a silent or
+  hung child still lets the parent exhaust on its own no-progress timer, so a
+  stuck sub-agent can never pin a parent's recovery open forever.
+
+  This completes the sub-agent recovery story started by the stable-runId +
+  bounded re-attach fix ([#1630](https://github.com/cloudflare/agents/issues/1630)): the child self-heals and the parent both
+  re-attaches to it _and_ keeps its own recovery alive while doing so.
+
+- [#1604](https://github.com/cloudflare/agents/pull/1604) [`dfb3ecd`](https://github.com/cloudflare/agents/commit/dfb3ecdd7790dd0ba76257eb5ba02460470a516e) Thanks [@threepointone](https://github.com/threepointone)! - Recover stale agent-tool runs after startup and bound child inspection so wedged child facets cannot prevent a parent Agent from booting.
+
+- [#1623](https://github.com/cloudflare/agents/pull/1623) [`4c8b371`](https://github.com/cloudflare/agents/commit/4c8b3712b11d2b07298e384e5884844272f4697a) Thanks [@threepointone](https://github.com/threepointone)! - Message reconciliation now protects **all** resolved terminal tool states from being clobbered by a stale client message — not just `output-available`.
+
+  `reconcileMessages` (used at persistence time by both Think and AIChatAgent) merges the server's resolved tool result into an incoming client message that still shows a pre-output state (`input-available` / `approval-requested` / `approval-responded`). Previously it only carried over `output-available`, so if the server had already resolved a tool to `output-error` or `output-denied` and the client persisted a stale `input-available` (e.g. a reconnect/optimistic race before it saw the resolution), the stale state overwrote the server's terminal result — losing the error or the user's denial.
+
+  The merge now indexes `output-available`, `output-error`, and `output-denied` server parts and overlays the appropriate result field (`output` / `errorText` / `approval`) onto the stale client part.
+
+- [#1558](https://github.com/cloudflare/agents/pull/1558) [`67ff1ba`](https://github.com/cloudflare/agents/commit/67ff1ba15c2f09e4fc4c596549c84d473a6c7920) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Fix RPC MCP response routing for overlapping requests by correlating responses to JSON-RPC request ids.
+
+- [#1596](https://github.com/cloudflare/agents/pull/1596) [`091cb0f`](https://github.com/cloudflare/agents/commit/091cb0fac3ecf3857f94851660c5dd7f434fe0eb) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Support stable, caller-supplied server ids in `addMcpServer` for connector-style integrations.
+
+  Both the HTTP and RPC overloads of `addMcpServer` now accept an optional `id` field on their options object. When provided, this id replaces the generated `nanoid(8)` as the server's id in storage, restore, `listServers()`, `listTools()`, `getAITools()` (so tool keys become e.g. `tool_github_create_pull_request` instead of opaque connection ids), and OAuth state.
+
+  The supplied id is normalized via the exported `normalizeServerId` helper so that values like `"GitHub MCP!"` become `"github-mcp"` — guaranteeing the id is safe to embed in AI SDK tool names and storage keys.
+
+  **Fully additive — no user code breaks.** If you add `{ id: "github" }` to an existing `addMcpServer` call for a server that's already registered under an auto-generated nanoid, the SDK transparently migrates the existing storage row, in-memory connection, and OAuth-related DO storage keys to the new stable id. No `removeMcpServer` step required, no stale rows, no broken hibernation restore.
+
+  `addMcpServer` only throws on a genuinely ambiguous collision: the same stable id already belongs to a _different_ `(name, url)` server.
+
+  ```ts
+  await this.addMcpServer("GitHub", env.MCP_SESSION, {
+    id: "github",
+    props: { token: "..." },
+  });
+  // tools surface as `tool_github_<name>`
+  ```
+
+  Closes [#1564](https://github.com/cloudflare/agents/issues/1564).
+
+- [#1623](https://github.com/cloudflare/agents/pull/1623) [`4c8b371`](https://github.com/cloudflare/agents/commit/4c8b3712b11d2b07298e384e5884844272f4697a) Thanks [@threepointone](https://github.com/threepointone)! - Add an opt-in inactivity watchdog for the streaming read loop, so a hung provider/transport surfaces a terminal error instead of an infinite spinner.
+
+  Previously, if a model stream parked without ever throwing — no chunk, no error, no `done` — the chat read loop would wait forever and the client would spin indefinitely. There was no detection for a silently hung turn (only recovery-path `stable_timeout`, which guards recovery scheduling, not a live stream).
+
+  Set `chatStreamStallTimeoutMs` on a Think subclass to arm it: if no UI-message-stream chunk arrives within that window, the watchdog aborts the turn and the loop exits with a terminal stream error (routed through `onChatError` with `stage: "stream"`), emitting a new `chat:stream:stalled` observability event.
+
+  It is **off by default** (`0`) and applies to both the WebSocket turn loop and the `chat()` / sub-agent callback loop. Note it measures the gap _between_ stream chunks, which includes server-side tool execution time (no chunks flow while a tool runs) — set it comfortably above your slowest model time-to-first-token and slowest tool, or you will abort healthy long turns. A good starting point is `120_000`.
+
+## 0.13.3
+
+### Patch Changes
+
+- [#1580](https://github.com/cloudflare/agents/pull/1580) [`a1cd51b`](https://github.com/cloudflare/agents/commit/a1cd51b39674edd8fce9214bcc0ce0f9b93917e4) Thanks [@threepointone](https://github.com/threepointone)! - Improve session auto-compaction estimates by including the Session-managed frozen system prompt, support custom token counters, and expose an auto-compaction error callback.
+
+- [#1559](https://github.com/cloudflare/agents/pull/1559) [`f942ffe`](https://github.com/cloudflare/agents/commit/f942ffe4113bdf074942cc32c2c69922ef633502) Thanks [@cjol](https://github.com/cjol)! - Stash chat turn recovery metadata before inference starts so interrupted pre-stream turns can be reconciled by chat recovery. Pre-stream interruptions now automatically retry the existing unanswered user message when it is still safe to do so.
+
+- [#1579](https://github.com/cloudflare/agents/pull/1579) [`d0b4d0e`](https://github.com/cloudflare/agents/commit/d0b4d0e8d3a61fe7d03a73e2142595ef9f03d24d) Thanks [@threepointone](https://github.com/threepointone)! - Ensure Agent-generated workflow instance IDs always satisfy the Workflows runtime ID validator.
+
+- [#1567](https://github.com/cloudflare/agents/pull/1567) [`3cfa498`](https://github.com/cloudflare/agents/commit/3cfa49878c3ff8495f7f2b1b059a04440449bf7b) Thanks [@cjol](https://github.com/cjol)! - Return error statuses for in-band stream errors across programmatic chat turns.
+
+- [#1578](https://github.com/cloudflare/agents/pull/1578) [`6fa7fd7`](https://github.com/cloudflare/agents/commit/6fa7fd744090f3868ae6af6b89f92b6280738504) Thanks [@threepointone](https://github.com/threepointone)! - Use path-scoped identities for newly-created sub-agents while preserving legacy bare-name identities for existing registry entries.
+
+- [#1578](https://github.com/cloudflare/agents/pull/1578) [`6fa7fd7`](https://github.com/cloudflare/agents/commit/6fa7fd744090f3868ae6af6b89f92b6280738504) Thanks [@threepointone](https://github.com/threepointone)! - Avoid self-deadlocking facet startup when same-name sub-agents hydrate WebSocket connection state after wake.
+
+## 0.13.2
+
+### Patch Changes
+
+- [#1570](https://github.com/cloudflare/agents/pull/1570) [`4f14b9c`](https://github.com/cloudflare/agents/commit/4f14b9c7d16c3fe76268b053c2c3bde3b308915c) Thanks [@threepointone](https://github.com/threepointone)! - Add `agents/chat-sdk`, a Chat SDK `StateAdapter` backed by Agents sub-agents.
+
+  This new package entrypoint exports:
+
+  - `createChatSdkState()`, a convenience factory for Chat SDK `state`.
+  - `ChatSdkStateAdapter`, the concrete adapter implementation.
+  - `ChatSdkStateAgent`, the default sub-agent used for durable Chat SDK state.
+  - `defaultThreadShard()` and `defaultKeyShard()`, the default sharding helpers used by the adapter.
+
+  The adapter stores Chat SDK subscriptions, concurrency locks, pending queues, generic cache entries, callback metadata, thread and channel state, persisted message history, and transcript lists in Durable Object SQLite. State is sharded through `parent.subAgent()` so a messenger ingress Agent can keep Chat SDK infrastructure state inside child facets instead of requiring a separate top-level Durable Object binding for every state shard.
+
+  `createChatSdkState()` now works with the default `ChatSdkStateAgent` class when it is re-exported from the Worker entrypoint. It also defaults `parent` from `getCurrentAgent()` when called inside an Agent lifecycle method or request handler, so the common setup is:
+
+  ```ts
+  export { ChatSdkStateAgent } from "agents/chat-sdk";
+
+  const chat = new Chat({
+    adapters,
+    state: createChatSdkState(),
+  });
+  ```
+
+  Applications that need custom state behavior can still pass a custom `agent` subclass and explicit `parent`.
+
+  This also documents the sub-agent configuration model more clearly: production Workers should export facet classes, but facet-only child classes do not belong in `new_sqlite_classes` unless they are also used as top-level Durable Objects. Test wrangler configs may still include facet classes as test-only Durable Object bindings for `@cloudflare/vitest-pool-workers` compatibility, while keeping them out of `new_sqlite_classes`.
+
+## 0.13.1
+
+### Patch Changes
+
+- [#1563](https://github.com/cloudflare/agents/pull/1563) [`32cde40`](https://github.com/cloudflare/agents/commit/32cde406b3ab022ec83707863c42f22c741527d8) Thanks [@threepointone](https://github.com/threepointone)! - Add managed fiber jobs with idempotent acceptance, optional completion waiting, inspection, cancellation, explicit recovery outcomes, and retained terminal status records.
+
+## 0.13.0
+
+### Minor Changes
+
+- [#1297](https://github.com/cloudflare/agents/pull/1297) [`d151e6d`](https://github.com/cloudflare/agents/commit/d151e6d6ccd37820c37d5fd4208a531fd8144950) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Add experimental Postgres-backed session, context, and search providers for external session storage via Hyperdrive-compatible `pg` clients.
+
+  Session APIs now consistently return promises so callers can use the same surface with local SQLite or external storage providers. Think's session integration has been updated for the async session API, including cache-aware handling for idempotent appends and compaction overlays.
+
+### Patch Changes
+
+- [#1532](https://github.com/cloudflare/agents/pull/1532) [`0a2d6df`](https://github.com/cloudflare/agents/commit/0a2d6dfb73f9362f84ed5cd76f73f4696e10d3bd) Thanks [@threepointone](https://github.com/threepointone)! - Revert the Streamable HTTP server-to-client MCP routing change from PR [#1514](https://github.com/cloudflare/agents/issues/1514), which routed related messages such as elicitation requests over the originating POST response when no standalone SSE stream was open.
+
+- [#1546](https://github.com/cloudflare/agents/pull/1546) [`c935d7c`](https://github.com/cloudflare/agents/commit/c935d7cc4ad2da54257b7fd636b6b1665b2b5105) Thanks [@threepointone](https://github.com/threepointone)! - Fix nested sub-agent bootstrap so facet parents do not need to be bound as top-level Durable Object namespaces.
+
+- [#1533](https://github.com/cloudflare/agents/pull/1533) [`8f699fe`](https://github.com/cloudflare/agents/commit/8f699fe19df002a2695ef9c04cc407a890aca6bc) Thanks [@mattzcarey](https://github.com/mattzcarey)! - `McpAgent.elicitInput` now accepts an optional `options.relatedRequestId`, forwarded to the underlying transport so the elicitation request routes through the originating POST response stream per the Streamable HTTP spec. Callers should pass `{ relatedRequestId: extra.requestId }` from inside a tool handler.
+
+- [#1548](https://github.com/cloudflare/agents/pull/1548) [`ce2af34`](https://github.com/cloudflare/agents/commit/ce2af3487271b6e62e2c2a06ea6782c594b879da) Thanks [@threepointone](https://github.com/threepointone)! - Allow `parentAgent()` to resolve facet-only direct parents through a root RPC bridge.
+
+## 0.12.4
+
+### Patch Changes
+
+- [#1376](https://github.com/cloudflare/agents/pull/1376) [`6561a3f`](https://github.com/cloudflare/agents/commit/6561a3fb6ba7e1833c902457a015d47045a4e4a7) Thanks [@hrushikeshdeshpande](https://github.com/hrushikeshdeshpande)! - Avoid throwing when chat stream resume negotiation/replay races with a closed WebSocket connection.
+
+- [#1509](https://github.com/cloudflare/agents/pull/1509) [`4aa4176`](https://github.com/cloudflare/agents/commit/4aa4176d1a9c7d6011e89f792b20c676863f3722) Thanks [@threepointone](https://github.com/threepointone)! - Prevent duplicate initial state frames during Agent WebSocket connection setup so client-originated state updates are not overwritten by stale initial state messages.
+
+- [#1476](https://github.com/cloudflare/agents/pull/1476) [`3c48858`](https://github.com/cloudflare/agents/commit/3c48858d97c09b1dba6879e6689515e8c09a3a93) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Fixed a bug that could cause client state to drift from internal Durable Object state when agent tool calls spanned a Durable Object restart. Recovery now defers user finish hooks until after agent startup and isolates hook failures so one failed mirror write does not block other recovered runs from finalizing.
+
+- [#1514](https://github.com/cloudflare/agents/pull/1514) [`0371a6f`](https://github.com/cloudflare/agents/commit/0371a6f12282d9e192cd9ea841a2a0ba3f1e1f60) Thanks [@threepointone](https://github.com/threepointone)! - Route streamable HTTP server-to-client requests through the originating POST stream when no standalone SSE stream is available.
+
+- [#1500](https://github.com/cloudflare/agents/pull/1500) [`7090e9e`](https://github.com/cloudflare/agents/commit/7090e9eec337ae1496afce1a544044d9c765a021) Thanks [@threepointone](https://github.com/threepointone)! - Preserve structured tool output shapes when truncating older messages or oversized persisted rows, preventing custom `toModelOutput` handlers from crashing or mis-replaying compacted results.
+
+  Also harden Think's workspace `read` tool so legacy raw-string read outputs replay as text instead of stalling subsequent turns.
+
+- [#1504](https://github.com/cloudflare/agents/pull/1504) [`5d27b71`](https://github.com/cloudflare/agents/commit/5d27b71078cfe88107cc8d2dd5eab6a310503c62) Thanks [@threepointone](https://github.com/threepointone)! - Prune stale sub-agent schedule rows when their owning facet registry entry no longer exists.
+
+- [#1503](https://github.com/cloudflare/agents/pull/1503) [`7b8ab51`](https://github.com/cloudflare/agents/commit/7b8ab51524598a355f66f0efbf80af0c6ff7d4a3) Thanks [@threepointone](https://github.com/threepointone)! - Bump PartyServer to pick up transient Durable Object routing retries and expose `routingRetry` configuration through `getAgentByName`.
+
+## 0.12.3
+
+### Patch Changes
+
+- [#1451](https://github.com/cloudflare/agents/pull/1451) [`48b29ba`](https://github.com/cloudflare/agents/commit/48b29baa86ac9ccbed5ff863d2e20af8baca6764) Thanks [@threepointone](https://github.com/threepointone)! - Fix typed `call` and `stub` support for streaming callable methods.
+
+## 0.12.2
+
+### Patch Changes
+
+- [`2fffa02`](https://github.com/cloudflare/agents/commit/2fffa0201c96f6d2a395c74a843c3c25afcd53a6) Thanks [@threepointone](https://github.com/threepointone)! - Raise the minimum internal peer dependency versions for Agents chat packages so `agents`, `@cloudflare/ai-chat`, and `@cloudflare/think` require versions at least as recent as the current repo packages.
+
+## 0.12.1
+
+### Patch Changes
+
+- [#1443](https://github.com/cloudflare/agents/pull/1443) [`e7d225b`](https://github.com/cloudflare/agents/commit/e7d225b72a743a2cf1491ebf73f06580c668e560) Thanks [@threepointone](https://github.com/threepointone)! - Fix sub-agent WebSockets on deployed Workers by keeping the browser WebSocket owned by the parent Agent and forwarding connect/message/close events to child facets over RPC.
+
+  Fix resumed chat streams so a partially hydrated assistant response is rebuilt from replay chunks instead of rendering replayed text as a second assistant text part.
+
+  Fix a resume ACK race where drill-in chat connections could miss the terminal stream frame if the helper completed between the resume notification and client acknowledgement.
+
+## 0.12.0
+
+### Minor Changes
+
+- [#1421](https://github.com/cloudflare/agents/pull/1421) [`1b65ff5`](https://github.com/cloudflare/agents/commit/1b65ff5550f904e2a59bd6015703f82b02f85e4f) Thanks [@threepointone](https://github.com/threepointone)! - Add agent tool orchestration for running Think and AIChatAgent sub-agents as
+  retained, streaming tools from a parent agent. The new surface includes
+  `runAgentTool`, `agentTool`, parent-side run replay and cleanup, Think and
+  AIChatAgent child adapter support, and headless React/client event state
+  helpers.
+
+### Patch Changes
+
+- [#1418](https://github.com/cloudflare/agents/pull/1418) [`8de0ce3`](https://github.com/cloudflare/agents/commit/8de0ce39495e16e5b25bece9113f591934663cc8) Thanks [@threepointone](https://github.com/threepointone)! - Allow sub-agents to use alarm-backed APIs by delegating the physical Durable Object alarm to the top-level parent while executing logical work inside the owning sub-agent. This enables `schedule()`, `scheduleEvery()`, `cancelSchedule()`, `getScheduleById()`, `listSchedules()`, `keepAlive()`, `keepAliveWhile()`, `runFiber()`, and Think chat recovery inside sub-agents.
+
+  Sub-agent schedules are scoped to the calling child, so sibling sub-agents cannot cancel each other's schedules by id. The deprecated synchronous `getSchedule()` and `getSchedules()` APIs now throw inside sub-agents; use the async alternatives instead. Destroying a sub-agent now delegates cleanup through the parent so parent-owned schedules and descendant fiber recovery leases are removed consistently.
+
+- [#1425](https://github.com/cloudflare/agents/pull/1425) [`6471cbd`](https://github.com/cloudflare/agents/commit/6471cbd8113df5431aa1d2aabcbcc8f32f5c8cf7) Thanks [@threepointone](https://github.com/threepointone)! - Clear request, WebSocket, and email native context handles when switching Agent instances and suppress protocol broadcasts during sub-agent facet bootstrap.
+
+## 0.11.9
+
+### Patch Changes
+
+- [#1412](https://github.com/cloudflare/agents/pull/1412) [`8fb7c03`](https://github.com/cloudflare/agents/commit/8fb7c032873933dbdd2db8c809d3134e7ba39301) Thanks [@threepointone](https://github.com/threepointone)! - Make `applyChunkToParts` idempotent against an existing tool part with the same `toolCallId`, and add `isReplayChunk(parts, chunk)` for stream broadcasters that want to drop provider replay chunks ([#1404](https://github.com/cloudflare/agents/issues/1404)).
+
+  Some providers (notably the OpenAI Responses API) re-emit a prior tool call in continuation streams. The previous `tool-input-start` handler unconditionally pushed a fresh tool part, which produced duplicate parts in the message; `tool-input-delta` and `tool-input-available` overwrote a fully resolved input/state if a chunk happened to arrive for an already-known toolCallId. The new behavior:
+
+  - `tool-input-start` for a `toolCallId` that already exists in `parts` is a no-op (it does not push a duplicate or regress state).
+  - `tool-input-delta` only mutates input while the existing part is still `input-streaming`.
+  - `tool-input-available` only advances from `input-streaming` to `input-available`; replays against parts that have already moved past `input-streaming` (including `approval-requested`/`approval-responded` and any terminal state) are no-ops.
+
+  `isReplayChunk(parts, chunk)` is exported from `agents/chat` for stream broadcasters (e.g. `AIChatAgent._streamSSEReply`) that want to detect "this chunk is a replay of an already-known tool call" and skip re-broadcasting it. AI SDK v6's `updateToolPart` on the client mutates an existing tool part in place when the toolCallId matches, so re-broadcasting these replay chunks would visibly regress an `output-available` part to `input-streaming` on connected clients. `tool-output-available` is _not_ treated as a replay because its in-place update is safe when the output already matches.
+
+  Tool calls that the model genuinely wants to re-issue always carry a new toolCallId, so an existing match is never a legitimate "start over".
+
+## 0.11.8
+
+### Patch Changes
+
+- [#1411](https://github.com/cloudflare/agents/pull/1411) [`2fa68be`](https://github.com/cloudflare/agents/commit/2fa68bea891e1bd8f30839586c2519627f364b0c) Thanks [@threepointone](https://github.com/threepointone)! - Add `AbortRegistry.linkExternal(id, signal)` for connecting external `AbortSignal`s to per-request abort controllers, and add `"aborted"` to the `SaveMessagesResult.status` union ([#1406](https://github.com/cloudflare/agents/issues/1406)).
+
+  `linkExternal` is the integration point for callers that drive a chat turn programmatically and want to cancel it from outside without knowing the internally-generated request id (the helper-as-sub-agent pattern, where a parent's `AbortSignal` from the AI SDK tool `execute` needs to land inside a sub-agent's `saveMessages` call). When the external signal aborts, the registry's controller for `id` is cancelled — the same path `chat-request-cancel` takes over the WebSocket. The returned detacher must be called in `finally` to avoid leaking listeners on long-lived parent signals.
+
+  `SaveMessagesResult.status` now includes `"aborted"` alongside `"completed"` and `"skipped"`. Existing callers that only switch on `"completed"` are unaffected; turns cancelled via the new signal API surface as `"aborted"` rather than `"completed"`.
+
+  Also exposes `SaveMessagesOptions` from `agents/chat` for use by `@cloudflare/think` and `@cloudflare/ai-chat` typed APIs. `AbortRegistry.cancel(id, reason?)` now accepts an optional reason that flows through to `signal.reason` on the cancelled controller.
+
+  See [`cloudflare/agents#1406`](https://github.com/cloudflare/agents/issues/1406) for the motivating use case.
+
+- [`ca510d4`](https://github.com/cloudflare/agents/commit/ca510d4fecbecb07d0d3cdad7d78c32cc226275e) Thanks [@threepointone](https://github.com/threepointone)! - Tighten internal peer dependency floors to reflect the current monorepo set we actually test against: `@cloudflare/ai-chat` (`>=0.0.8` → `>=0.5.2`) and `@cloudflare/codemode` (`>=0.0.7` → `>=0.3.4`). Upper bound (`<1.0.0`) is unchanged.
+
+  No runtime change in `agents` itself. The visible effect for consumers: pairing the latest `agents` with a stale `@cloudflare/ai-chat` (`<0.5.2`) or `@cloudflare/codemode` (`<0.3.4`) now produces a peer warning where it previously did not. That's the intended signal — those older combinations are no longer tested in the monorepo.
+
+## 0.11.7
+
+### Patch Changes
+
+- [#1405](https://github.com/cloudflare/agents/pull/1405) [`03620a6`](https://github.com/cloudflare/agents/commit/03620a671b0c29ed4f99c82a4cd0d51c7fec7fa3) Thanks [@threepointone](https://github.com/threepointone)! - Bump `partyserver` peer dependency to `^0.5.4`. 0.5.4 closes [`cloudflare/partykit#390`](https://github.com/cloudflare/partykit/issues/390): fresh 0.5.x DOs with `compatibility_date` older than 2026-03-15 could lose `this.name` on alarm wake (no `ctx.id.name` propagation in older runtimes, and 0.5.x had stopped writing the `__ps_name` legacy fallback record). The fix is a defensive one-time `__ps_name` write on first fetch — idempotent, restores the safety net pre-0.5.x had. Affects any project on a pre-cutoff `compatibility_date` whose DOs schedule alarms (which includes Think's `_chatRecoveryContinue`).
+
+## 0.11.6
+
+### Patch Changes
+
+- [#1393](https://github.com/cloudflare/agents/pull/1393) [`5aaf7c4`](https://github.com/cloudflare/agents/commit/5aaf7c44eff1c6d35df3abc5ea37740f910acd5d) Thanks [@threepointone](https://github.com/threepointone)! - Migrate facet (sub-agent) bootstrap to the documented Cloudflare facet API: pass `id: parentNs.idFromName(name)` to `ctx.facets.get()` so the facet has its own `ctx.id.name`. Drops the `__ps_name` storage write and `setName()` bootstrap from `_cf_initAsFacet`.
+
+  **Why this matters.** Facets spawned without an explicit `id` inherit the parent DO's `ctx.id`, so on a facet `ctx.id.name` was the _parent's_ name and `this.name` silently misreported as the parent's name. Anything that read `this.name` from inside a sub-agent (including `selfPath`, `parentPath`, and any user code) was getting the wrong value. With the explicit `id` passed at facet creation time, the runtime gives the facet a real `ctx.id.name === name` and PartyServer's existing 0.5.x `name` getter resolves `this.name` correctly without any override mechanism, storage write, or cold-wake hydrate cost. Cold-wake recovery happens for free because `idFromName` is deterministic and the factory re-runs on resume.
+
+  This requires `partyserver` ≥ 0.5.3 (bumped in this release); 0.5.3 is byte-identical to 0.5.2 at runtime, only adds documentation and test coverage of the explicit-`id` facet pattern.
+
+  Other changes:
+
+  - **New error path.** If `subAgent()` is called from a parent class that isn't bound as a Durable Object namespace, the framework now throws a descriptive error pointing at `wrangler.jsonc`. If `this.constructor.name` looks minified (e.g. `_a`), the message includes a bundler-config hint about preserving class names.
+  - **Defensive runtime check.** `_cf_initAsFacet` now asserts `this.name === name` so any future bug in the parent's id construction surfaces immediately instead of silently mis-identifying the facet.
+  - **`alarm()` docstring** clarified to reflect the new resolution path (`this.name` from `ctx.id.name`, not from a storage hydrate).
+  - **MCP test cleanup.** Vestigial `setName("default")` + explicit `onStart()` call pairs in `oauth2-mcp-client`, `wait-connections-e2e`, and `create-oauth-provider` test files have been removed; they were originally needed for partyserver 0.4.x bootstrap but became actual `ctx.id.name` mismatches under partyserver 0.5.x.
+
+  Backward-compatible for all public APIs: `subAgent()`, `parentAgent()`, `hasSubAgent()`, `listSubAgents()`, `deleteSubAgent()`, and `abortSubAgent()` keep their signatures and semantics. The change is purely in the facet bootstrap internals; the user-facing effect is that `this.name` inside a sub-agent now correctly reports the sub-agent's own name (was previously the parent's name when run against partyserver 0.5.x).
+
+  See cloudflare/partykit#386 for the partyserver-side documentation companion.
+
+- [#1395](https://github.com/cloudflare/agents/pull/1395) [`63cfae6`](https://github.com/cloudflare/agents/commit/63cfae6345c5ddc54df5e2f78a19097b9b5462ff) Thanks [@threepointone](https://github.com/threepointone)! - Share submit concurrency bookkeeping through `agents/chat` and use it from both chat agents.
+
+  This extracts the `latest`/`merge`/`drop`/`debounce` admission state machine into a `SubmitConcurrencyController` exported from `agents/chat`. `AIChatAgent` semantics (including merge persistence) are preserved. `Think` now picks up the same pending-enqueue protection, so an overlapping submit is still detected while an accepted request is between admission and turn queue registration.
+
+  Additional fixes:
+
+  - `Think` now captures the turn generation immediately after admission and threads it into `_turnQueue.enqueue`, so a clear that lands between admission and queue registration cannot run a stale turn.
+  - Pending-enqueue tracking is now bound to a release function tied to the controller's reset epoch, so a release from a pre-reset submit can no longer erase a post-reset submit's marker and let a third submit slip through as non-overlapping.
+  - Debounce cancellation correctly resolves all in-flight waiters instead of overwriting a single timer slot.
+
+- [#1396](https://github.com/cloudflare/agents/pull/1396) [`fdf5a8a`](https://github.com/cloudflare/agents/commit/fdf5a8a99ec1a88ce9096ddec3a9fb2adf6fd4b1) Thanks [@threepointone](https://github.com/threepointone)! - Fix Think persisting a duplicate orphan assistant row when a user submits during a streaming tool turn ([#1381](https://github.com/cloudflare/agents/issues/1381)).
+
+  When `useAgentChat` posts an in-flight assistant snapshot it minted optimistically (client-generated ID, `state: "input-available"`), Session's INSERT-OR-IGNORE-by-ID would store it as a separate row alongside the eventual server-owned assistant for the same `toolCallId`. The next turn's `convertToModelMessages` then produced a malformed Anthropic prompt and the provider rejected it.
+
+  `reconcileMessages` and `resolveToolMergeId` now live in `agents/chat` and Think runs them in `_handleChatRequest` before persistence. Stale `input-available` snapshots pick up the server's tool output via `mergeServerToolOutputs`, and any incoming assistant whose `toolCallId` already exists on a server row adopts the server's ID so persistence updates the existing row instead of inserting an orphan.
+
+  `@cloudflare/ai-chat` keeps its existing reconciler behavior; the only change is that it now imports `reconcileMessages` / `resolveToolMergeId` from `agents/chat` instead of a local file.
+
+## 0.11.5
+
+### Patch Changes
+
+- [#1353](https://github.com/cloudflare/agents/pull/1353) [`f834c81`](https://github.com/cloudflare/agents/commit/f834c814db16a6b7cba51cebef4be02b9364a088) Thanks [@threepointone](https://github.com/threepointone)! - Align `AIChatAgent` generics and types with `@cloudflare/think`, plus a reference example for multi-session chat built on the sub-agent routing primitive.
+
+  - **New `Props` generic**: `AIChatAgent<Env, State, Props>` extending `Agent<Env, State, Props>`. Subclasses now get properly typed `this.ctx.props`.
+  - **Shared lifecycle types**: `ChatResponseResult`, `ChatRecoveryContext`, `ChatRecoveryOptions`, `SaveMessagesResult`, and `MessageConcurrency` now live in `agents/chat` and are re-exported by both `@cloudflare/ai-chat` and `@cloudflare/think`. No behavior change; one place to edit when shapes evolve.
+  - **`ChatMessage` stays the public message type**: the package continues to export `ChatMessage`, and the public API/docs keep using that name.
+  - **`messages` stays a public field**: `messages: ChatMessage[]`.
+
+  The full stance (AIChatAgent is first-class, production-ready, and continuing to get features; shared infrastructure should land in `agents/chat` where both classes benefit) is captured in [`design/rfc-ai-chat-maintenance.md`](../design/rfc-ai-chat-maintenance.md).
+
+  A new example, `examples/multi-ai-chat`, demonstrates the multi-session pattern end-to-end on top of the sub-agent routing primitive: an `Inbox` Agent owns the chat list + shared memory; each chat is an `AIChatAgent` facet (`this.subAgent(Chat, id)`). The client addresses the active chat via `useAgent({ sub: [{ agent: "Chat", name: chatId }] })` — no separate DO binding, no custom routing on the server. `Inbox.onBeforeSubAgent` gates with `hasSubAgent` as a strict registry, and `Chat` reaches its parent via `this.parentAgent(Inbox)`.
+
+- [#1348](https://github.com/cloudflare/agents/pull/1348) [`0693a5f`](https://github.com/cloudflare/agents/commit/0693a5ff366f8108667b82f296bc3cfe32c06b74) Thanks [@threepointone](https://github.com/threepointone)! - Bump dependencies.
+
+- [#1362](https://github.com/cloudflare/agents/pull/1362) [`d901804`](https://github.com/cloudflare/agents/commit/d9018048c0b8ce496b3188a90b57c8650d571da0) Thanks [@threepointone](https://github.com/threepointone)! - fix(mcp): capture tool title in MCP client
+
+- [#1355](https://github.com/cloudflare/agents/pull/1355) [`df2023f`](https://github.com/cloudflare/agents/commit/df2023fbd5ddf7d4acc90ba56d46b38867a57a3b) Thanks [@threepointone](https://github.com/threepointone)! - External addressability for sub-agents.
+
+  Clients can now reach a facet (a child DO created by `Agent#subAgent()`) directly via a nested URL:
+
+      /agents/{parent-class}/{parent-name}/sub/{child-class}/{child-name}[/...]
+
+  New public APIs (all `@experimental`):
+
+  - `routeSubAgentRequest(req, parent, options?)` — sub-agent analog of `routeAgentRequest`. For custom-routing setups where the outer URL doesn't match the default `/agents/...` shape.
+  - `getSubAgentByName(parent, Cls, name)` — sub-agent analog of `getAgentByName`. Returns a typed Proxy that round-trips typed RPC calls through the parent. RPC-only (no `.fetch()`); use `routeSubAgentRequest` for external HTTP/WS.
+  - `parseSubAgentPath(url, options?)` — public URL parser used internally by the routers.
+  - `SUB_PREFIX` — the `"sub"` separator constant (not configurable; exposed for symbolic URL building).
+
+  New public on `Agent`:
+
+  - `onBeforeSubAgent(req, { className, name })` — overridable middleware hook, mirrors `onBeforeConnect` / `onBeforeRequest`. Returns `Request | Response | void` for short-circuit responses, request mutation, or passthrough. Default: void.
+  - `parentPath` / `selfPath` — root-first `{ className, name }` ancestor chains, populated at facet init time. Inductive across recursive nesting.
+  - `hasSubAgent(ClsOrName, name)` / `listSubAgents(ClsOrName?)` — parent-side introspection backed by an auto-maintained SQLite registry written by `subAgent()` / `deleteSubAgent()`. Both accept either the class constructor or a CamelCase class name string.
+
+  New public on `useAgent` (React):
+
+  - `sub?: Array<{ agent, name }>` — flat root-first chain addressing a descendant facet. The hook's `.agent` / `.name` report the leaf identity; `.path` exposes the full chain.
+
+  Breaking changes: none. `routeAgentRequest` behavior is unchanged when URLs don't contain `/sub/`. `onBeforeSubAgent` defaults to permissive (forward unchanged). `useAgent` without `sub` is unchanged. `subAgent()` / `deleteSubAgent()` gain registry side effects but preserve return types and failure modes. The `_cf_initAsFacet` signature gained an optional `parentPath` parameter. `deleteSubAgent()` is now idempotent — calling it for a never-spawned or already-deleted child no longer throws. Sub-agent class names equal to `"Sub"` are rejected (the `/sub/` URL separator is reserved).
+
+  See `design/rfc-sub-agent-routing.md` for the full rationale, design decisions, and edge cases. The spike at `packages/agents/src/tests/spike-sub-agent-routing.test.ts` documents the three candidate approaches considered for cross-DO stub passthrough and why the per-call bridge won.
+
+- [#1346](https://github.com/cloudflare/agents/pull/1346) [`a78bb2a`](https://github.com/cloudflare/agents/commit/a78bb2a8903bce060b4a6c29796e5590315fe210) Thanks [@threepointone](https://github.com/threepointone)! - Remove unused `dependencies`, `devDependencies`, and `peerDependencies` from the `agents` package.
+  - `dependencies`: drop `json-schema`, `json-schema-to-typescript`, and `picomatch`. None are imported by the package; `picomatch` was already pulled in transitively via `@rolldown/plugin-babel`.
+  - `devDependencies`: drop `@ai-sdk/openai` (only referenced in a commented-out line) and `@cloudflare/workers-oauth-provider` (not referenced anywhere).
+  - `peerDependencies` / `peerDependenciesMeta`: drop `@ai-sdk/react` and `viem`. `@ai-sdk/react` is already a peer of `@cloudflare/ai-chat` (itself an optional peer here), and `viem` is a regular dependency of `@x402/evm`, so both are supplied transitively when the relevant optional features are used.
+
+## 0.11.4
+
+### Patch Changes
+
+- [#1222](https://github.com/cloudflare/agents/pull/1222) [`3ebd966`](https://github.com/cloudflare/agents/commit/3ebd96627d05d090e808ef9bdca0595bd678b1d8) Thanks [@Muhammad-Bin-Ali](https://github.com/Muhammad-Bin-Ali)! - Add experimental WebMCP adapter (`agents/experimental/webmcp`) that bridges MCP server tools to Chrome's native `navigator.modelContext` API, enabling browser-native AI agents to discover and call tools registered on a Cloudflare McpAgent.
+
+## 0.11.3
+
+### Patch Changes
+
+- [#1330](https://github.com/cloudflare/agents/pull/1330) [`b4d3fcf`](https://github.com/cloudflare/agents/commit/b4d3fcfcce7363b137ad47c31d40aebcb34d9a28) Thanks [@threepointone](https://github.com/threepointone)! - Fix `subAgent()` cross-DO I/O errors on first use and drop the `"experimental"` compatibility flag requirement.
+
+  ### `subAgent()` cross-DO I/O fix
+
+  Three issues in the facet initialization path caused `"Cannot perform I/O on behalf of a different Durable Object"` errors when spawning sub-agents in production:
+
+  - `subAgent()` constructed a `Request` in the parent DO and passed it to the child via `stub.fetch()`. The `Request` carried native I/O tied to the parent isolate, which the child rejected.
+  - The facet flag was set _after_ the first `onStart()` ran, so `broadcastMcpServers()` fired with `_isFacet === false` on the initial boot.
+  - `_broadcastProtocol()`, the inherited `broadcast()`, and `_workflow_broadcast()` iterated the connection registry without an `_isFacet` guard, letting broadcasts reach into the parent DO's WebSocket registry from a child isolate.
+
+  Replaces the fetch-based handshake with a new `_cf_initAsFacet(name)` RPC that runs entirely in the child isolate, sets `_isFacet` before init, and seeds partyserver's `__ps_name` key directly. Adds `_isFacet` guards to `_broadcastProtocol()` and overrides `broadcast()` to no-op on facets so downstream callers (chat-streaming paths, workflow broadcasts, user `this.broadcast(...)`) are covered. Removes the previous internal `_cf_markAsFacet()` method — `_cf_initAsFacet(name)` is the correct entry point (it sets the flag before running the first `onStart()`, which `_cf_markAsFacet` did not).
+
+  ### `"experimental"` compatibility flag no longer required
+
+  `ctx.facets`, `ctx.exports`, and `env.LOADER` (Worker Loader) have graduated out of the `"experimental"` compatibility flag in workerd. `agents` and `@cloudflare/think` no longer require it:
+
+  - `subAgent()` / `abortSubAgent()` / `deleteSubAgent()` — the `@experimental` JSDoc tag and runtime error messages no longer reference the flag. The runtime guards on `ctx.facets` / `ctx.exports` stay in place and now nudge users toward updating `compatibility_date` instead.
+  - `Think` — the `@experimental` JSDoc tag no longer references the flag.
+
+  No code change is required; remove `"experimental"` from your `compatibility_flags` in `wrangler.jsonc` if it was only there for these features.
+
+- [#1332](https://github.com/cloudflare/agents/pull/1332) [`7cb8acf`](https://github.com/cloudflare/agents/commit/7cb8acff8281a30bc17980e506ab5582f3cb1c72) Thanks [@threepointone](https://github.com/threepointone)! - Expose `createdAt` on fiber and chat recovery contexts so apps can suppress continuations for stale, interrupted turns.
+
+  - `FiberRecoveryContext` (from `agents`) gains `createdAt: number` — epoch milliseconds when `runFiber` started, read from the `cf_agents_runs` row that was already tracked internally.
+  - `ChatRecoveryContext` (from `@cloudflare/ai-chat` and `@cloudflare/think`) gains the same `createdAt` field, threaded through from the underlying fiber.
+
+  With this, the stale-recovery guard pattern described in [#1324](https://github.com/cloudflare/agents/issues/1324) is a short override:
+
+  ```typescript
+  override async onChatRecovery(ctx: ChatRecoveryContext): Promise<ChatRecoveryOptions> {
+    if (Date.now() - ctx.createdAt > 2 * 60 * 1000) return { continue: false };
+    return {};
+  }
+  ```
+
+  No behavior change for existing callers. See `docs/agents/chat-agents.md` (new "Guarding against stale recoveries" section) for the full recipe, including a loop-protection pattern using `onChatResponse`.
+
+## 0.11.2
+
+### Patch Changes
+
+- [#1326](https://github.com/cloudflare/agents/pull/1326) [`d5042a9`](https://github.com/cloudflare/agents/commit/d5042a90df0f863da8ce43ebacec879668ef2423) Thanks [@threepointone](https://github.com/threepointone)! - fix(mcp): block full IPv6 link-local range `fe80::/10` in SSRF check
+
+  `isBlockedUrl` in the MCP client claimed to block `fe80::/10` but the
+  previous `startsWith("fe80")` check only matched the narrower
+  `fe80::/16`, letting valid link-local addresses in the `fe81::`–`febf::`
+  range slip through. Replaced with a regex that matches the full /10
+  (first hextet `fe80` through `febf`), factored the IPv6 private-range
+  logic into `isPrivateIPv6`, and added regression tests for the
+  previously-leaking prefixes plus negative cases at the /10 boundary
+  (`fe7f::`, `fec0::`).
+
+  Reported in [#1325](https://github.com/cloudflare/agents/issues/1325).
+
+## 0.11.1
+
+### Patch Changes
+
+- [#1279](https://github.com/cloudflare/agents/pull/1279) [`eae6a30`](https://github.com/cloudflare/agents/commit/eae6a30d8b047db2afd1564eb5615a5ed5e6e2a2) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Add `sendEmail()` method to the Agent class for sending outbound email via Cloudflare Email Service. Pass your `send_email` binding explicitly as `this.sendEmail({ binding: this.env.EMAIL, ... })`. Automatically injects agent routing headers and supports optional HMAC signing for secure reply routing.
+
+- [`dccc747`](https://github.com/cloudflare/agents/commit/dccc7475279f5a46afa4edcfd3093dea45cb0df0) Thanks [@threepointone](https://github.com/threepointone)! - Update dependencies
+
+## 0.11.0
+
+### Minor Changes
+
+- [#1163](https://github.com/cloudflare/agents/pull/1163) [`d3f757c`](https://github.com/cloudflare/agents/commit/d3f757c264f6271cb34863daaad0e381e40e6a6f) Thanks [@threepointone](https://github.com/threepointone)! - Add experimental browser CDP tools for the Agents SDK, using the live Browser Rendering protocol instead of bundling the spec and covering the local browser-binding flow with Wrangler-backed end-to-end tests.
+
+## 0.10.2
+
+### Patch Changes
+
+- [#1301](https://github.com/cloudflare/agents/pull/1301) [`d501291`](https://github.com/cloudflare/agents/commit/d5012914fe6b4d663b31a89e9699a5a5a01db73c) Thanks [@threepointone](https://github.com/threepointone)! - Fix `applyChunkToParts` dropping `providerMetadata` on `reasoning-end` and `reasoning-delta` chunks. For Anthropic models with extended/adaptive thinking, the thinking block signature arrives on `reasoning-end.providerMetadata.anthropic.signature`. Without persisting it, `convertToModelMessages` produces reasoning parts with no signature, causing `@ai-sdk/anthropic` to silently drop the thinking block on subsequent turns — effectively making extended thinking single-turn only. The reasoning handlers now merge `chunk.providerMetadata` onto the persisted part, matching the behavior of source and tool chunk handlers in the same file. Fixes [#1299](https://github.com/cloudflare/agents/issues/1299).
+
+## 0.10.1
+
+### Patch Changes
+
+- [#1286](https://github.com/cloudflare/agents/pull/1286) [`d76f8b9`](https://github.com/cloudflare/agents/commit/d76f8b9608cbf4b4bbeb5f92077057ff20dbeae9) Thanks [@threepointone](https://github.com/threepointone)! - Fix `McpAgent.handleMcpMessage` crashing with "Attempting to read .name before it was set" when the Durable Object wakes from hibernation via native DO RPC. The method now calls `__unsafe_ensureInitialized()` to hydrate `this.name` from storage and run `onStart()` before processing messages, matching the pattern used by `_workflow_*` RPC methods and `alarm()`.
+
+- [#1278](https://github.com/cloudflare/agents/pull/1278) [`8c7caab`](https://github.com/cloudflare/agents/commit/8c7caabb68361c8ce71b10e292d6dd33a9cc72dd) Thanks [@threepointone](https://github.com/threepointone)! - Think now owns the inference loop with lifecycle hooks at every stage.
+
+  **Breaking:** `onChatMessage()`, `assembleContext()`, and `getMaxSteps()` are removed. Use lifecycle hooks and the `maxSteps` property instead. If you need full custom inference, extend `Agent` directly.
+
+  **New lifecycle hooks:** `beforeTurn`, `beforeToolCall`, `afterToolCall`, `onStepFinish`, `onChunk` — fire on every turn from all entry paths (WebSocket, `chat()`, `saveMessages`, auto-continuation).
+
+  **`beforeTurn(ctx)`** receives the assembled system prompt, messages, tools, and model. Return a `TurnConfig` to override any part — model, system prompt, messages, tools, activeTools, toolChoice, maxSteps, providerOptions.
+
+  **`maxSteps`** is now a property (default 10) instead of a method. Override per-turn via `TurnConfig.maxSteps`.
+
+  **MCP tools auto-merged** — no need to manually merge `this.mcp.getAITools()` in `getTools()`.
+
+  **Dynamic context blocks:** `Session.addContext()` and `Session.removeContext()` allow adding/removing context blocks after session initialization (e.g., from extensions).
+
+  **Extension manifest expanded** with `context` (namespaced context block declarations) and `hooks` fields.
+
+## 0.10.0
+
+### Minor Changes
+
+- [#1256](https://github.com/cloudflare/agents/pull/1256) [`dfab937`](https://github.com/cloudflare/agents/commit/dfab937c81b358415e66bda3f8abe76b85d12c11) Thanks [@threepointone](https://github.com/threepointone)! - Add durable fiber execution to the Agent base class.
+
+  `runFiber(name, fn)` registers work in SQLite, holds a `keepAlive` ref, and enables recovery via `onFiberRecovered` after DO eviction. `ctx.stash()` and `this.stash()` checkpoint progress that survives eviction.
+
+  `AIChatAgent` gains `chatRecovery` — when enabled, each chat turn is wrapped in a fiber. `onChatRecovery` provides provider-specific recovery (Workers AI continuation, OpenAI response retrieval, Anthropic synthetic message). `continueLastTurn()` appends to the interrupted assistant message seamlessly.
+
+  `Think` now extends `Agent` directly (no mixin). Fiber support is inherited from the base class.
+
+  **Breaking (experimental APIs only):**
+
+  - Removed `withFibers` mixin (`agents/experimental/forever`)
+  - Removed `withDurableChat` mixin (`@cloudflare/ai-chat/experimental/forever`)
+  - Removed `./experimental/forever` export from both packages
+  - Think no longer has a `fibers` flag — recovery is automatic via alarm housekeeping
+
+### Patch Changes
+
+- [#1259](https://github.com/cloudflare/agents/pull/1259) [`1933eb4`](https://github.com/cloudflare/agents/commit/1933eb44c48bcb2abf92ef6510359baba138fdca) Thanks [@threepointone](https://github.com/threepointone)! - Run fiber recovery eagerly in `onStart()` instead of deferring to the next alarm. Interrupted fibers are now detected immediately on the first request after DO wake, with the alarm path as a fallback. A re-entrancy guard prevents double recovery.
+
+- [#1263](https://github.com/cloudflare/agents/pull/1263) [`e3ceb82`](https://github.com/cloudflare/agents/commit/e3ceb82235f2fb8559031448b4d68db22a2305f5) Thanks [@threepointone](https://github.com/threepointone)! - Fix `routeAgentEmail()` keeping the target DO non-hibernatable for ~100-120s after `onEmail()` returns. Replaces bare closure RPC targets with a single `RpcTarget` bridge (`EmailBridge`) that has explicit `Symbol.dispose` lifecycle, allowing the runtime to tear down the bidirectional RPC session promptly instead of tying it to the caller's execution context lifetime.
+
+- [`c5ca556`](https://github.com/cloudflare/agents/commit/c5ca55618bd79042f566e55d1ebbe0636f91e75a) Thanks [@threepointone](https://github.com/threepointone)! - Cap `vite` peer dependency at `>=6.0.0 <9.0.0` to avoid silently accepting untested future major versions.
+
+- [#1271](https://github.com/cloudflare/agents/pull/1271) [`0cc2dae`](https://github.com/cloudflare/agents/commit/0cc2daee3fde434442d3ecce4fd21dd26f3d45e9) Thanks [@threepointone](https://github.com/threepointone)! - Add optional `MCPServerFilter` parameter to `getAITools()`, `listTools()`, `listPrompts()`, `listResources()`, and `listResourceTemplates()` for scoping results to specific MCP servers by ID, name, or connection state.
+
+- [#1267](https://github.com/cloudflare/agents/pull/1267) [`d1ee61a`](https://github.com/cloudflare/agents/commit/d1ee61af77e05625128d1d48fd5316621849fb87) Thanks [@dmmulroy](https://github.com/dmmulroy)! - Fix MCP streamable HTTP client session lifecycle so closing connections explicitly terminates active sessions and persists session IDs across reconnects/restores.
+
+- [#1270](https://github.com/cloudflare/agents/pull/1270) [`87b4512`](https://github.com/cloudflare/agents/commit/87b4512985e47de659bf970a65a6d1951f5855fe) Thanks [@threepointone](https://github.com/threepointone)! - Wire Session into Think as the storage layer, achieving full feature parity with AIChatAgent plus Session-backed advantages.
+
+  **Think (`@cloudflare/think`):**
+
+  - Session integration: `this.messages` backed by `session.getHistory()`, tree-structured messages, context blocks, compaction, FTS5 search
+  - `configureSession()` override for context blocks, compaction, search, skills (sync or async)
+  - `assembleContext()` returns `{ system, messages }` with context block composition
+  - `onChatResponse()` lifecycle hook fires from all turn paths
+  - Non-destructive regeneration via `trigger: "regenerate-message"` with Session branching
+  - `saveMessages()` for programmatic turn entry (scheduled responses, webhooks, proactive agents)
+  - `continueLastTurn()` for extending the last assistant response
+  - Custom body persistence across hibernation
+  - `sanitizeMessageForPersistence()` hook for PII redaction
+  - `messageConcurrency` strategies (queue/latest/merge/drop/debounce)
+  - `resetTurnState()` extracted as protected method
+  - `chatRecovery` with `runFiber` wrapping on all 4 turn paths
+  - `onChatRecovery()` hook with `ChatRecoveryContext`
+  - `hasPendingInteraction()` / `waitUntilStable()` for quiescence detection
+  - Re-export `Session` from `@cloudflare/think`
+  - Constructor wraps `onStart` — subclasses never need `super.onStart()`
+
+  **agents (`agents/chat`):**
+
+  - Extract `AbortRegistry`, `applyToolUpdate` + builders, `parseProtocolMessage` into shared `agents/chat` layer
+  - Add `applyChunkToParts` export for fiber recovery
+
+  **AIChatAgent (`@cloudflare/ai-chat`):**
+
+  - Refactor to use shared `AbortRegistry` from `agents/chat`
+  - Add `continuation` flag to `OnChatMessageOptions`
+  - Export `getAgentMessages()` and tool part helpers
+  - Add `getHttpUrl()` to `useAgent` return value
+
+## 0.9.0
+
+### Minor Changes
+
+- [#1237](https://github.com/cloudflare/agents/pull/1237) [`f3d5557`](https://github.com/cloudflare/agents/commit/f3d555797934c6bd15cf5af2678f5e20aa74713a) Thanks [@threepointone](https://github.com/threepointone)! - Add `broadcastTransition` to `agents/chat` — a pure state machine for
+  managing StreamAccumulator lifecycle during broadcast/resume streams.
+  Replaces scattered ref management in useAgentChat with explicit state
+  transitions.
+
+- [#1237](https://github.com/cloudflare/agents/pull/1237) [`f3d5557`](https://github.com/cloudflare/agents/commit/f3d555797934c6bd15cf5af2678f5e20aa74713a) Thanks [@threepointone](https://github.com/threepointone)! - Add `TurnQueue` to `agents/chat` — a shared serial async queue with
+  generation-based invalidation for chat turn scheduling. AIChatAgent and
+  Think now both use `TurnQueue` internally, unifying turn serialization
+  and the epoch/clear-generation concept. Think gains proper turn
+  serialization (previously concurrent chat turns could interleave).
+
+### Patch Changes
+
+- [#1248](https://github.com/cloudflare/agents/pull/1248) [`c74b615`](https://github.com/cloudflare/agents/commit/c74b6158060f49faf0c73f6c84f33b6db92c9ad0) Thanks [@threepointone](https://github.com/threepointone)! - Update dependencies
+
+- [#1247](https://github.com/cloudflare/agents/pull/1247) [`31c6279`](https://github.com/cloudflare/agents/commit/31c6279575c876cc5a7e69a4130e13a0c1afc630) Thanks [@threepointone](https://github.com/threepointone)! - Add `ContinuationState` to `agents/chat` — shared state container for auto-continuation lifecycle. AIChatAgent's 15 internal auto-continuation fields consolidated into one `ContinuationState` instance (no public API change). Think gains deferred continuations, resume coordination for pending continuations, `onClose` cleanup, and hibernation persistence for client tools via `think_request_context` table.
+
+## 0.8.7
+
+### Patch Changes
+
+- [#1207](https://github.com/cloudflare/agents/pull/1207) [`b1da19c`](https://github.com/cloudflare/agents/commit/b1da19c3675d48c3f4567a53236fe6296175344d) Thanks [@threepointone](https://github.com/threepointone)! - Add `transport: "auto"` option for `McpAgent.serve()` that serves both Streamable HTTP and legacy SSE on the same endpoint. Capable clients use Streamable HTTP automatically, while older SSE-only clients continue to work transparently.
+
+- [#1217](https://github.com/cloudflare/agents/pull/1217) [`6801966`](https://github.com/cloudflare/agents/commit/68019666513a6ff3895af8bf88bd19534ab90359) Thanks [@threepointone](https://github.com/threepointone)! - update partyserver
+
+## 0.8.6
+
+### Patch Changes
+
+- [#1201](https://github.com/cloudflare/agents/pull/1201) [`fc6d214`](https://github.com/cloudflare/agents/commit/fc6d2140e054c54991aa19c75382f4af4a8576ba) Thanks [@threepointone](https://github.com/threepointone)! - Bump `@modelcontextprotocol/sdk` from 1.26.0 to 1.28.0 and populate `url` on MCP `RequestInfo` so tool handlers can access the request URL and query parameters
+
+## 0.8.5
+
+### Patch Changes
+
+- [#1198](https://github.com/cloudflare/agents/pull/1198) [`dde826e`](https://github.com/cloudflare/agents/commit/dde826ec78f1714d9156d964d720507e3a139d8e) Thanks [@threepointone](https://github.com/threepointone)! - Derive `callbackHost` from `connection.uri` in `addMcpServer` when called from a `@callable` method over WebSocket. Previously, `callbackHost` had to be passed explicitly (or read from an env var) because the WebSocket `onMessage` context has no HTTP request to derive the host from. Now the host is automatically extracted from the WebSocket connection's original upgrade URL, so `addMcpServer("name", url)` works without any extra options in callables. Also adds `vite/client` to the shared `agents/tsconfig` types for TS6 compatibility with CSS side-effect imports.
+
+## 0.8.4
+
+### Patch Changes
+
+- [#1190](https://github.com/cloudflare/agents/pull/1190) [`b39dbff`](https://github.com/cloudflare/agents/commit/b39dbffbd33f64ba99facb85fe134594f888a842) Thanks [@threepointone](https://github.com/threepointone)! - Export shared `agents/tsconfig` and `agents/vite` so examples and internal projects are self-contained. The `agents/vite` plugin handles TC39 decorator transforms for `@callable()` until Oxc lands native support.
+
+## 0.8.3
+
+### Patch Changes
+
+- [#1182](https://github.com/cloudflare/agents/pull/1182) [`c03e87b`](https://github.com/cloudflare/agents/commit/c03e87b7341475b24acc4a14ca3ee2aa334ba480) Thanks [@dmmulroy](https://github.com/dmmulroy)! - Fix `elicitInput()` hanging on RPC transport by intercepting elicitation responses in `handleMcpMessage()` and adding `awaitPendingResponse()` to `RPCServerTransport`
+
+## 0.8.2
+
+### Patch Changes
+
+- [#1181](https://github.com/cloudflare/agents/pull/1181) [`e9bace9`](https://github.com/cloudflare/agents/commit/e9bace967dbf3a79e5d873142f6530ad79c8b456) Thanks [@threepointone](https://github.com/threepointone)! - Fix alarm handler resilience: move `JSON.parse(row.payload)` inside try/catch and guard warning emission so a single failure cannot break processing of remaining schedule rows.
+
+## 0.8.1
+
+### Patch Changes
+
+- [#1176](https://github.com/cloudflare/agents/pull/1176) [`750446b`](https://github.com/cloudflare/agents/commit/750446b87a486447878fb0ed51d2122437148e8e) Thanks [@threepointone](https://github.com/threepointone)! - Remove local development workarounds for workflow instance methods now that `pause()`, `resume()`, `restart()`, and `terminate()` are supported in `wrangler dev`
+
+## 0.8.0
+
+### Minor Changes
+
+- [#1152](https://github.com/cloudflare/agents/pull/1152) [`16cc622`](https://github.com/cloudflare/agents/commit/16cc622a25c256c36a1fae061d9558639d3b0cd3) Thanks [@threepointone](https://github.com/threepointone)! - feat: expose readable `state` property on `useAgent` and `AgentClient`
+
+  Both `useAgent` (React) and `AgentClient` (vanilla JS) now expose a `state` property that tracks the current agent state. Previously, state was write-only via `setState()` — reading state required manually tracking it through the `onStateUpdate` callback.
+
+  **React (useAgent)**
+
+  ```tsx
+  const agent = useAgent<GameAgent, GameState>({
+    agent: "game-agent",
+    name: "room-123",
+  });
+
+  // Read state directly — no need for separate useState + onStateUpdate
+  return <div>Score: {agent.state?.score}</div>;
+
+  // Spread for partial updates — works correctly now
+  agent.setState({ ...agent.state, score: agent.state.score + 10 });
+  ```
+
+  `agent.state` is reactive — the component re-renders when state changes from either the server or client-side `setState()`.
+
+  **Vanilla JS (AgentClient)**
+
+  ```typescript
+  const client = new AgentClient<GameAgent>({
+    agent: "game-agent",
+    name: "room-123",
+    host: "your-worker.workers.dev",
+  });
+
+  // State updates synchronously on setState and server broadcasts
+  client.setState({ score: 100 });
+  console.log(client.state); // { score: 100 }
+  ```
+
+  **Backward compatible**
+
+  The `onStateUpdate` callback continues to work exactly as before. The new `state` property is additive — it provides a simpler alternative to manual state tracking for the common case.
+
+  **Type: `State | undefined`**
+
+  State starts as `undefined` and is populated when the server sends state on connect (from `initialState`) or when `setState()` is called. Use optional chaining (`agent.state?.field`) for safe access.
+
+- [#1154](https://github.com/cloudflare/agents/pull/1154) [`74a018a`](https://github.com/cloudflare/agents/commit/74a018a3f09430fc38263b13a0680e9c801bc9f4) Thanks [@threepointone](https://github.com/threepointone)! - feat: idempotent `schedule()` to prevent row accumulation across DO restarts
+
+  `schedule()` now supports an `idempotent` option that deduplicates by `(type, callback, payload)`, preventing duplicate rows from accumulating when called repeatedly (e.g., in `onStart()`).
+
+  **Cron schedules are idempotent by default.** Calling `schedule("0 * * * *", "tick")` multiple times with the same callback, cron expression, and payload returns the existing schedule instead of creating a duplicate. Set `{ idempotent: false }` to override.
+
+  **Delayed and scheduled (Date) types support opt-in idempotency:**
+
+  ```typescript
+  async onStart() {
+    // Safe across restarts — only one row exists at a time
+    await this.schedule(60, "maintenance", undefined, { idempotent: true });
+  }
+  ```
+
+  **New warnings for common foot-guns:**
+
+  - `schedule()` called inside `onStart()` without `{ idempotent: true }` now emits a `console.warn` with actionable guidance (once per callback, skipped for cron and when `idempotent` is explicitly set)
+  - `alarm()` processing ≥10 stale one-shot rows for the same callback emits a `console.warn` and a `schedule:duplicate_warning` diagnostics channel event
+
+- [#1146](https://github.com/cloudflare/agents/pull/1146) [`b74e108`](https://github.com/cloudflare/agents/commit/b74e10855949fb331146b1e1c78fb7860b48493f) Thanks [@threepointone](https://github.com/threepointone)! - feat: strongly-typed `AgentClient` with `call` inference and `stub` proxy
+
+  `AgentClient` now accepts an optional agent type parameter for full type inference on RPC calls, matching the typed experience that `useAgent` already provides.
+
+  **New: typed `call` and `stub`**
+
+  When an agent type is provided, `call()` infers method names, argument types, and return types from the agent's methods. A new `stub` property provides a direct RPC-style proxy — call agent methods as if they were local functions:
+
+  ```typescript
+  const client = new AgentClient<MyAgent>({
+    agent: "my-agent",
+    host: window.location.host,
+  });
+
+  // Typed call — method name autocompletes, args and return type inferred
+  const value = await client.call("getValue");
+
+  // Typed stub — direct RPC-style proxy
+  await client.stub.getValue();
+  await client.stub.add(1, 2);
+  ```
+
+  State is automatically inferred from the agent type, so `onStateUpdate` is also typed:
+
+  ```typescript
+  const client = new AgentClient<MyAgent>({
+    agent: "my-agent",
+    host: window.location.host,
+    onStateUpdate: (state) => {
+      // state is typed as MyAgent's state type
+    },
+  });
+  ```
+
+  **Backward compatible**
+
+  Existing untyped usage continues to work without changes:
+
+  ```typescript
+  const client = new AgentClient({ agent: "my-agent", host: "..." });
+  client.call("anyMethod", [args]); // still works
+  client.call<number>("add", [1, 2]); // explicit return type still works
+  client.stub.anyMethod("arg1", 123); // untyped stub also available
+  ```
+
+  The previous `AgentClient<State>` pattern is preserved — `new AgentClient<{ count: number }>({...})` still correctly types `onStateUpdate` and leaves `call`/`stub` untyped.
+
+  **Breaking: `call` is now an instance property instead of a prototype method**
+
+  `AgentClient.prototype.call` no longer exists. The `call` function is assigned per-instance in the constructor (via `.bind()`). This is required for the conditional type system to switch between typed and untyped signatures. Normal usage (`client.call(...)`) is unaffected, but code that reflects on the prototype or subclasses that override `call` as a method may need adjustment.
+
+  **Shared type utilities**
+
+  The RPC type utilities (`AgentMethods`, `AgentStub`, `RPCMethods`, etc.) are now exported from `agents/client` so they can be shared between `AgentClient` and `useAgent`, and are available to consumers who need them for advanced typing scenarios.
+
+- [#1138](https://github.com/cloudflare/agents/pull/1138) [`36e2020`](https://github.com/cloudflare/agents/commit/36e2020d41d3d8a83b65b7e45e5af924b09f82ed) Thanks [@threepointone](https://github.com/threepointone)! - Drop Zod v3 from peer dependency range — now requires `zod ^4.0.0`. Replace dynamic `import("ai")` with `z.fromJSONSchema()` from Zod 4 for MCP tool schema conversion, removing the `ai` runtime dependency from the agents core. Remove `ensureJsonSchema()`.
+
+### Patch Changes
+
+- [#1147](https://github.com/cloudflare/agents/pull/1147) [`1f85b06`](https://github.com/cloudflare/agents/commit/1f85b065c57df6bd6b1a8f6f9964835dc2c91157) Thanks [@threepointone](https://github.com/threepointone)! - Replace schedule-based keepAlive with lightweight ref-counted alarms
+  - `keepAlive()` no longer creates schedule rows or emits `schedule:create`/`schedule:execute`/`schedule:cancel` observability events — it uses an in-memory ref count and feeds directly into `_scheduleNextAlarm()`
+  - multiple concurrent `keepAlive()` callers now share a single alarm cycle instead of each creating their own interval schedule row
+  - add `_onAlarmHousekeeping()` hook (called on every alarm cycle) for extensions like the fiber mixin to run housekeeping without coupling to the scheduling system
+  - bump internal schema to v2 with a migration that cleans up orphaned `_cf_keepAliveHeartbeat` schedule rows from the previous implementation
+  - remove `@experimental` from `keepAlive()` and `keepAliveWhile()`
+
+## 0.7.9
+
+### Patch Changes
+
+- [#1128](https://github.com/cloudflare/agents/pull/1128) [`01cfb52`](https://github.com/cloudflare/agents/commit/01cfb52eba5a0335d5ab0369281413748b14e6d7) Thanks [@threepointone](https://github.com/threepointone)! - Add `sessionAffinity` getter to `Agent` base class for Workers AI prefix-cache optimization. Returns the Durable Object ID, which is globally unique and stable per agent instance. Pass it as the `sessionAffinity` option when creating a Workers AI model to route requests from the same agent to the same backend replica.
+
+## 0.7.8
+
+### Patch Changes
+
+- [#1122](https://github.com/cloudflare/agents/pull/1122) [`a16e74d`](https://github.com/cloudflare/agents/commit/a16e74db106a5f498e1710286023f4acfbb322be) Thanks [@threepointone](https://github.com/threepointone)! - Remove `agents/experimental/workspace` export. `Workspace` now lives in `@cloudflare/shell` — import it from there instead.
+
+## 0.7.7
+
+### Patch Changes
+
+- [#1120](https://github.com/cloudflare/agents/pull/1120) [`6a6108c`](https://github.com/cloudflare/agents/commit/6a6108c98085ac7ccb7c62f0cfec0654a471a593) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Restore lost Durable Object alarms when `scheduleEvery()` reuses an existing interval schedule after restart.
+
+## 0.7.6
+
+### Patch Changes
+
+- [#1090](https://github.com/cloudflare/agents/pull/1090) [`a91b598`](https://github.com/cloudflare/agents/commit/a91b598628f907a4cd9e7e8f2645c8c33bea2f3f) Thanks [@threepointone](https://github.com/threepointone)! - Allow MCP clients to connect to localhost and loopback URLs again for local development while continuing to block private, link-local, and metadata endpoints.
+
+- [#1088](https://github.com/cloudflare/agents/pull/1088) [`16e2833`](https://github.com/cloudflare/agents/commit/16e2833a3ec7b0e44758845490df7ca09a1f8378) Thanks [@threepointone](https://github.com/threepointone)! - Embed sub-agent (facet) API into the Agent base class. Adds `subAgent()`, `abortSubAgent()`, and `deleteSubAgent()` methods directly on `Agent`, replacing the experimental `withSubAgents` mixin. Uses composite facet keys for class-aware naming, guards scheduling and `keepAlive` in facets, and persists the facet flag to storage so it survives hibernation.
+
+- [#1085](https://github.com/cloudflare/agents/pull/1085) [`0b73a74`](https://github.com/cloudflare/agents/commit/0b73a74ec03e064d494d6564e8a316c37b73c557) Thanks [@threepointone](https://github.com/threepointone)! - Remove unnecessary storage operations in McpAgent:
+
+  - Fix redundant `props` read in `onStart`: skip `storage.get("props")` when props are passed directly (only read from storage on hibernation recovery)
+  - Replace elicitation storage polling with in-memory Promise/resolver: eliminates repeated `storage.get`/`put`/`delete` calls (up to 6 per elicitation) in favor of zero-storage in-memory signaling
+
+- [#1086](https://github.com/cloudflare/agents/pull/1086) [`e8195e7`](https://github.com/cloudflare/agents/commit/e8195e7b2dcfb45900b0747aa2a32162ec4c63c3) Thanks [@threepointone](https://github.com/threepointone)! - Simplify Agent storage: schema version gating and single-row state
+
+  - Skip redundant DDL migrations on established DOs by tracking schema version in `cf_agents_state`
+  - Eliminate `STATE_WAS_CHANGED` row — state persistence now uses a single row with row-existence check, correctly handling falsy values (null, 0, false, "")
+  - Clean up legacy `STATE_WAS_CHANGED` rows during migration
+  - Add schema DDL snapshot test that breaks if table definitions change without bumping `CURRENT_SCHEMA_VERSION`
+  - Fix corrupted state test helper that was using incorrect row IDs
+
+- [#1081](https://github.com/cloudflare/agents/pull/1081) [`933b00f`](https://github.com/cloudflare/agents/commit/933b00fa5f7001cf28789334037bd0abeb4e1fc1) Thanks [@threepointone](https://github.com/threepointone)! - Add default console.error logging to onWorkflowError() so unhandled workflow errors are visible in logs
+
+- [#1089](https://github.com/cloudflare/agents/pull/1089) [`a1eab1d`](https://github.com/cloudflare/agents/commit/a1eab1d3706e73488e6001fcbb9ad21811709bda) Thanks [@threepointone](https://github.com/threepointone)! - Add `Workspace` class — durable file storage for any Agent with hybrid SQLite+R2 backend and optional just-bash shell execution. Usage: `new Workspace(this, { r2, idPrefix })`. Import from `agents/workspace`.
+
+## 0.7.5
+
+### Patch Changes
+
+- [#1071](https://github.com/cloudflare/agents/pull/1071) [`6312684`](https://github.com/cloudflare/agents/commit/631268433953ffbfbe23bf963b02b284e35777d8) Thanks [@threepointone](https://github.com/threepointone)! - Fix missing `await` on `_workflow_updateState` RPC calls in `AgentWorkflow._wrapStep()` for `updateAgentState`, `mergeAgentState`, and `resetAgentState`, which could cause state updates to be silently lost.
+
+- [#1069](https://github.com/cloudflare/agents/pull/1069) [`b5238de`](https://github.com/cloudflare/agents/commit/b5238de66f479d986e911b980280654048493ad2) Thanks [@threepointone](https://github.com/threepointone)! - Add `Workspace` class — durable file storage for any Agent with hybrid SQLite+R2 backend and optional just-bash shell execution. Includes `BashSession` for multi-step shell workflows with persistent cwd and env across exec calls, and `cwd` option on `bash()`. Usage: `new Workspace(this, { r2, r2Prefix })`. Import from `agents/experimental/workspace`.
+
+## 0.7.4
+
+### Patch Changes
+
+- [#1063](https://github.com/cloudflare/agents/pull/1063) [`4ace1d4`](https://github.com/cloudflare/agents/commit/4ace1d4c9b1e739731f8fae923ae29fcbce82e8b) Thanks [@threepointone](https://github.com/threepointone)! - Fix CHECK constraint migration for `cf_agents_schedules` table to include `'interval'` type, allowing `scheduleEvery()` and `keepAlive()` to work on DOs created with older SDK versions.
+
+## 0.7.3
+
+### Patch Changes
+
+- [#1057](https://github.com/cloudflare/agents/pull/1057) [`c804c73`](https://github.com/cloudflare/agents/commit/c804c73ae5bc48ab77bc94d03e8ac69a8fb3812d) Thanks [@threepointone](https://github.com/threepointone)! - Updated dependencies.
+
+- [#1057](https://github.com/cloudflare/agents/pull/1057) [`c804c73`](https://github.com/cloudflare/agents/commit/c804c73ae5bc48ab77bc94d03e8ac69a8fb3812d) Thanks [@threepointone](https://github.com/threepointone)! - Fix workflow RPC callbacks bypassing Agent initialization. The `_workflow_handleCallback`, `_workflow_broadcast`, and `_workflow_updateState` methods now call `__unsafe_ensureInitialized()` before executing, ensuring `this.name` is hydrated and `onStart()` has been called even when the Durable Object wakes via native RPC.
+
+## 0.7.2
+
+### Patch Changes
+
+- [#1050](https://github.com/cloudflare/agents/pull/1050) [`6157741`](https://github.com/cloudflare/agents/commit/615774103c3281d1ba5da3939d8c21a5f15f1654) Thanks [@ask-bonk](https://github.com/apps/ask-bonk)! - Fix Agent alarm() bypassing PartyServer's initialization
+
+  The Agent class defined `alarm` as a `public readonly` arrow function property, which completely shadowed PartyServer's `alarm()` prototype method. This meant `#ensureInitialized()` was never called when a Durable Object woke via alarm (e.g. from `scheduleEvery`), causing `this.name` to throw and `onStart` to never run.
+
+  Converted `alarm` from an arrow function property to a regular async method that calls `super.alarm()` before processing scheduled tasks. Also added an `onAlarm()` no-op override to suppress PartyServer's default warning log.
+
+- [#1052](https://github.com/cloudflare/agents/pull/1052) [`f1e2bfa`](https://github.com/cloudflare/agents/commit/f1e2bfae1e401a45183e79d59b7453b14fb1cc51) Thanks [@ask-bonk](https://github.com/apps/ask-bonk)! - Make `scheduleEvery()` idempotent
+
+  `scheduleEvery()` now deduplicates by the combination of callback name, interval, and payload: calling it multiple times with the same arguments returns the existing schedule instead of creating a duplicate. A different interval or payload creates a separate, independent schedule.
+
+  This fixes the common pattern of calling `scheduleEvery()` inside `onStart()`, which runs on every Durable Object wake. Previously each wake created a new interval schedule, leading to a thundering herd of duplicate executions.
+
+## 0.7.1
+
+### Patch Changes
+
+- [#1046](https://github.com/cloudflare/agents/pull/1046) [`2cde136`](https://github.com/cloudflare/agents/commit/2cde13660a1231a9a14bc50cacf8485af9a07378) Thanks [@threepointone](https://github.com/threepointone)! - Add `agent` and `name` fields to observability events, identifying which agent class and instance emitted each event.
+
+  New events: `disconnect` (WebSocket close), `email:receive`, `email:reply`, `queue:create`, and a new `agents:email` channel.
+
+  Make `_emit` protected so subclasses can use it. Update `AIChatAgent` to use `_emit` so message/tool events carry agent identity.
+
+## 0.7.0
+
+### Minor Changes
+
+- [#1024](https://github.com/cloudflare/agents/pull/1024) [`e9ae070`](https://github.com/cloudflare/agents/commit/e9ae0701fe4312e8221c52881b42968a8a4d0061) Thanks [@threepointone](https://github.com/threepointone)! - Overhaul observability: `diagnostics_channel`, leaner events, error tracking.
+
+  ### Breaking changes to `agents/observability` types
+
+  - **`BaseEvent`**: Removed `id` and `displayMessage` fields. Events now contain only `type`, `payload`, and `timestamp`. The `payload` type is now strict — accessing undeclared fields is a type error. Narrow on `event.type` before accessing payload properties.
+  - **`Observability.emit()`**: Removed the optional `ctx` second parameter.
+  - **`AgentObservabilityEvent`**: Split combined union types so each event has its own discriminant (enables proper `Extract`-based type narrowing). Added new error event types.
+
+  If you have a custom `Observability` implementation, update your `emit` signature to `emit(event: ObservabilityEvent): void`.
+
+  ### diagnostics_channel replaces console.log
+
+  The default `genericObservability` implementation no longer logs every event to the console. Instead, events are published to named diagnostics channels using the Node.js `diagnostics_channel` API. Publishing to a channel with no subscribers is a no-op, eliminating logspam.
+
+  Seven named channels, one per event domain:
+
+  - `agents:state` — state sync events
+  - `agents:rpc` — RPC method calls and errors
+  - `agents:message` — message request/response/clear/cancel/error + tool result/approval
+  - `agents:schedule` — schedule and queue create/execute/cancel/retry/error events
+  - `agents:lifecycle` — connection and destroy events
+  - `agents:workflow` — workflow start/event/approve/reject/terminate/pause/resume/restart
+  - `agents:mcp` — MCP client connect/authorize/discover events
+
+  ### New error events
+
+  Error events are now emitted at failure sites instead of (or alongside) `console.error`:
+
+  - `rpc:error` — RPC method failures (includes method name and error message)
+  - `schedule:error` — schedule callback failures after all retries exhausted
+  - `queue:error` — queue callback failures after all retries exhausted
+
+  ### Reduced boilerplate
+
+  All 20+ inline `emit` blocks in the Agent class have been replaced with a private `_emit()` helper that auto-generates timestamps, reducing each call site from ~10 lines to 1.
+
+  ### Typed subscribe helper
+
+  A new `subscribe()` function is exported from `agents/observability` with full type narrowing per channel:
+
+  ```ts
+  import { subscribe } from "agents/observability";
+
+  const unsub = subscribe("rpc", (event) => {
+    // event is fully typed as rpc | rpc:error
+    console.log(event.payload.method);
+  });
+  ```
+
+  ### Tail Worker integration
+
+  In production, all diagnostics channel messages are automatically forwarded to Tail Workers via `event.diagnosticsChannelEvents` — no subscription needed in the agent itself.
+
+  ### TracingChannel potential
+
+  The `diagnostics_channel` API also provides `TracingChannel` for start/end/error spans with `AsyncLocalStorage` integration, opening the door to end-to-end tracing of RPC calls, workflow steps, and schedule executions.
+
+- [#1029](https://github.com/cloudflare/agents/pull/1029) [`c898308`](https://github.com/cloudflare/agents/commit/c898308d670851e2d79adcc2502f1663ba478b72) Thanks [@threepointone](https://github.com/threepointone)! - Add experimental `keepAlive()` and `keepAliveWhile()` methods to the Agent class. Keeps the Durable Object alive via alarm heartbeats (every 30 seconds), preventing idle eviction during long-running work. `keepAlive()` returns a disposer function; `keepAliveWhile(fn)` runs an async function and automatically cleans up the heartbeat when it completes.
+
+  `AIChatAgent` now automatically calls `keepAliveWhile()` during `_reply()` streaming, preventing idle eviction during long LLM generations.
+
+### Patch Changes
+
+- [#1020](https://github.com/cloudflare/agents/pull/1020) [`70ebb05`](https://github.com/cloudflare/agents/commit/70ebb05823b48282e3d9e741ab74251c1431ebdd) Thanks [@threepointone](https://github.com/threepointone)! - udpate dependencies
+
+- [#1035](https://github.com/cloudflare/agents/pull/1035) [`24cf279`](https://github.com/cloudflare/agents/commit/24cf279fcce7408be48d44c771caa0fde53456b6) Thanks [@threepointone](https://github.com/threepointone)! - MCP protocol handling improvements:
+
+  - **JSON-RPC error responses**: `RPCServerTransport.handle()` now returns a proper JSON-RPC `-32600 Invalid Request` error response for malformed messages instead of throwing an unhandled exception. This aligns with the JSON-RPC 2.0 spec requirement that servers respond with error objects.
+  - **McpAgent protocol message suppression**: `McpAgent` now overrides `shouldSendProtocolMessages()` to suppress `CF_AGENT_IDENTITY`, `CF_AGENT_STATE`, and `CF_AGENT_MCP_SERVERS` frames on MCP transport connections (detected via the `cf-mcp-method` header). Regular WebSocket connections to a hybrid McpAgent are unaffected.
+  - **CORS warning removed**: Removed the one-time warning about `Authorization` in `Access-Control-Allow-Headers` with wildcard origin. The warning was noisy and unhelpful — the combination is valid for non-credentialed requests and does not pose a real security risk.
+
+- [#996](https://github.com/cloudflare/agents/pull/996) [`baf6751`](https://github.com/cloudflare/agents/commit/baf675188c11dded29720842a988a58f8eae2f1b) Thanks [@threepointone](https://github.com/threepointone)! - Fix race condition where MCP tools are intermittently unavailable in onChatMessage after hibernation.
+
+  **`agents`**: Added `MCPClientManager.waitForConnections(options?)` which awaits all in-flight connection and discovery operations. Accepts an optional `{ timeout }` in milliseconds. Background restore promises from `restoreConnectionsFromStorage()` are now tracked so callers can wait for them to settle.
+
+  **`@cloudflare/ai-chat`**: Added `waitForMcpConnections` opt-in config on `AIChatAgent`. Set to `true` to wait indefinitely, or `{ timeout: 10_000 }` to cap the wait. Default is `false` (non-blocking, preserving existing behavior). For lower-level control, call `this.mcp.waitForConnections()` directly in your `onChatMessage`.
+
+- [#1035](https://github.com/cloudflare/agents/pull/1035) [`24cf279`](https://github.com/cloudflare/agents/commit/24cf279fcce7408be48d44c771caa0fde53456b6) Thanks [@threepointone](https://github.com/threepointone)! - Fix `this.sql` to throw `SqlError` directly instead of routing through `onError`
+
+  Previously, SQL errors from `this.sql` were passed to `this.onError()`, which by default logged the error and re-threw it. This caused confusing double error logs and made it impossible to catch SQL errors with a simple try/catch around `this.sql` calls if `onError` was overridden to swallow errors.
+
+  Now, `this.sql` wraps failures in `SqlError` (which includes the query string for debugging) and throws directly. The `onError` lifecycle hook is reserved for WebSocket connection errors and unhandled server errors, not SQL errors.
+
+- [#1022](https://github.com/cloudflare/agents/pull/1022) [`c2bfd3c`](https://github.com/cloudflare/agents/commit/c2bfd3ca23fe22572fe5a5435ce8e8efd54b6c2f) Thanks [@threepointone](https://github.com/threepointone)! - Remove redundant unawaited `updateProps` calls in MCP transport handlers that caused sporadic "Failed to pop isolated storage stack frame" errors in test environments. Props are already delivered through `getAgentByName` → `onStart`, making the extra calls unnecessary. Also removes the RPC experimental warning from `addMcpServer`.
+
+- [#1003](https://github.com/cloudflare/agents/pull/1003) [`d24936c`](https://github.com/cloudflare/agents/commit/d24936cf2d77d921ab61bc00a65aa01906db651a) Thanks [@threepointone](https://github.com/threepointone)! - Fix: `throw new Error()` in AgentWorkflow now triggers `onWorkflowError` on the Agent
+
+  Previously, throwing an error inside a workflow's `run()` method would halt the workflow but never notify the Agent via `onWorkflowError`. Only explicit `step.reportError()` calls triggered the callback, but those did not halt the workflow.
+
+  Now, unhandled errors in `run()` are automatically caught and reported to the Agent before re-throwing. A double-notification guard (`_errorReported` flag) ensures that if `step.reportError()` was already called before the throw, the auto-report is skipped.
+
+- [#1040](https://github.com/cloudflare/agents/pull/1040) [`766f20b`](https://github.com/cloudflare/agents/commit/766f20bd0b1d7add65fe3522b06b7124d4f8df6c) Thanks [@threepointone](https://github.com/threepointone)! - Changed `addMcpServer` dedup logic to match on both server name AND URL for HTTP transport. Previously, calling `addMcpServer` with the same name but a different URL would silently return the stale connection. Now each unique (name, URL) pair is treated as a separate connection. RPC transport continues to dedup by name only.
+
+- [#997](https://github.com/cloudflare/agents/pull/997) [`a570ea5`](https://github.com/cloudflare/agents/commit/a570ea54b7572f2b2f6791f3e25a2e7df612b45a) Thanks [@threepointone](https://github.com/threepointone)! - Security hardening for Agent and MCP subsystems:
+
+  - **SSRF protection**: MCP client now validates URLs before connecting, blocking private/internal IP addresses (RFC 1918, loopback, link-local, cloud metadata endpoints, IPv6 unique local and link-local ranges)
+  - **OAuth log redaction**: Removed OAuth state parameter value from `consumeState` warning logs to prevent sensitive data leakage
+  - **Error sanitization**: MCP server error strings are now sanitized (control characters stripped, truncated to 500 chars) before broadcasting to clients to mitigate XSS risk
+  - **`sendIdentityOnConnect` warning**: When using custom routing (where the instance name is not visible in the URL), a one-time console warning now informs developers that the instance name is being sent to clients. Set `static options = { sendIdentityOnConnect: false }` to opt out, or `true` to silence the warning.
+
+- [#992](https://github.com/cloudflare/agents/pull/992) [`4fcf179`](https://github.com/cloudflare/agents/commit/4fcf1794b6ba47a77a6fb5d6a592dc5ccf0e6df8) Thanks [@Muhammad-Bin-Ali](https://github.com/Muhammad-Bin-Ali)! - Fix email routing to handle lowercased agent names from email infrastructure
+
+  Email servers normalize addresses to lowercase, so `SomeAgent+id@domain.com` arrives as `someagent+id@domain.com`. The router now registers a lowercase key in addition to the original binding name and kebab-case version, so all three forms resolve correctly.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#565](https://github.com/cloudflare/agents/pull/565) [`0e9a607`](https://github.com/cloudflare/agents/commit/0e9a607888a4ef31adc226d0fa939b9125cbfea0) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Add RPC transport for MCP: connect an Agent to an McpAgent via Durable Object bindings
+
+  **New feature: `addMcpServer` with DO binding**
+
+  Agents can now connect to McpAgent instances in the same Worker using RPC transport — no HTTP, no network overhead. Pass the Durable Object namespace directly:
+
+  ```typescript
+  // In your Agent
+  await this.addMcpServer("counter", env.MY_MCP);
+
+  // With props
+  await this.addMcpServer("counter", env.MY_MCP, {
+    props: { userId: "user-123", role: "admin" },
+  });
+  ```
+
+  The `addMcpServer` method now accepts `string | DurableObjectNamespace` as the second parameter with proper TypeScript overloads, so HTTP and RPC paths are type-safe and cannot be mixed.
+
+  **Hibernation support**
+
+  RPC connections survive Durable Object hibernation automatically. The binding name and props are persisted to storage and restored on wake-up, matching the behavior of HTTP MCP connections. No need to manually re-establish connections in `onStart()`.
+
+  **Deduplication**
+
+  Calling `addMcpServer` with the same server name multiple times (e.g., across hibernation cycles) now returns the existing connection instead of creating duplicates. This applies to both RPC and HTTP connections. Connection IDs are stable across hibernation restore.
+
+  **Other changes**
+
+  - Rewrote `RPCClientTransport` to accept a `DurableObjectNamespace` and create the stub internally via `getServerByName` from partyserver, instead of requiring a pre-constructed stub
+  - Rewrote `RPCServerTransport` to drop session management (unnecessary for DO-scoped RPC) and use `JSONRPCMessageSchema` from the MCP SDK for validation instead of 170 lines of hand-written validation
+  - Removed `_resolveRpcBinding`, `_buildRpcTransportOptions`, `_buildHttpTransportOptions`, and `_connectToMcpServerInternal` from the Agent base class — RPC transport logic no longer leaks into `index.ts`
+  - Added `AddRpcMcpServerOptions` type (discriminated from `AddMcpServerOptions`) so `props` is only available when passing a binding
+  - Added `RPC_DO_PREFIX` constant used consistently across all RPC naming
+  - Fixed `MCPClientManager.callTool` passing `serverId` through to `conn.client.callTool` (it should be stripped before the call)
+  - Added `getRpcServersFromStorage()` and `saveRpcServerToStorage()` to `MCPClientManager` for hibernation persistence
+  - `restoreConnectionsFromStorage` now skips RPC servers (restored separately by the Agent class which has access to `env`)
+  - Reduced `rpc.ts` from 609 lines to 245 lines
+  - Reduced `types.ts` from 108 lines to 26 lines
+  - Updated `mcp-rpc-transport` example to use Workers AI (no API keys needed), Kumo/agents-ui components, and Tailwind CSS
+  - Updated MCP transports documentation
+
+### Patch Changes
+
+- [#973](https://github.com/cloudflare/agents/pull/973) [`969fbff`](https://github.com/cloudflare/agents/commit/969fbff702d5702c1f0ea6faaecb3dfd0431a01b) Thanks [@threepointone](https://github.com/threepointone)! - Update dependencies
+
+- [#960](https://github.com/cloudflare/agents/pull/960) [`179b8cb`](https://github.com/cloudflare/agents/commit/179b8cbc60bc9e6ac0d2ee26c430d842950f5f08) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Harden JSON Schema to TypeScript converter for production use
+
+  - Add depth and circular reference guards to prevent stack overflows on recursive or deeply nested schemas
+  - Add `$ref` resolution for internal JSON Pointers (`#/definitions/...`, `#/$defs/...`, `#`)
+  - Add tuple support (`prefixItems` for JSON Schema 2020-12, array `items` for draft-07)
+  - Add OpenAPI 3.0 `nullable: true` support across all schema branches
+  - Fix string escaping in enum/const values, property names (control chars, U+2028/U+2029), and JSDoc comments (`*/`)
+  - Add per-tool error isolation in `generateTypes()` so one malformed schema cannot crash the pipeline
+  - Guard missing `inputSchema` in `getAITools()` with a fallback to `{ type: "object" }`
+  - Add per-tool error isolation in `getAITools()` so one bad MCP tool does not break the entire tool set
+
+- [#963](https://github.com/cloudflare/agents/pull/963) [`b848008`](https://github.com/cloudflare/agents/commit/b848008549f57147e972a672f88789a05fa2c14d) Thanks [@threepointone](https://github.com/threepointone)! - Make `callbackHost` optional in `addMcpServer` for non-OAuth servers
+
+  Previously, `addMcpServer()` always required a `callbackHost` (either explicitly or derived from the request context) and eagerly created an OAuth auth provider, even when connecting to MCP servers that do not use OAuth. This made simple non-OAuth connections unnecessarily difficult, especially from WebSocket callable methods where the request context origin is unreliable.
+
+  Now, `callbackHost` and the OAuth auth provider are only required when the MCP server actually needs OAuth (returns a 401/AUTHENTICATING state). For non-OAuth servers, `addMcpServer("name", url)` works with no additional options. If an OAuth server is encountered without a `callbackHost`, a clear error is thrown: "This MCP server requires OAuth authentication. Provide callbackHost in addMcpServer options to enable the OAuth flow."
+
+  The restore-from-storage flow also handles missing callback URLs gracefully, skipping auth provider creation for non-OAuth servers.
+
+- [`97c6702`](https://github.com/cloudflare/agents/commit/97c67023a105dfe9413ebb0ea7c9888bb9335456) Thanks [@threepointone](https://github.com/threepointone)! - Add one-time console warning when using RPC transport (DO binding) with `addMcpServer`, noting the API is experimental and linking to the feedback issue.
+
+## 0.5.1
+
+### Patch Changes
+
+- [#954](https://github.com/cloudflare/agents/pull/954) [`943c407`](https://github.com/cloudflare/agents/commit/943c4070992bb836625abb5bf4e3271a6f52f7a2) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+- [#944](https://github.com/cloudflare/agents/pull/944) [`e729b5d`](https://github.com/cloudflare/agents/commit/e729b5d393f7f81de64c9c1c0f3ede41a7a784c0) Thanks [@threepointone](https://github.com/threepointone)! - Export `DurableObjectOAuthClientProvider` from top-level `agents` package and fix `restoreConnectionsFromStorage()` to use the Agent's `createMcpOAuthProvider()` override instead of hardcoding the default provider
+
+- [#850](https://github.com/cloudflare/agents/pull/850) [`2cb12df`](https://github.com/cloudflare/agents/commit/2cb12dfc0c8fc3bcf316cfb2d04e87ee5f049d62) Thanks [@Muhammad-Bin-Ali](https://github.com/Muhammad-Bin-Ali)! - Fix: MCP OAuth callback errors are now returned as structured results instead of throwing unhandled exceptions. Errors with an active connection properly transition to "failed" state and are surfaced to clients via WebSocket broadcast.
+
+## 0.5.0
+
+This release adds per-connection protocol message control and a built-in retry system. Agents can now suppress JSON protocol frames for binary-only clients (MQTT, IoT devices) while keeping RPC and regular messaging working — useful for Durable Objects that serve mixed connection types. The new `this.retry()` method and per-task retry options bring exponential backoff with jitter to scheduling, queues, and MCP connections without external dependencies. This release also improves scheduling ergonomics with synchronous getter methods, a cleaner discriminated union schema, and fixes for hibernation, deep type recursion, and SSE keepalives.
+
+### Minor Changes
+
+- [#920](https://github.com/cloudflare/agents/pull/920) [`4dea3bd`](https://github.com/cloudflare/agents/commit/4dea3bdeeeba6a92782550cfb1025cf47e91a9ee) Thanks [@threepointone](https://github.com/threepointone)! - Add `shouldSendProtocolMessages` hook and `isConnectionProtocolEnabled` predicate for per-connection control of protocol text frames
+
+  Adds the ability to suppress protocol messages (`CF_AGENT_IDENTITY`, `CF_AGENT_STATE`, `CF_AGENT_MCP_SERVERS`) on a per-connection basis. This is useful for binary-only clients (e.g. MQTT devices) that cannot handle JSON text frames.
+
+  Override `shouldSendProtocolMessages(connection, ctx)` to return `false` for connections that should not receive protocol messages. These connections still fully participate in RPC and regular messaging — only the automatic protocol text frames are suppressed, both on connect and during broadcasts.
+
+  Use `isConnectionProtocolEnabled(connection)` to check a connection's protocol status at any time.
+
+  Also fixes `isConnectionReadonly` to correctly survive Durable Object hibernation by re-wrapping the connection when the in-memory accessor cache has been cleared.
+
+- [#874](https://github.com/cloudflare/agents/pull/874) [`a6ec9b0`](https://github.com/cloudflare/agents/commit/a6ec9b0af1868e21a19689c41732af0bb0de0a13) Thanks [@threepointone](https://github.com/threepointone)! - Add retry utilities: `this.retry()`, per-task retry options, and `RetryOptions` type
+  - `this.retry(fn, options?)` — retry any async operation with exponential backoff and jitter. Accepts optional `shouldRetry` predicate to bail early on non-retryable errors.
+  - `queue()`, `schedule()`, `scheduleEvery()` accept `{ retry?: RetryOptions }` for per-task retry configuration, persisted in SQLite alongside the task.
+  - `addMcpServer()` accepts `{ retry?: RetryOptions }` for configurable MCP connection retries.
+  - `RetryOptions` type is exported for TypeScript consumers.
+  - Retry options are validated eagerly at enqueue/schedule time — invalid values throw immediately.
+  - Class-level retry defaults via `static options = { retry: { ... } }` — override defaults for an entire agent class.
+  - Internal retries added for workflow operations (`terminateWorkflow`, `pauseWorkflow`, etc.) with Durable Object-aware error detection.
+
+### Patch Changes
+
+- [#899](https://github.com/cloudflare/agents/pull/899) [`04c6411`](https://github.com/cloudflare/agents/commit/04c6411c9a73fe48784d7ce86150d62cf54becda) Thanks [@threepointone](https://github.com/threepointone)! - Fix React hooks exhaustive-deps warning in useAgent by referencing cacheInvalidatedAt inside useMemo body.
+
+- [#904](https://github.com/cloudflare/agents/pull/904) [`d611b94`](https://github.com/cloudflare/agents/commit/d611b940e7884af4accd8e3c97a7a8f86703e6f9) Thanks [@ask-bonk](https://github.com/apps/ask-bonk)! - Fix TypeScript "excessively deep" error with deeply nested state types
+
+  Add a depth counter to `CanSerialize` and `IsSerializableParam` types that bails out to `true` after 10 levels of recursion. This prevents the "Type instantiation is excessively deep and possibly infinite" error when using deeply nested types like AI SDK `CoreMessage[]` as agent state.
+
+- [#911](https://github.com/cloudflare/agents/pull/911) [`67b1601`](https://github.com/cloudflare/agents/commit/67b1601e0f6f82998c1d6ffb2023bc50ba12fc99) Thanks [@threepointone](https://github.com/threepointone)! - Update all dependencies and fix breaking changes.
+
+  Update all dependencies, add required `aria-label` props to Kumo `Button` components with `shape` (now required for accessibility), and fix state test for constructor-time validation of conflicting `onStateChanged`/`onStateUpdate` hooks.
+
+- [#889](https://github.com/cloudflare/agents/pull/889) [`9100e65`](https://github.com/cloudflare/agents/commit/9100e6587e2cc14701f0857c1268e6f17057488d) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Fix scheduling schema compatibility with zod v3 and improve schema structure.
+
+  - Change `zod/v3` import to `zod` so the package works for users on zod v3 (who don't have the `zod/v3` subpath).
+  - Replace flat object with optional fields with a `z.discriminatedUnion` on `when.type`. Each scheduling variant now only contains the fields it needs, making the schema cleaner and easier for LLMs to follow.
+  - Replace `z.coerce.date()` with `z.string()`. Zod v4's `toJSONSchema()` cannot represent `Date`, and the AI SDK routes zod v4 schemas through it directly. Dates are now returned as ISO 8601 strings.
+  - **Type change:** `Schedule["when"]` is now a discriminated union instead of a flat object with optional fields. `when.date` is `string` instead of `Date`.
+
+- [#916](https://github.com/cloudflare/agents/pull/916) [`24e16e0`](https://github.com/cloudflare/agents/commit/24e16e025b82dbd7b321339a18c6d440b2879136) Thanks [@threepointone](https://github.com/threepointone)! - Widen peer dependency ranges across packages to prevent cascading major bumps during 0.x minor releases. Mark `@cloudflare/ai-chat` and `@cloudflare/codemode` as optional peer dependencies of `agents` to fix unmet peer dependency warnings during installation.
+
+- [#898](https://github.com/cloudflare/agents/pull/898) [`cd2d34f`](https://github.com/cloudflare/agents/commit/cd2d34fc3d77e80ab9a369e1f2cd76bd0ddd3e79) Thanks [@jvg123](https://github.com/jvg123)! - Add keepalive ping to POST SSE response streams in WorkerTransport
+
+  The GET SSE handler already sends `event: ping` every 30 seconds to keep the connection alive, but the POST SSE handler did not. This caused POST response streams to be silently dropped by proxies and infrastructure during long-running tool calls (e.g., MCP tools/call), resulting in clients never receiving the response.
+
+- [#874](https://github.com/cloudflare/agents/pull/874) [`a6ec9b0`](https://github.com/cloudflare/agents/commit/a6ec9b0af1868e21a19689c41732af0bb0de0a13) Thanks [@threepointone](https://github.com/threepointone)! - Make queue and schedule getter methods synchronous
+
+  `getQueue()`, `getQueues()`, `getSchedule()`, `dequeue()`, `dequeueAll()`, and `dequeueAllByCallback()` were unnecessarily `async` despite only performing synchronous SQL operations. They now return values directly instead of wrapping them in Promises. This is backward compatible — existing code using `await` on these methods will continue to work.
+
+## 0.4.1
+
+### Patch Changes
+
+- [#890](https://github.com/cloudflare/agents/pull/890) [`22dbd2c`](https://github.com/cloudflare/agents/commit/22dbd2c70445be185bd106abb1638c2071419c11) Thanks [@ask-bonk](https://github.com/apps/ask-bonk)! - Fix `_flushQueue()` permanently blocking when a queued callback throws
+
+  A throwing callback in `_flushQueue()` previously caused the failing row to never be dequeued, creating an infinite retry loop that blocked all subsequent queued tasks. Additionally, `_flushingQueue` was never reset to `false` on error, permanently locking the queue for the lifetime of the Durable Object instance.
+
+  The fix wraps each callback invocation in try-catch-finally so that failing items are always dequeued and subsequent items continue processing. The `_flushingQueue` flag is now reset in a top-level finally block. Missing callbacks are also dequeued instead of being skipped indefinitely.
+
+  **Note for existing stuck Durable Objects:** This fix is self-healing for poison rows — they will be properly dequeued on the next `_flushQueue()` call. However, `_flushQueue()` is only triggered by a new `queue()` call, not on DO initialization. If you have DOs stuck in production, you can either trigger a new `queue()` call on affected DOs, or call `dequeueAll()`/`dequeueAllByCallback()` to clear the poison rows manually. A future improvement may add a `_flushQueue()` call to `onStart()` so stuck DOs self-heal on wake.
+
+- [#891](https://github.com/cloudflare/agents/pull/891) [`0723b99`](https://github.com/cloudflare/agents/commit/0723b9909f037d494e0c7db43e031c952578c82e) Thanks [@ask-bonk](https://github.com/apps/ask-bonk)! - Fix `getCurrentAgent()` returning `undefined` connection when used with `@cloudflare/ai-chat` and Vite SSR
+
+  Re-export `agentContext` as `__DO_NOT_USE_WILL_BREAK__agentContext` from the main `agents` entry point and update `@cloudflare/ai-chat` to import it from `agents` instead of the `agents/internal_context` subpath export. This prevents Vite SSR pre-bundling from creating two separate `AsyncLocalStorage` instances, which caused `getCurrentAgent().connection` to be `undefined` inside `onChatMessage` and tool `execute` functions.
+
+  The `agents/internal_context` subpath export has been removed from `package.json` and the deprecated `agentContext` alias has been removed from `internal_context.ts`. This was never a public API.
+
+- Updated dependencies [[`584cebe`](https://github.com/cloudflare/agents/commit/584cebe882f437a685b96b26b15200dc50ba70e1), [`0723b99`](https://github.com/cloudflare/agents/commit/0723b9909f037d494e0c7db43e031c952578c82e), [`4292f6b`](https://github.com/cloudflare/agents/commit/4292f6ba6d49201c88b09553452c3b243620f35b)]:
+  - @cloudflare/ai-chat@0.0.8
+
+## 0.4.0
+
+### Minor Changes
+
+- [#848](https://github.com/cloudflare/agents/pull/848) [`a167344`](https://github.com/cloudflare/agents/commit/a167344aab6960a51901886539c206a2c937bb1e) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Upgrade MCP SDK to 1.26.0 to prevent cross-client response leakage. Updated examples for stateless MCP Servers create new `McpServer` instance per request instead of sharing a single instance. A guard is added in this version of the MCP SDK which will prevent connection to a Server instance that has already been connected to a transport. Developers will need to modify their code if they declare their `McpServer` instance as a global variable.
+
+- [#298](https://github.com/cloudflare/agents/pull/298) [`27f4e3e`](https://github.com/cloudflare/agents/commit/27f4e3ef4471f5c523a7e2f8a0ce548daa5738f5) Thanks [@jaredhanson](https://github.com/jaredhanson)! - Add `createMcpOAuthProvider` method to the `Agent` class, allowing subclasses to override the default OAuth provider used when connecting to MCP servers. This enables custom authentication strategies such as pre-registered client credentials or mTLS, beyond the built-in dynamic client registration.
+
+- [#610](https://github.com/cloudflare/agents/pull/610) [`f59f305`](https://github.com/cloudflare/agents/commit/f59f30533121e6e9fd41e9a2e22184d2fa9bdb1b) Thanks [@threepointone](https://github.com/threepointone)! - Deprecate `onStateUpdate` server-side hook in favor of `onStateChanged`
+
+  - `onStateChanged` is a drop-in rename of `onStateUpdate` (same signature, same behavior)
+  - `onStateUpdate` still works but emits a one-time console warning per class
+  - Throws if a class overrides both hooks simultaneously
+  - `validateStateChange` rejections now propagate a `CF_AGENT_STATE_ERROR` message back to the client
+
+- [#871](https://github.com/cloudflare/agents/pull/871) [`27f8f75`](https://github.com/cloudflare/agents/commit/27f8f755f04e23a71e7a0748c48a2e7ec25cede6) Thanks [@threepointone](https://github.com/threepointone)! - Migrate x402 MCP integration from legacy `x402` package to `@x402/core` and `@x402/evm` v2
+
+  **Breaking changes for x402 users:**
+
+  - Peer dependencies changed: replace `x402` with `@x402/core` and `@x402/evm`
+  - `PaymentRequirements` type now uses v2 fields (e.g. `amount` instead of `maxAmountRequired`)
+  - `X402ClientConfig.account` type changed from `viem.Account` to `ClientEvmSigner` (structurally compatible with `privateKeyToAccount()`)
+
+  **Migration guide:**
+
+  1. Update dependencies:
+
+     ```bash
+     npm uninstall x402
+     npm install @x402/core @x402/evm
+     ```
+
+  2. Update network identifiers — both legacy names and CAIP-2 format are accepted:
+
+     ```typescript
+     // Before
+     {
+       network: "base-sepolia";
+     }
+     // After (either works)
+     {
+       network: "base-sepolia";
+     } // legacy name, auto-converted
+     {
+       network: "eip155:84532";
+     } // CAIP-2 format (preferred)
+     ```
+
+  3. If you access `PaymentRequirements` fields in callbacks, update to v2 field names (see `@x402/core` docs).
+  4. The `version` field on `X402Config` and `X402ClientConfig` is now deprecated and ignored — the protocol version is determined automatically.
+
+  **Other changes:**
+
+  - `X402ClientConfig.network` is now optional — the client auto-selects from available payment requirements
+  - Server-side lazy initialization: facilitator connection is deferred until the first paid tool invocation
+  - Payment tokens support both v2 (`PAYMENT-SIGNATURE`) and v1 (`X-PAYMENT`) HTTP headers
+  - Added `normalizeNetwork` export for converting legacy network names to CAIP-2 format
+  - Re-exports `PaymentRequirements`, `PaymentRequired`, `Network`, `FacilitatorConfig`, and `ClientEvmSigner` from `agents/x402`
+
+### Patch Changes
+
+- [#610](https://github.com/cloudflare/agents/pull/610) [`f59f305`](https://github.com/cloudflare/agents/commit/f59f30533121e6e9fd41e9a2e22184d2fa9bdb1b) Thanks [@threepointone](https://github.com/threepointone)! - Add readonly connections: restrict WebSocket clients from modifying agent state
+
+  - New hooks: `shouldConnectionBeReadonly`, `setConnectionReadonly`, `isConnectionReadonly`
+  - Blocks both client-side `setState()` and mutating `@callable()` methods for readonly connections
+  - Readonly flag stored in a namespaced connection attachment (`_cf_readonly`), surviving hibernation without extra SQL
+  - Connection state wrapping hides the internal flag from user code and preserves it across `connection.setState()` calls
+  - Client-side `onStateUpdateError` callback for handling rejected state updates
+
+- [#855](https://github.com/cloudflare/agents/pull/855) [`271a3cf`](https://github.com/cloudflare/agents/commit/271a3cffd769d646b1d6498f5676662ced94cf27) Thanks [@threepointone](https://github.com/threepointone)! - Fix `useAgent` and `AgentClient` crashing when using `basePath` routing.
+
+- [#868](https://github.com/cloudflare/agents/pull/868) [`b3e2dc1`](https://github.com/cloudflare/agents/commit/b3e2dc1c389b0d874eee5407099d8c20fe684b8b) Thanks [@threepointone](https://github.com/threepointone)! - Fix MCP OAuth callback URL leaking instance name
+
+  Add `callbackPath` option to `addMcpServer` to prevent instance name leakage in MCP OAuth callback URLs. When `sendIdentityOnConnect` is `false`, `callbackPath` is now required — the default callback URL would expose the instance name, undermining the security intent. Also fixes callback request detection to match via the `state` parameter instead of a loose `/callback` URL substring check, enabling custom callback paths.
+
+- [#872](https://github.com/cloudflare/agents/pull/872) [`de71f9e`](https://github.com/cloudflare/agents/commit/de71f9ecfae019061651716cb7d2a350a4283ada) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+- [`8893fbe`](https://github.com/cloudflare/agents/commit/8893fbef32bea9581dd308d5b6d9c066e135feef) Thanks [@threepointone](https://github.com/threepointone)! - partykit releases
+
+  ## partyserver
+
+  ### `0.1.3` (Feb 8, 2026)
+
+  - [#319](https://github.com/cloudflare/partykit/pull/319) — Add `configurable: true` to the `state`, `setState`, `serializeAttachment`, and `deserializeAttachment` property descriptors on connection objects. This allows downstream consumers (like the Cloudflare Agents SDK) to redefine these properties with `Object.defineProperty` for namespacing or wrapping internal state storage. Default behavior is unchanged.
+
+  ### `0.1.4` (Feb 9, 2026)
+
+  - [#320](https://github.com/cloudflare/partykit/pull/320) — **Add CORS support to `routePartykitRequest`**. Pass `cors: true` for permissive defaults or `cors: { ...headers }` for custom CORS headers. Preflight (OPTIONS) requests are handled automatically for matched routes, and CORS headers are appended to all non-WebSocket responses — including responses returned by `onBeforeRequest`.
+  - [#260](https://github.com/cloudflare/partykit/pull/260) — Remove redundant initialize code as `setName` takes care of it, along with the nested `blockConcurrencyWhile` call.
+
+  ***
+
+  ## partysocket
+
+  ### `1.1.12` (Feb 8, 2026)
+
+  - [#317](https://github.com/cloudflare/partykit/pull/317) — Fix `PartySocket.reconnect()` crashing when using `basePath` without `room`. The reconnect guard now accepts either `room` or `basePath` as sufficient context to construct a connection URL.
+  - [#319](https://github.com/cloudflare/partykit/pull/319) — Throw a clear error when constructing a `PartySocket` without `room` or `basePath` (and without `startClosed: true`), instead of silently connecting to a malformed URL containing `"undefined"` as the room name.
+
+  ### `1.1.13` (Feb 9, 2026)
+
+  - [#322](https://github.com/cloudflare/partykit/pull/322) — Fix `reconnect()` not working after `maxRetries` has been exhausted. The `_connectLock` was not released when the max retries early return was hit in `_connect()`, preventing any subsequent `reconnect()` call from initiating a new connection.
+
+- [#869](https://github.com/cloudflare/agents/pull/869) [`fc17506`](https://github.com/cloudflare/agents/commit/fc17506a1d6fb8f6b7fed56be98ab1729d338c2c) Thanks [@threepointone](https://github.com/threepointone)! - Remove `room`/`party` workaround for `basePath` routing now that partysocket handles reconnect without requiring `room` to be set.
+
+- [#873](https://github.com/cloudflare/agents/pull/873) [`d0579fa`](https://github.com/cloudflare/agents/commit/d0579fa13a60e47395a2dde199be3197299b8668) Thanks [@threepointone](https://github.com/threepointone)! - Remove CORS wrapping from `routeAgentRequest` and delegate to partyserver's native CORS support. The `cors` option is now passed directly through to `routePartykitRequest`, which handles preflight and response headers automatically since partyserver 0.1.4.
+
+- [#865](https://github.com/cloudflare/agents/pull/865) [`c3211d0`](https://github.com/cloudflare/agents/commit/c3211d0b0cc36aa294c15569ae650d3afeab9926) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+- Updated dependencies [[`21a7977`](https://github.com/cloudflare/agents/commit/21a79778f5150aecd890f55a164d397f70db681e), [`3de98a3`](https://github.com/cloudflare/agents/commit/3de98a398d55aeca51c7b845ed4c5d6051887d6d), [`c3211d0`](https://github.com/cloudflare/agents/commit/c3211d0b0cc36aa294c15569ae650d3afeab9926)]:
+  - @cloudflare/codemode@0.0.7
+  - @cloudflare/ai-chat@0.0.7
+
+## 0.3.10
+
+### Patch Changes
+
+- [#839](https://github.com/cloudflare/agents/pull/839) [`68916bf`](https://github.com/cloudflare/agents/commit/68916bfa08358d4bb5d61aff37acd8dc4ffc950e) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Invalidate query cache on disconnect to fix stale auth tokens
+
+- [#841](https://github.com/cloudflare/agents/pull/841) [`3f490d0`](https://github.com/cloudflare/agents/commit/3f490d045844e4884db741afbb66ca1fe65d4093) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Escape authError to prevent XSS attacks and store it in the connection state to avoid needing script tags to display error.
+
+- Updated dependencies [[`83f137f`](https://github.com/cloudflare/agents/commit/83f137f7046aeafc3b480b5aa4518f6290b14406)]:
+  - @cloudflare/ai-chat@0.0.6
+
+## 0.3.9
+
+### Patch Changes
+
+- [#837](https://github.com/cloudflare/agents/pull/837) [`b11b9dd`](https://github.com/cloudflare/agents/commit/b11b9dda37d85a474b07e6ca48fb8cee566db9cc) Thanks [@threepointone](https://github.com/threepointone)! - Fix AgentWorkflow run() method not being called in production
+
+  The `run()` method wrapper was being set as an instance property in the constructor, but Cloudflare's RPC system invokes methods from the prototype chain. This caused the initialization wrapper to be bypassed in production, resulting in `_initAgent` never being called.
+
+  Changed to wrap the subclass prototype's `run` method directly with proper safeguards:
+
+  - Uses `Object.hasOwn()` to only wrap prototypes that define their own `run` method (prevents double-wrapping inherited methods)
+  - Uses a `WeakSet` to track wrapped prototypes (prevents re-wrapping on subsequent instantiations)
+  - Uses an instance-level `__agentInitCalled` flag to prevent double initialization if `super.run()` is called from a subclass
+
+## 0.3.8
+
+### Patch Changes
+
+- [#833](https://github.com/cloudflare/agents/pull/833) [`6c80022`](https://github.com/cloudflare/agents/commit/6c80022713a120c1a93e6afe16d20aee9ab6c9cb) Thanks [@tarushnagpal](https://github.com/tarushnagpal)! - On invalid OAuth state, clear auth_url in storage and set the MCP connection state to FAILED ready for reconnection.
+
+- [#834](https://github.com/cloudflare/agents/pull/834) [`2b4aecd`](https://github.com/cloudflare/agents/commit/2b4aecde7e6887764b5733033b615427cd564926) Thanks [@threepointone](https://github.com/threepointone)! - Fix AgentClient.close() to immediately reject pending RPC calls instead of waiting for WebSocket close handshake timeout.
+
+  Previously, calling `client.close()` would not reject pending RPC calls until the WebSocket close handshake completed (which could take 15+ seconds in some environments). Now pending calls are rejected immediately when `close()` is called, providing faster feedback on intentional disconnects.
+
+## 0.3.7
+
+# agents@0.3.7 Release Notes
+
+This release introduces **Cloudflare Workflows integration** for durable multi-step processing, **secure email reply routing** with HMAC-SHA256 signatures, **15+ new documentation files**, and significant improvements to state management, the callable RPC system, and scheduling.
+
+## Highlights
+
+- **Workflows Integration** - Seamless integration between Cloudflare Agents and Cloudflare Workflows for durable, multi-step background processing
+- **Secure Email Routing** - HMAC-SHA256 signed email headers prevent unauthorized routing of emails to agent instances
+- **Comprehensive Documentation** - 15+ new docs covering getting started, state, routing, HTTP/WebSocket lifecycle, callable methods, MCP, and scheduling
+- **Synchronous `setState()`** - State updates are now synchronous with a new `validateStateChange()` validation hook
+- **`scheduleEvery()` Method** - Fixed-interval recurring tasks with overlap prevention
+- **Callable System Improvements** - Client-side RPC timeouts, streaming error signaling, introspection API
+- **100+ New Tests** - Comprehensive test coverage across state, routing, callable, and email utilities
+
+---
+
+## Cloudflare Workflows Integration
+
+Agents excel at real-time communication and state management. Workflows excel at durable execution. Together, they enable powerful patterns where Agents handle WebSocket connections while Workflows handle long-running tasks, retries, and human-in-the-loop flows.
+
+### AgentWorkflow Base Class
+
+Extend `AgentWorkflow` instead of `WorkflowEntrypoint` to get typed access to the originating Agent:
+
+```typescript
+import { AgentWorkflow } from "agents/workflows";
+
+export class ProcessingWorkflow extends AgentWorkflow<MyAgent, TaskParams> {
+  async run(event: AgentWorkflowEvent<TaskParams>, step: AgentWorkflowStep) {
+    // Call Agent methods via RPC
+    await this.agent.updateStatus(params.taskId, "processing");
+
+    // Non-durable: progress reporting
+    await this.reportProgress({ step: "process", percent: 0.5 });
+    this.broadcastToClients({ type: "update", taskId: params.taskId });
+
+    // Durable via step: idempotent, won't repeat on retry
+    await step.mergeAgentState({ taskProgress: 0.5 });
+    await step.reportComplete(result);
+
+    return result;
+  }
+}
+```
+
+### Agent Methods for Workflows
+
+- `runWorkflow(workflowName, params, options?)` - Start workflow with optional metadata
+- `sendWorkflowEvent(workflowName, workflowId, event)` - Send events to waiting workflows
+- `getWorkflow(workflowId)` / `getWorkflows(criteria?)` - Query workflows with cursor-based pagination
+- `deleteWorkflow(workflowId)` / `deleteWorkflows(criteria?)` - Delete workflows by ID or criteria
+- `approveWorkflow(workflowId)` / `rejectWorkflow(workflowId)` - Human-in-the-loop approval flows
+- `terminateWorkflow()`, `pauseWorkflow()`, `resumeWorkflow()`, `restartWorkflow()` - Workflow control
+
+### Lifecycle Callbacks
+
+```typescript
+async onWorkflowProgress(workflowName, workflowId, progress) {}
+async onWorkflowComplete(workflowName, workflowId, result?) {}
+async onWorkflowError(workflowName, workflowId, error) {}
+async onWorkflowEvent(workflowName, workflowId, event) {}
+```
+
+See `docs/agents/workflows.md` for full documentation.
+
+---
+
+## Secure Email Reply Routing
+
+Prevents unauthorized routing of emails to arbitrary agent instances using HMAC-SHA256 signed headers.
+
+### New Resolver
+
+```typescript
+import { createSecureReplyEmailResolver } from "agents/email";
+
+const resolver = createSecureReplyEmailResolver(env.EMAIL_SECRET, {
+  maxAge: 7 * 24 * 60 * 60, // Optional: 7 days (default: 30 days)
+  onInvalidSignature: (email, reason) => {
+    console.warn(`Invalid signature from ${email.from}: ${reason}`);
+  },
+});
+```
+
+### Automatic Signing on Reply
+
+```typescript
+await this.replyToEmail(email, {
+  fromName: "My Agent",
+  body: "Thanks!",
+  secret: this.env.EMAIL_SECRET, // Signs headers for secure reply routing
+});
+```
+
+### Breaking Changes
+
+- Email utilities moved to `agents/email` subpath
+- `createHeaderBasedEmailResolver` removed (security vulnerability)
+- New `onNoRoute` callback for handling unmatched emails
+
+---
+
+## New Documentation
+
+| Document                        | Description                                                            |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `getting-started.md`            | Quick start guide: installation, first agent, state basics, deployment |
+| `adding-to-existing-project.md` | Integrating agents into existing Workers, React apps, Hono             |
+| `state.md`                      | State management, `validateStateChange()`, persistence, client sync    |
+| `routing.md`                    | URL routing patterns, `basePath`, server-sent identity                 |
+| `http-websockets.md`            | HTTP/WebSocket lifecycle hooks, connection management, hibernation     |
+| `callable-methods.md`           | `@callable` decorator, RPC over WebSocket, streaming responses         |
+| `mcp-client.md`                 | Connecting to MCP servers, OAuth flows, transport options              |
+| `scheduling.md`                 | One-time, recurring (`scheduleEvery`), and cron-based scheduling       |
+| `workflows.md`                  | Complete Workflows integration guide                                   |
+
+---
+
+## State Management Improvements
+
+### Synchronous `setState()`
+
+`setState()` is now synchronous. Existing `await this.setState(...)` code continues to work.
+
+```typescript
+// Preferred (new)
+this.setState({ count: 1 });
+
+// Still works (backward compatible)
+await this.setState({ count: 1 });
+```
+
+### `validateStateChange()` Hook
+
+New synchronous validation hook that runs before state is persisted:
+
+```typescript
+validateStateChange(nextState: State, source: Connection | "server") {
+  if (nextState.count < 0) {
+    throw new Error("Count cannot be negative");
+  }
+}
+```
+
+### Execution Order
+
+1. `validateStateChange(nextState, source)` - validation (sync, gating)
+2. State persisted to SQLite
+3. State broadcast to connected clients
+4. `onStateUpdate(nextState, source)` - notifications (async via `ctx.waitUntil`, non-gating)
+
+---
+
+## Scheduling: `scheduleEvery()`
+
+Fixed-interval recurring tasks with overlap prevention and error resilience:
+
+```typescript
+await this.scheduleEvery(60, "cleanup");
+await this.scheduleEvery(300, "syncData", { source: "api" });
+```
+
+- Validates interval doesn't exceed 30 days (DO alarm limit)
+- Overlap prevention with hung callback detection (configurable via `hungScheduleTimeoutSeconds`)
+
+---
+
+## Callable System Improvements
+
+### Client-side RPC Timeout
+
+```typescript
+await agent.call("method", [args], {
+  timeout: 5000,
+  stream: { onChunk, onDone, onError },
+});
+```
+
+### New Features
+
+- `StreamingResponse.error(message)` - Graceful stream error signaling
+- `getCallableMethods()` - Introspection API for callable methods
+- Connection close handling - Pending calls rejected on disconnect
+- `crypto.randomUUID()` for more robust RPC IDs
+- Streaming observability events and error logging
+
+---
+
+## MCP Server API
+
+Options-based `addMcpServer()` overload for cleaner configuration:
+
+```typescript
+await this.addMcpServer("server", url, {
+  callbackHost: "https://my-worker.workers.dev",
+  transport: { headers: { Authorization: "Bearer ..." } },
+});
+```
+
+---
+
+## Routing & Identity Enhancements
+
+- **`basePath`** - Bypass default URL construction for custom routing
+- **Server-sent identity** - Agents send `name` and `agent` type on connect
+- **`onIdentity` / `onIdentityChange`** callbacks on the client
+- **`static options = { sendIdentityOnConnect }`** for server-side control
+
+```typescript
+const agent = useAgent({
+  basePath: "user",
+  onIdentity: (name, agentType) => console.log(`Connected to ${name}`),
+});
+```
+
+---
+
+## Email Utilities
+
+- **`isAutoReplyEmail(headers)`** - Detect auto-reply emails using standard RFC headers
+
+---
+
+## Bug Fixes
+
+- Fixed tool error content type in `getAITools` (#781)
+- Fixed React `useRef` type error
+- Memory leak prevention with WeakMap for callable metadata
+- Connection cleanup - pending RPC calls rejected on WebSocket close
+- JSON parse error handling - graceful fallback to `initialState` on corrupted state
+- Fixed resumable streaming to avoid delivering live chunks before resume ACK (#795)
+
+---
+
+## Migration Notes
+
+### Email Imports
+
+```typescript
+// Before
+import { createAddressBasedEmailResolver, signAgentHeaders } from "agents";
+
+// After
+import {
+  createAddressBasedEmailResolver,
+  signAgentHeaders,
+} from "agents/email";
+```
+
+### Workflow Imports
+
+```typescript
+import { AgentWorkflow } from "agents/workflows";
+import type { AgentWorkflowStep, WorkflowInfo } from "agents/workflows";
+```
+
+### OpenAI Provider Options
+
+When using `scheduleSchema` with OpenAI models via the AI SDK, pass `providerOptions`:
+
+```typescript
+await generateObject({
+  // ... other options
+  providerOptions: { openai: { strictJsonSchema: false } },
+});
+```
+
+### Patch Changes
+
+- [#825](https://github.com/cloudflare/agents/pull/825) [`0c3c9bb`](https://github.com/cloudflare/agents/commit/0c3c9bb62ceff66ed38d3bbd90c767600f1f3453) Thanks [@threepointone](https://github.com/threepointone)! - Add cursor-based pagination to `getWorkflows()`. Returns a `WorkflowPage` with workflows, total count, and cursor for next page. Default limit is 50 (max 100).
+
+- [#825](https://github.com/cloudflare/agents/pull/825) [`0c3c9bb`](https://github.com/cloudflare/agents/commit/0c3c9bb62ceff66ed38d3bbd90c767600f1f3453) Thanks [@threepointone](https://github.com/threepointone)! - Add workflow control methods: `terminateWorkflow()`, `pauseWorkflow()`, `resumeWorkflow()`, and `restartWorkflow()`.
+
+- [#799](https://github.com/cloudflare/agents/pull/799) [`d1a0c2b`](https://github.com/cloudflare/agents/commit/d1a0c2b73b1119d71e120091753a6bcca0e2faa9) Thanks [@threepointone](https://github.com/threepointone)! - feat: Add Cloudflare Workflows integration for Agents
+
+  Adds seamless integration between Cloudflare Agents and Cloudflare Workflows for durable, multi-step background processing.
+
+  ### Why use Workflows with Agents?
+
+  Agents excel at real-time communication and state management, while Workflows excel at durable execution. Together:
+
+  - Agents handle WebSocket connections and quick operations
+  - Workflows handle long-running tasks, retries, and human-in-the-loop flows
+
+  ### AgentWorkflow Base Class
+
+  Extend `AgentWorkflow` instead of `WorkflowEntrypoint` to get typed access to the originating Agent:
+
+  ```typescript
+  export class ProcessingWorkflow extends AgentWorkflow<MyAgent, TaskParams> {
+    async run(event: AgentWorkflowEvent<TaskParams>, step: AgentWorkflowStep) {
+      const params = event.payload;
+
+      // Call Agent methods via RPC
+      await this.agent.updateStatus(params.taskId, "processing");
+
+      // Non-durable: progress reporting (lightweight, for frequent updates)
+      await this.reportProgress({
+        step: "process",
+        percent: 0.5,
+        message: "Halfway done",
+      });
+      this.broadcastToClients({ type: "update", taskId: params.taskId });
+
+      // Durable via step: idempotent, won't repeat on retry
+      await step.mergeAgentState({ taskProgress: 0.5 });
+      await step.reportComplete(result);
+
+      return result;
+    }
+  }
+  ```
+
+  ### Agent Methods
+
+  - `runWorkflow(workflowName, params, options?)` - Start workflow with optional metadata for querying
+  - `sendWorkflowEvent(workflowName, workflowId, event)` - Send events to waiting workflows
+  - `getWorkflow(workflowId)` - Get tracked workflow by ID
+  - `getWorkflows(criteria?)` - Query by status, workflowName, or metadata with pagination
+  - `deleteWorkflow(workflowId)` - Delete a workflow tracking record
+  - `deleteWorkflows(criteria?)` - Delete workflows by criteria (status, workflowName, metadata, createdBefore)
+  - `approveWorkflow(workflowId, data?)` - Approve a waiting workflow
+  - `rejectWorkflow(workflowId, data?)` - Reject a waiting workflow
+
+  ### AgentWorkflow Methods
+
+  **On `this` (non-durable, lightweight):**
+
+  - `reportProgress(progress)` - Report typed progress object to Agent
+  - `broadcastToClients(message)` - Broadcast to WebSocket clients
+  - `waitForApproval(step, opts?)` - Wait for approval (throws on rejection)
+
+  **On `step` (durable, idempotent):**
+
+  - `step.reportComplete(result?)` - Report successful completion
+  - `step.reportError(error)` - Report an error
+  - `step.sendEvent(event)` - Send custom event to Agent
+  - `step.updateAgentState(state)` - Replace Agent state (broadcasts to clients)
+  - `step.mergeAgentState(partial)` - Merge into Agent state (broadcasts to clients)
+  - `step.resetAgentState()` - Reset Agent state to initialState (broadcasts to clients)
+
+  ### Lifecycle Callbacks
+
+  Override these methods to handle workflow events (workflowName is first for easy differentiation):
+
+  ```typescript
+  async onWorkflowProgress(workflowName, workflowId, progress) {} // progress is typed object
+  async onWorkflowComplete(workflowName, workflowId, result?) {}
+  async onWorkflowError(workflowName, workflowId, error) {}
+  async onWorkflowEvent(workflowName, workflowId, event) {}
+  ```
+
+  ### Workflow Tracking
+
+  Workflows are automatically tracked in `cf_agents_workflows` SQLite table:
+
+  - Status, timestamps, errors
+  - Optional `metadata` field for queryable key-value data
+  - Params/output NOT stored by default (could be large)
+
+  See `docs/agents/workflows.md` for full documentation.
+
+- [#812](https://github.com/cloudflare/agents/pull/812) [`6218541`](https://github.com/cloudflare/agents/commit/6218541e9c1e40ccbaa25b2d9d93858c0ad81ffa) Thanks [@threepointone](https://github.com/threepointone)! - # Bug Fixes
+
+  This release includes three bug fixes:
+
+  ## 1. Hung Callback Detection in scheduleEvery()
+
+  Fixed a deadlock where if an interval callback hung indefinitely, all future interval executions would be skipped forever.
+
+  **Fix:** Track execution start time and force reset after 30 seconds of inactivity. If a previous execution appears hung (started more than 30s ago), it is force-reset and re-executed.
+
+  ```typescript
+  // Now safe - hung callbacks won't block future executions
+  await this.scheduleEvery(60, "myCallback");
+  ```
+
+  ## 2. Corrupted State Recovery
+
+  Fixed a crash when the database contains malformed JSON state.
+
+  **Fix:** Wrapped `JSON.parse` in try-catch with fallback to `initialState`. If parsing fails, the agent logs an error and recovers gracefully.
+
+  ```typescript
+  // Agent now survives corrupted state
+  class MyAgent extends Agent {
+    initialState = { count: 0 }; // Used as fallback if DB state is corrupted
+  }
+  ```
+
+  ## 3. getCallableMethods() Prototype Chain Traversal
+
+  Fixed `getCallableMethods()` to find `@callable` methods from parent classes, not just the immediate class.
+
+  **Fix:** Walk the full prototype chain using `Object.getPrototypeOf()` loop.
+
+  ```typescript
+  class BaseAgent extends Agent {
+    @callable()
+    parentMethod() {
+      return "parent";
+    }
+  }
+
+  class ChildAgent extends BaseAgent {
+    @callable()
+    childMethod() {
+      return "child";
+    }
+  }
+
+  // Now correctly returns both parentMethod and childMethod
+  const methods = childAgent.getCallableMethods();
+  ```
+
+- [#812](https://github.com/cloudflare/agents/pull/812) [`6218541`](https://github.com/cloudflare/agents/commit/6218541e9c1e40ccbaa25b2d9d93858c0ad81ffa) Thanks [@threepointone](https://github.com/threepointone)! - # Callable System Improvements
+
+  This release includes several improvements to the `@callable` decorator and RPC system:
+
+  ## New Features
+
+  ### Client-side RPC Timeout
+
+  You can now specify a timeout for RPC calls that will reject if the call doesn't complete in time:
+
+  ```typescript
+  await agent.call("slowMethod", [], { timeout: 5000 });
+  ```
+
+  ### StreamingResponse.error()
+
+  New method to gracefully signal an error during streaming and close the stream:
+
+  ```typescript
+  @callable({ streaming: true })
+  async processItems(stream: StreamingResponse, items: string[]) {
+    for (const item of items) {
+      try {
+        const result = await this.process(item);
+        stream.send(result);
+      } catch (e) {
+        stream.error(`Failed to process ${item}: ${e.message}`);
+        return;
+      }
+    }
+    stream.end();
+  }
+  ```
+
+  ### getCallableMethods() API
+
+  New method on the Agent class to introspect all callable methods and their metadata:
+
+  ```typescript
+  const methods = agent.getCallableMethods();
+  // Returns Map<string, CallableMetadata>
+
+  for (const [name, meta] of methods) {
+    console.log(`${name}: ${meta.description || "(no description)"}`);
+  }
+  ```
+
+  ### Connection Close Handling
+
+  Pending RPC calls are now automatically rejected with a "Connection closed" error when the WebSocket connection closes unexpectedly.
+
+  ## Internal Improvements
+
+  - **WeakMap for metadata storage**: Changed `callableMetadata` from `Map` to `WeakMap` to prevent memory leaks when function references are garbage collected.
+  - **UUID for RPC IDs**: Replaced `Math.random().toString(36)` with `crypto.randomUUID()` for more robust and unique RPC call identifiers.
+  - **Streaming observability**: Added observability events for streaming RPC calls.
+
+  ## API Enhancements
+
+  The `agent.call()` method now accepts a unified `CallOptions` object with timeout support:
+
+  ```typescript
+  // New format (preferred, supports timeout)
+  await agent.call("method", [args], {
+    timeout: 5000,
+    stream: { onChunk, onDone, onError },
+  });
+
+  // Legacy format (still fully supported for backward compatibility)
+  await agent.call("method", [args], { onChunk, onDone, onError });
+  ```
+
+  Both formats work seamlessly - the client auto-detects which format you're using.
+
+- [#812](https://github.com/cloudflare/agents/pull/812) [`6218541`](https://github.com/cloudflare/agents/commit/6218541e9c1e40ccbaa25b2d9d93858c0ad81ffa) Thanks [@threepointone](https://github.com/threepointone)! - feat: Add `scheduleEvery` method for fixed-interval scheduling
+
+  Adds a new `scheduleEvery(intervalSeconds, callback, payload?)` method to the Agent class for scheduling recurring tasks at fixed intervals.
+
+  ### Features
+
+  - **Fixed interval execution**: Schedule a callback to run every N seconds
+  - **Overlap prevention**: If a callback is still running when the next interval fires, the next execution is skipped
+  - **Error resilience**: If a callback throws, the schedule persists and continues on the next interval
+  - **Cancellable**: Use `cancelSchedule(id)` to stop the recurring schedule
+
+  ### Usage
+
+  ```typescript
+  class MyAgent extends Agent {
+    async onStart() {
+      // Run cleanup every 60 seconds
+      await this.scheduleEvery(60, "cleanup");
+
+      // With payload
+      await this.scheduleEvery(300, "syncData", { source: "api" });
+    }
+
+    cleanup() {
+      // Runs every 60 seconds
+    }
+
+    syncData(payload: { source: string }) {
+      // Runs every 300 seconds with payload
+    }
+  }
+  ```
+
+  ### Querying interval schedules
+
+  ```typescript
+  // Get all interval schedules
+  const intervals = await this.getSchedules({ type: "interval" });
+  ```
+
+  ### Schema changes
+
+  Adds `intervalSeconds` and `running` columns to `cf_agents_schedules` table (auto-migrated for existing agents).
+
+- [#812](https://github.com/cloudflare/agents/pull/812) [`6218541`](https://github.com/cloudflare/agents/commit/6218541e9c1e40ccbaa25b2d9d93858c0ad81ffa) Thanks [@threepointone](https://github.com/threepointone)! - Add `isAutoReplyEmail()` utility to detect auto-reply emails
+
+  Detects auto-reply emails based on standard RFC 3834 headers (`Auto-Submitted`, `X-Auto-Response-Suppress`, `Precedence`). Use this to avoid mail loops when sending automated replies.
+
+  ```typescript
+  import { isAutoReplyEmail } from "agents/email";
+  import PostalMime from "postal-mime";
+
+  async onEmail(email: AgentEmail) {
+    const raw = await email.getRaw();
+    const parsed = await PostalMime.parse(raw);
+
+    // Detect and skip auto-reply emails
+    if (isAutoReplyEmail(parsed.headers)) {
+      console.log("Skipping auto-reply");
+      return;
+    }
+
+    // Process the email...
+  }
+  ```
+
+- [#781](https://github.com/cloudflare/agents/pull/781) [`fd79481`](https://github.com/cloudflare/agents/commit/fd7948180abf066fa3d27911a83ffb4c91b3f099) Thanks [@HueCodes](https://github.com/HueCodes)! - fix: properly type tool error content in getAITools
+
+- [#812](https://github.com/cloudflare/agents/pull/812) [`6218541`](https://github.com/cloudflare/agents/commit/6218541e9c1e40ccbaa25b2d9d93858c0ad81ffa) Thanks [@threepointone](https://github.com/threepointone)! - fix: improve type inference for RPC methods returning custom interfaces
+
+  Previously, `RPCMethod` used `{ [key: string]: SerializableValue }` to check if return types were serializable. This didn't work with TypeScript interfaces that have named properties (like `interface CoreState { counter: number; name: string; }`), causing those methods to be incorrectly excluded from typed RPC calls.
+
+  Now uses a recursive `CanSerialize<T>` type that checks if all properties of an object are serializable, properly supporting:
+
+  - Custom interfaces with named properties
+  - Nested object types
+  - Arrays of objects
+  - Optional and nullable properties
+  - Union types
+
+  Also expanded `NonSerializable` to explicitly exclude non-JSON-serializable types like `Date`, `RegExp`, `Map`, `Set`, `Error`, and typed arrays.
+
+  ```typescript
+  // Before: these methods were NOT recognized as callable
+  interface MyState {
+    counter: number;
+    items: string[];
+  }
+
+  class MyAgent extends Agent<Env, MyState> {
+    @callable()
+    getState(): MyState {
+      return this.state;
+    } // ❌ Not typed
+  }
+
+  // After: properly recognized and typed
+  const agent = useAgent<MyAgent, MyState>({ agent: "my-agent" });
+  agent.call("getState"); // ✅ Typed as Promise<MyState>
+  ```
+
+- [#825](https://github.com/cloudflare/agents/pull/825) [`0c3c9bb`](https://github.com/cloudflare/agents/commit/0c3c9bb62ceff66ed38d3bbd90c767600f1f3453) Thanks [@threepointone](https://github.com/threepointone)! - Fix workflow tracking table not being updated by AgentWorkflow callbacks.
+
+  Previously, when a workflow reported progress, completion, or errors via callbacks, the `cf_agents_workflows` tracking table was not updated. This caused `getWorkflow()` and `getWorkflows()` to return stale status (e.g., "queued" instead of "running" or "complete").
+
+  Now, `onWorkflowCallback()` automatically updates the tracking table:
+
+  - Progress callbacks set status to "running"
+  - Complete callbacks set status to "complete" with `completed_at` timestamp
+  - Error callbacks set status to "errored" with error details
+
+  Fixes #821.
+
+- [#812](https://github.com/cloudflare/agents/pull/812) [`6218541`](https://github.com/cloudflare/agents/commit/6218541e9c1e40ccbaa25b2d9d93858c0ad81ffa) Thanks [@threepointone](https://github.com/threepointone)! - feat: Add options-based API for `addMcpServer`
+
+  Adds a cleaner options-based overload for `addMcpServer()` that avoids passing `undefined` for unused positional parameters.
+
+  ### Before (still works)
+
+  ```typescript
+  // Awkward when you only need transport options
+  await this.addMcpServer("server", url, undefined, undefined, {
+    transport: { headers: { Authorization: "Bearer ..." } },
+  });
+  ```
+
+  ### After (preferred)
+
+  ```typescript
+  // Clean options object
+  await this.addMcpServer("server", url, {
+    transport: { headers: { Authorization: "Bearer ..." } },
+  });
+
+  // With callback host
+  await this.addMcpServer("server", url, {
+    callbackHost: "https://my-worker.workers.dev",
+    transport: { type: "sse" },
+  });
+  ```
+
+  ### Options
+
+  ```typescript
+  type AddMcpServerOptions = {
+    callbackHost?: string; // OAuth callback host (auto-derived if omitted)
+    agentsPrefix?: string; // Routing prefix (default: "agents")
+    client?: ClientOptions; // MCP client options
+    transport?: {
+      headers?: HeadersInit; // Custom headers for auth
+      type?: "sse" | "streamable-http" | "auto";
+    };
+  };
+  ```
+
+  The legacy 5-parameter signature remains fully supported for backward compatibility.
+
+- [#812](https://github.com/cloudflare/agents/pull/812) [`6218541`](https://github.com/cloudflare/agents/commit/6218541e9c1e40ccbaa25b2d9d93858c0ad81ffa) Thanks [@threepointone](https://github.com/threepointone)! - Add custom URL routing with `basePath` and server-sent identity
+
+  ## Custom URL Routing with `basePath`
+
+  New `basePath` option bypasses default `/agents/{agent}/{name}` URL construction, enabling custom routing patterns:
+
+  ```typescript
+  // Client connects to /user instead of /agents/user-agent/...
+  const agent = useAgent({
+    agent: "UserAgent",
+    basePath: "user",
+  });
+  ```
+
+  Server handles routing manually with `getAgentByName`:
+
+  ```typescript
+  export default {
+    async fetch(request: Request, env: Env) {
+      const url = new URL(request.url);
+
+      if (url.pathname === "/user") {
+        const session = await getSession(request);
+        const agent = await getAgentByName(env.UserAgent, session.userId);
+        return agent.fetch(request);
+      }
+
+      return (
+        (await routeAgentRequest(request, env)) ??
+        new Response("Not found", { status: 404 })
+      );
+    },
+  };
+  ```
+
+  ## Server-Sent Identity
+
+  Agents now send their identity (`name` and `agent` class) to clients on connect:
+
+  - `onIdentity` callback - called when server sends identity
+  - `agent.name` and `agent.agent` are updated from server (authoritative)
+
+  ```typescript
+  const agent = useAgent({
+    agent: "UserAgent",
+    basePath: "user",
+    onIdentity: (name, agentType) => {
+      console.log(`Connected to ${agentType} instance: ${name}`);
+    },
+  });
+  ```
+
+  ## Identity State & Ready Promise
+
+  - `identified: boolean` - whether identity has been received
+  - `ready: Promise<void>` - resolves when identity is received
+  - In React, `name`, `agent`, and `identified` are reactive state
+
+  ```typescript
+  // React - reactive rendering
+  return agent.identified ? `Connected to: ${agent.name}` : "Connecting...";
+
+  // Vanilla JS - await ready
+  await agent.ready;
+  console.log(agent.name);
+  ```
+
+  ## Identity Change Detection
+
+  - `onIdentityChange` callback - fires when identity differs on reconnect
+  - Warns if identity changes without handler (helps catch session issues)
+
+  ```typescript
+  useAgent({
+    basePath: "user",
+    onIdentityChange: (oldName, newName, oldAgent, newAgent) => {
+      console.log(`Session changed: ${oldName} → ${newName}`);
+    },
+  });
+  ```
+
+  ## Sub-Paths with `path` Option
+
+  Append additional path segments:
+
+  ```typescript
+  // /user/settings
+  useAgent({ basePath: "user", path: "settings" });
+
+  // /agents/my-agent/room/settings
+  useAgent({ agent: "MyAgent", name: "room", path: "settings" });
+  ```
+
+  ## Server-Side Identity Control
+
+  Disable identity sending for security-sensitive instance names:
+
+  ```typescript
+  class SecureAgent extends Agent {
+    static options = { sendIdentityOnConnect: false };
+  }
+  ```
+
+- [#827](https://github.com/cloudflare/agents/pull/827) [`e20da53`](https://github.com/cloudflare/agents/commit/e20da5319eb46bac6ac580edf71836b00ac6f8bb) Thanks [@threepointone](https://github.com/threepointone)! - Move workflow exports to `agents/workflows` subpath for better separation of concerns.
+
+  ```typescript
+  import { AgentWorkflow } from "agents/workflows";
+  import type { AgentWorkflowStep, WorkflowInfo } from "agents/workflows";
+  ```
+
+- [#811](https://github.com/cloudflare/agents/pull/811) [`f604008`](https://github.com/cloudflare/agents/commit/f604008957f136241815909319a552bad6738b58) Thanks [@threepointone](https://github.com/threepointone)! - ### Secure Email Reply Routing
+
+  This release introduces secure email reply routing with HMAC-SHA256 signed headers, preventing unauthorized routing of emails to arbitrary agent instances.
+
+  #### Breaking Changes
+
+  **Email utilities moved to `agents/email` subpath**: Email-specific resolvers and utilities have been moved to a dedicated subpath for better organization.
+
+  ```ts
+  // Before
+  import { createAddressBasedEmailResolver, signAgentHeaders } from "agents";
+
+  // After
+  import {
+    createAddressBasedEmailResolver,
+    signAgentHeaders,
+  } from "agents/email";
+  ```
+
+  The following remain in root: `routeAgentEmail`, `createHeaderBasedEmailResolver` (deprecated).
+
+  **`createHeaderBasedEmailResolver` removed**: This function now throws an error with migration guidance. It was removed because it trusted attacker-controlled email headers for routing.
+
+  **Migration:**
+
+  - For inbound mail: use `createAddressBasedEmailResolver(agentName)`
+  - For reply flows: use `createSecureReplyEmailResolver(secret)` with signed headers
+
+  See https://github.com/cloudflare/agents/blob/main/docs/agents/email.md for details.
+
+  **`EmailSendOptions` type removed**: This type was unused and has been removed.
+
+  #### New Features
+
+  **`createSecureReplyEmailResolver`**: A new resolver that verifies HMAC-SHA256 signatures on incoming emails before routing. Signatures include a timestamp and expire after 30 days by default.
+
+  ```ts
+  const resolver = createSecureReplyEmailResolver(env.EMAIL_SECRET, {
+    maxAge: 7 * 24 * 60 * 60, // Optional: 7 days (default: 30 days)
+    onInvalidSignature: (email, reason) => {
+      // Optional: log failures for debugging
+      // reason: "missing_headers" | "expired" | "invalid" | "malformed_timestamp"
+      console.warn(`Invalid signature from ${email.from}: ${reason}`);
+    },
+  });
+  ```
+
+  **`signAgentHeaders`**: Helper function to manually sign agent routing headers for use with external email services.
+
+  ```ts
+  const headers = await signAgentHeaders(secret, agentName, agentId);
+  // Returns: { "X-Agent-Name", "X-Agent-ID", "X-Agent-Sig", "X-Agent-Sig-Ts" }
+  ```
+
+  **`replyToEmail` signing**: The `replyToEmail` method now accepts a `secret` option to automatically sign outbound email headers.
+
+  ```ts
+  await this.replyToEmail(email, {
+    fromName: "My Agent",
+    body: "Thanks!",
+    secret: this.env.EMAIL_SECRET, // Signs headers for secure reply routing
+  });
+  ```
+
+  If an email was routed via `createSecureReplyEmailResolver`, calling `replyToEmail` without a secret will throw an error (pass explicit `null` to opt-out).
+
+  **`onNoRoute` callback**: `routeAgentEmail` now accepts an `onNoRoute` callback for handling emails that don't match any routing rule.
+
+  ```ts
+  await routeAgentEmail(message, env, {
+    resolver,
+    onNoRoute: (email) => {
+      email.setReject("Unknown recipient");
+    },
+  });
+  ```
+
+- [#813](https://github.com/cloudflare/agents/pull/813) [`7aebab3`](https://github.com/cloudflare/agents/commit/7aebab369d1bef6c685e05a4a3bd6627edcb87db) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+- [#800](https://github.com/cloudflare/agents/pull/800) [`a54edf5`](https://github.com/cloudflare/agents/commit/a54edf56b462856d1ef4f424c2363ac43a53c46e) Thanks [@threepointone](https://github.com/threepointone)! - Update dependencies
+
+- [#818](https://github.com/cloudflare/agents/pull/818) [`7c74336`](https://github.com/cloudflare/agents/commit/7c743360d7e3639e187725391b9d5c114838bd18) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+- [#812](https://github.com/cloudflare/agents/pull/812) [`6218541`](https://github.com/cloudflare/agents/commit/6218541e9c1e40ccbaa25b2d9d93858c0ad81ffa) Thanks [@threepointone](https://github.com/threepointone)! - # Synchronous `setState` with validation hook
+
+  `setState()` is now synchronous instead of async. This improves ergonomics and aligns with the expected mental model for state updates.
+
+  ## Breaking Changes
+
+  ### `setState()` returns `void` instead of `Promise<void>`
+
+  ```typescript
+  // Before (still works - awaiting a non-promise is harmless)
+  await this.setState({ count: 1 });
+
+  // After (preferred)
+  this.setState({ count: 1 });
+  ```
+
+  Existing code that uses `await this.setState(...)` will continue to work without changes.
+
+  ### `onStateUpdate()` no longer gates state broadcasts
+
+  Previously, if `onStateUpdate()` threw an error, the state update would be aborted. Now, `onStateUpdate()` runs asynchronously via `ctx.waitUntil()` after the state is persisted and broadcast. Errors in `onStateUpdate()` are routed to `onError()` but do not prevent the state from being saved or broadcast.
+
+  If you were using `onStateUpdate()` for validation, migrate to `validateStateChange()`.
+
+  ## New Features
+
+  ### `validateStateChange()` validation hook
+
+  A new synchronous hook that runs before state is persisted or broadcast. Use this for validation:
+
+  ```typescript
+  validateStateChange(nextState: State, source: Connection | "server") {
+    if (nextState.count < 0) {
+      throw new Error("Count cannot be negative");
+    }
+  }
+  ```
+
+  - Runs synchronously before persistence and broadcast
+  - Throwing aborts the state update entirely
+  - Ideal for validation logic
+
+  ### Execution order
+
+  1. `validateStateChange(nextState, source)` - validation (sync, gating)
+  2. State persisted to SQLite
+  3. State broadcast to connected clients
+  4. `onStateUpdate(nextState, source)` - notifications (async via `ctx.waitUntil`, non-gating)
+
+- [#815](https://github.com/cloudflare/agents/pull/815) [`ded8d3e`](https://github.com/cloudflare/agents/commit/ded8d3e8aeba0358ebd4aecb5ba15344b5a21db1) Thanks [@threepointone](https://github.com/threepointone)! - docs: add OpenAI provider options documentation to scheduleSchema
+
+  When using `scheduleSchema` with OpenAI models via the AI SDK, users must now pass `providerOptions: { openai: { strictJsonSchema: false } }` to `generateObject`. This is documented in the JSDoc for `scheduleSchema`.
+
+  This is required because `@ai-sdk/openai` now defaults `strictJsonSchema` to `true`, which requires all schema properties to be in the `required` array. The `scheduleSchema` uses optional fields which are not compatible with this strict mode.
+
+- Updated dependencies [[`7aebab3`](https://github.com/cloudflare/agents/commit/7aebab369d1bef6c685e05a4a3bd6627edcb87db), [`77be4f8`](https://github.com/cloudflare/agents/commit/77be4f8149e41730148a360adfff9e66becdd5ed), [`a54edf5`](https://github.com/cloudflare/agents/commit/a54edf56b462856d1ef4f424c2363ac43a53c46e), [`7c74336`](https://github.com/cloudflare/agents/commit/7c743360d7e3639e187725391b9d5c114838bd18), [`99cbca0`](https://github.com/cloudflare/agents/commit/99cbca0847d0d6c97f44b73f2eb155dabe590032)]:
+  - @cloudflare/codemode@0.0.6
+  - @cloudflare/ai-chat@0.0.5
+
+## 0.3.6
+
+### Patch Changes
+
+- [#786](https://github.com/cloudflare/agents/pull/786) [`395f461`](https://github.com/cloudflare/agents/commit/395f46105d3affb5a2e2ffd28c516a0eefe45bb4) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - fix: allow callable methods to return this.state
+
+- [#783](https://github.com/cloudflare/agents/pull/783) [`f27e62c`](https://github.com/cloudflare/agents/commit/f27e62c24f586abb285843db183198230ddd47ca) Thanks [@Muhammad-Bin-Ali](https://github.com/Muhammad-Bin-Ali)! - fix saving initialize params for stateless MCP server (effects eliciations and other optional features)
+
+- Updated dependencies [[`93c613e`](https://github.com/cloudflare/agents/commit/93c613e077e7aa16e78cf9b0b53e285577e92ce5)]:
+  - @cloudflare/codemode@0.0.5
+
+## 0.3.5
+
+### Patch Changes
+
+- [#752](https://github.com/cloudflare/agents/pull/752) [`473e53c`](https://github.com/cloudflare/agents/commit/473e53cb2d954caba03f530776ee61433b8113ba) Thanks [@mattzcarey](https://github.com/mattzcarey)! - bump mcp sdk version to 1.25.2. changes error handling for not found see: https://github.com/cloudflare/agents/pull/752/changes#diff-176ef2d2154e76a8eb7862efb323210f8f1b434f6a9ff3f06abc87d8616855c9R25-R31
+
+## 0.3.4
+
+### Patch Changes
+
+- [#768](https://github.com/cloudflare/agents/pull/768) [`cf8a1e7`](https://github.com/cloudflare/agents/commit/cf8a1e7a24ecaac62c2aefca7b0fd5bf1373e8bd) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - pipe SQL errors into the existing onError method using a new SqlError class
+
+- [#771](https://github.com/cloudflare/agents/pull/771) [`87dc96d`](https://github.com/cloudflare/agents/commit/87dc96d19de1d26dbb2badecbb9955a4eb8e9e2e) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+- Updated dependencies [[`0e8fc1e`](https://github.com/cloudflare/agents/commit/0e8fc1e8cca3ad5acb51f5a0c92528c5b6beb358), [`87dc96d`](https://github.com/cloudflare/agents/commit/87dc96d19de1d26dbb2badecbb9955a4eb8e9e2e)]:
+  - @cloudflare/ai-chat@0.0.4
+  - @cloudflare/codemode@0.0.4
+
+## 0.3.3
+
+### Patch Changes
+
+- [`a5d0137`](https://github.com/cloudflare/agents/commit/a5d01379b9ad2d88bc028c50f1858b4e69f106c5) Thanks [@threepointone](https://github.com/threepointone)! - trigger a new release
+
+- Updated dependencies [[`a5d0137`](https://github.com/cloudflare/agents/commit/a5d01379b9ad2d88bc028c50f1858b4e69f106c5)]:
+  - @cloudflare/codemode@0.0.3
+  - @cloudflare/ai-chat@0.0.3
+
+## 0.3.2
+
+### Patch Changes
+
+- [#756](https://github.com/cloudflare/agents/pull/756) [`0c4275f`](https://github.com/cloudflare/agents/commit/0c4275f8f4b71c264c32c3742d151ef705739c2f) Thanks [@threepointone](https://github.com/threepointone)! - feat: split ai-chat and codemode into separate packages
+
+  Extract @cloudflare/ai-chat and @cloudflare/codemode into their own packages
+  with comprehensive READMEs. Update agents README to remove chat-specific
+  content and point to new packages. Fix documentation imports to reflect
+  new package structure.
+
+  Maintains backward compatibility, no breaking changes.
+
+- [#758](https://github.com/cloudflare/agents/pull/758) [`f12553f`](https://github.com/cloudflare/agents/commit/f12553f2fa65912c68d9a7620b9a11b70b8790a2) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Implement createStubProxy function to fix RPC method call handling
+
+- Updated dependencies [[`0c4275f`](https://github.com/cloudflare/agents/commit/0c4275f8f4b71c264c32c3742d151ef705739c2f)]:
+  - @cloudflare/codemode@0.0.2
+  - @cloudflare/ai-chat@0.0.2
+
+## 0.3.1
+
+### Patch Changes
+
+- [#754](https://github.com/cloudflare/agents/pull/754) [`e21051d`](https://github.com/cloudflare/agents/commit/e21051d798a5de5f2af33b9fb0e12ea6d648d2e9) Thanks [@threepointone](https://github.com/threepointone)! - fix: don't mark ai as optional under peerDependenciesMeta
+
+## 0.3.0
+
+### Minor Changes
+
+- [`accdd78`](https://github.com/cloudflare/agents/commit/accdd78688a71287153687907f682b0feeacd155) Thanks [@threepointone](https://github.com/threepointone)! - update to ai sdk v6
+
+  via @whoiskatrin in https://github.com/cloudflare/agents/pull/733
+
+## 0.2.35
+
+### Patch Changes
+
+- [#742](https://github.com/cloudflare/agents/pull/742) [`29938d4`](https://github.com/cloudflare/agents/commit/29938d42f177b9c5600370c03231ed398d03ed07) Thanks [@threepointone](https://github.com/threepointone)! - mark AgentNamespace as deprecated
+
+  It only makes things harder, especially for autogenned types.
+
+- [#747](https://github.com/cloudflare/agents/pull/747) [`17a0346`](https://github.com/cloudflare/agents/commit/17a034676b871ed30172f46f9a4160723c537ee0) Thanks [@threepointone](https://github.com/threepointone)! - fix: scheduling should work
+
+  since we updated to zod v4, the schedule schema was broken. ai sdk's .jsonSchema function doesn't correctly work on tools created with zod v4. The fix, is to use the v3 version of zod for the schedule schema.
+
+## 0.2.34
+
+### Patch Changes
+
+- [#739](https://github.com/cloudflare/agents/pull/739) [`e9b6bb7`](https://github.com/cloudflare/agents/commit/e9b6bb7ea2727e4692d9191108c5609c6a44d9d9) Thanks [@threepointone](https://github.com/threepointone)! - update all dependencies
+
+  - remove the changesets cli patch, as well as updating node version, so we don't need to explicitly install newest npm
+  - lock mcp sdk version till we figure out how to do breaking changes correctly
+  - removes stray permissions block from release.yml
+
+- [#740](https://github.com/cloudflare/agents/pull/740) [`087264c`](https://github.com/cloudflare/agents/commit/087264cd3b3bebff3eb6e59d850e091d086ff591) Thanks [@threepointone](https://github.com/threepointone)! - update zod
+
+- [#737](https://github.com/cloudflare/agents/pull/737) [`b8c0595`](https://github.com/cloudflare/agents/commit/b8c0595b22ef6421370d3d14e74ddc9ed708d719) Thanks [@threepointone](https://github.com/threepointone)! - update partyserver (and some other cf packages)
+
+  specifically updating partyserver so it gets a better default type for Env, defaulting to Cloudflare.Env
+
+- [#732](https://github.com/cloudflare/agents/pull/732) [`9fbb1b6`](https://github.com/cloudflare/agents/commit/9fbb1b6587176a70296b30592eaba5f821c68208) Thanks [@Scalahansolo](https://github.com/Scalahansolo)! - Setup proper peer deps for zod v4
+
+- [#722](https://github.com/cloudflare/agents/pull/722) [`57b7f2e`](https://github.com/cloudflare/agents/commit/57b7f2e26e4d5e6eb370b2b8a690a542c3c269c9) Thanks [@agcty](https://github.com/agcty)! - fix: move AI SDK packages to peer dependencies
+
+## 0.2.32
+
+### Patch Changes
+
+- [#729](https://github.com/cloudflare/agents/pull/729) [`79843bd`](https://github.com/cloudflare/agents/commit/79843bdc6c7da825f0fe0b8a9c1faef1c6f7a0c0) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - add client-defined tools and prepareSendMessagesRequest options
+
+- [#726](https://github.com/cloudflare/agents/pull/726) [`59ac254`](https://github.com/cloudflare/agents/commit/59ac254b0abc84d4b24f46bf52a972c691b170e0) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - fix cache ttl
+
+## 0.2.31
+
+### Patch Changes
+
+- [#720](https://github.com/cloudflare/agents/pull/720) [`380c597`](https://github.com/cloudflare/agents/commit/380c5977622563441dd28af6e70dc479bd86ccf0) Thanks [@mattzcarey](https://github.com/mattzcarey)! - MCP WorkerTransport accepts any supported protocol version in request headers and only rejects truly unsupported versions. This aligns with the move by MCP community to stateless transports and fixes an isse with 'mcp-protocol-version': '2025-11-25'
+
+## 0.2.30
+
+### Patch Changes
+
+- [#716](https://github.com/cloudflare/agents/pull/716) [`569e184`](https://github.com/cloudflare/agents/commit/569e1840966c8c537bca1a6cf01b04cf3567972b) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Fix elicitation response handling in MCP StreamableHTTP transport by adding a message interceptor
+
+## 0.2.29
+
+### Patch Changes
+
+- [#712](https://github.com/cloudflare/agents/pull/712) [`cd8b7fd`](https://github.com/cloudflare/agents/commit/cd8b7fdfcadd8da310aee8adeecc018d1b5144ad) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - fix connection inside tool execution
+
+- [#710](https://github.com/cloudflare/agents/pull/710) [`d08612f`](https://github.com/cloudflare/agents/commit/d08612f57ef8fec9d8ecd3031e09211f86812c84) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - fix cachetll + test
+
+## 0.2.28
+
+### Patch Changes
+
+- [#696](https://github.com/cloudflare/agents/pull/696) [`6a930ef`](https://github.com/cloudflare/agents/commit/6a930ef02c411a036dc647a3763c2598e00a942f) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Enables connecting to multiple MCP servers simultaneously and hardens OAuth state handling against replay/DoS attacks.
+
+  **Note:** Inflight OAuth flows that were initiated on a previous version will not complete after upgrading, as the state parameter format has changed. Users will need to restart the authentication flow.
+
+- [#702](https://github.com/cloudflare/agents/pull/702) [`10d453d`](https://github.com/cloudflare/agents/commit/10d453d7379e1110a3255d137e38e6eeae964f80) Thanks [@mattzcarey](https://github.com/mattzcarey)! - broadcast auth_url as soon as its returned
+
+## 0.2.27
+
+### Patch Changes
+
+- [#691](https://github.com/cloudflare/agents/pull/691) [`d7b2f14`](https://github.com/cloudflare/agents/commit/d7b2f1471f9e336edae165d73f0247ac86b094df) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - fixed schedule handling and added tests for this bug
+
+## 0.2.26
+
+### Patch Changes
+
+- [#689](https://github.com/cloudflare/agents/pull/689) [`64a6ac3`](https://github.com/cloudflare/agents/commit/64a6ac3df08b6ca2b527e0315044fef453cfcc3f) Thanks [@mattzcarey](https://github.com/mattzcarey)! - add patch to fix mcp sdk oauth discovery fallback to root domain for some servers (better-auth powered)
+
+- [#681](https://github.com/cloudflare/agents/pull/681) [`0035951`](https://github.com/cloudflare/agents/commit/0035951104b7decf13ef50922d5ea6e7c09ccc18) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+- [#684](https://github.com/cloudflare/agents/pull/684) [`5e80ca6`](https://github.com/cloudflare/agents/commit/5e80ca68cc6bd23af0836c85b194ea03b000ed9c) Thanks [@threepointone](https://github.com/threepointone)! - fix: make agents cli actually run
+
+## 0.2.25
+
+### Patch Changes
+
+- [#679](https://github.com/cloudflare/agents/pull/679) [`e173b41`](https://github.com/cloudflare/agents/commit/e173b41af61bbea24d6952287ebb00726c6ba1b9) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - enhance request ID tracking and stream handling in useAgentChat
+
+## 0.2.24
+
+### Patch Changes
+
+- [#673](https://github.com/cloudflare/agents/pull/673) [`603b825`](https://github.com/cloudflare/agents/commit/603b825f90b20b61a0fe08275b063d8d4474c622) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - added resumable streaming with minimal setup
+
+- [#665](https://github.com/cloudflare/agents/pull/665) [`4c0838a`](https://github.com/cloudflare/agents/commit/4c0838a28e707b7a69abea14b9df5dd1b78d53ae) Thanks [@threepointone](https://github.com/threepointone)! - Add default JSON schema validator to MCP client
+
+- [#664](https://github.com/cloudflare/agents/pull/664) [`36d03e6`](https://github.com/cloudflare/agents/commit/36d03e63fe51e6bf7296928bfac11ef6d91c3103) Thanks [@threepointone](https://github.com/threepointone)! - Refactor MCP server table management in Agent class
+
+  Moved creation and deletion of the cf_agents_mcp_servers table from AgentMCPClientStorage to the Agent class. Removed redundant create and destroy methods from AgentMCPClientStorage and updated MCPClientManager to reflect these changes. Added comments to clarify usage in demo and test code.
+
+- [#653](https://github.com/cloudflare/agents/pull/653) [`412321b`](https://github.com/cloudflare/agents/commit/412321bc9f8d58e3f8aa11a2aa6d646b7cb6c7ec) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Allow `this.destroy` inside a schedule by including a `destroyed` flag and yielding `ctx.abort` instead of calling it directly
+  Fix issue where schedules would not be able to run for more 30 seconds due to `blockConccurencyWhile`. `alarm()` isn't manually called anymore, getting rid of the bCW.
+  Fix an issue where immediate schedules (e.g. `this.schedule(0, "foo"))`) would not get immediately scheduled.
+
+- [#652](https://github.com/cloudflare/agents/pull/652) [`c07b2c0`](https://github.com/cloudflare/agents/commit/c07b2c05ae6a9b5ac4f87f24e80a145e3d2f8aaa) Thanks [@mattzcarey](https://github.com/mattzcarey)! - ### New Features
+
+  - **`MCPClientManager` API changes**:
+    - New `registerServer()` method to register servers (replaces part of `connect()`)
+    - New `connectToServer()` method to establish connection (replaces part of `connect()`)
+    - `connect()` method deprecated (still works for backward compatibility)
+  - **Connection state observability**: New `onServerStateChanged()` event for tracking all server state changes
+  - **Improved reconnect logic**: `restoreConnectionsFromStorage()` handles failed connections
+
+  ### Bug Fixes
+
+  - Fixed failed connections not being recreated on restore
+  - Fixed redundant storage operations during connection restoration
+  - Fixed potential OAuth storage initialization issue by excluding non-serializable authProvider from stored server options
+  - Added defensive checks for storage initialization in MCPClientManager and DurableObjectOAuthClientProvider
+  - Fixed initialization order: MCPClientManager is now created AFTER database tables are created to prevent possible table-not-found errors during DO restart
+
+- [#678](https://github.com/cloudflare/agents/pull/678) [`cccbd0f`](https://github.com/cloudflare/agents/commit/cccbd0f0ffdbdf9af520c495c27a6d975dfd11d2) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - convert internal AI SDK stream events to UIMessageStreamPart format
+
+- [#672](https://github.com/cloudflare/agents/pull/672) [`7c9f8b0`](https://github.com/cloudflare/agents/commit/7c9f8b0aed916701bcd97faa2747ee288bdb40d6) Thanks [@mattzcarey](https://github.com/mattzcarey)! - - `MCPClientConnection.init()` no longer triggers discovery automatically. Discovery should be done via `discover()` or through `MCPClientManager.discoverIfConnected()`
+
+  ### Features
+
+  - New `discover()` method on `MCPClientConnection` with full lifecycle management:
+    - Handles state transitions (CONNECTED → DISCOVERING → READY on success, CONNECTED on failure)
+    - Supports cancellation via AbortController (cancels previous in-flight discovery)
+    - Configurable timeout (default 15s)
+  - New `cancelDiscovery()` method to abort in-flight discoveries
+  - New `discoverIfConnected()` on `MCPClientManager` for simpler capability discovery per server
+  - `createConnection()` now returns the connection object for immediate use
+  - Created `MCPConnectionState` enum to formalize possible states: `idle`, `connecting`, `authenticating`, `connected`, `discovering`, `ready`, `failed`
+
+  ### Fixes
+
+  - **Fixed discovery hanging on repeated requests** - New discoveries now cancel previous in-flight ones via AbortController
+  - **Fixed Durable Object crash-looping** - `restoreConnectionsFromStorage()` now starts connections in background (fire-and-forget) to avoid blocking `onStart` and causing `blockConcurrencyWhile` timeouts
+  - **Fixed OAuth callback race condition** - When `auth_url` exists in storage during restoration, state is set to AUTHENTICATING directly instead of calling `connectToServer()` which was overwriting the state
+  - **Set discovery timeout to 15s**
+  - MCP Client Discovery failures now throw errors immediately instead of continuing with empty arrays
+  - Added "connected" state to represent a connected server with no tools loaded yet
+
+- [#654](https://github.com/cloudflare/agents/pull/654) [`a315e86`](https://github.com/cloudflare/agents/commit/a315e86693d81a3ad4d8b3acb21f0f67b4b59ef4) Thanks [@mattzcarey](https://github.com/mattzcarey)! - When handling MCP server requests use relatedRequestId in TransportOptions to send the response down a POST stream if supported (streamable-http)
+
+- [#661](https://github.com/cloudflare/agents/pull/661) [`93589e5`](https://github.com/cloudflare/agents/commit/93589e5dd0c580be0823df42a3e3220d3f88e7a7) Thanks [@naji247](https://github.com/naji247)! - fix: add session ID and header support to SSE transport
+
+  The SSE transport now properly forwards session IDs and request headers to MCP message handlers, achieving closer header parity with StreamableHTTP transport. This allows MCP servers using SSE to access request headers for session management.
+
+- [#659](https://github.com/cloudflare/agents/pull/659) [`48849be`](https://github.com/cloudflare/agents/commit/48849bea45b96a45f55046e18f0c7d87e022765e) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+## 0.2.23
+
+### Patch Changes
+
+- [#649](https://github.com/cloudflare/agents/pull/649) [`e135cf5`](https://github.com/cloudflare/agents/commit/e135cf5539eb0a4557fda5cf27730818ab2c664d) Thanks [@mattzcarey](https://github.com/mattzcarey)! - fix auth url not being cleared on a successful oauth callback causing endless reconnection
+
+## 0.2.22
+
+### Patch Changes
+
+- [#637](https://github.com/cloudflare/agents/pull/637) [`1e3b8c9`](https://github.com/cloudflare/agents/commit/1e3b8c9d7ffcec623d3eb95863959e25de109abe) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Removed client edge transports and added deprecation warnings to update imports to the mcp typescript sdk
+
+- [#641](https://github.com/cloudflare/agents/pull/641) [`b2187b4`](https://github.com/cloudflare/agents/commit/b2187b44269f5568d79f269848e0eb98aa781d16) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+## 0.2.21
+
+### Patch Changes
+
+- [#631](https://github.com/cloudflare/agents/pull/631) [`6ddabb7`](https://github.com/cloudflare/agents/commit/6ddabb71a2b1df9bb270ad632fc6714c41b931e4) Thanks [@ghostwriternr](https://github.com/ghostwriternr)! - Handle OAuth errors and validate redirect URLs
+
+- [#626](https://github.com/cloudflare/agents/pull/626) [`cec3cca`](https://github.com/cloudflare/agents/commit/cec3cca32076cc314937f4894556ac2a3a4e7ee9) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Remove url field from RequestExtra in WorkerTransport. It is non standard and goes against the MCP spec types.
+
+- [#630](https://github.com/cloudflare/agents/pull/630) [`636aaf9`](https://github.com/cloudflare/agents/commit/636aaf99f8ecd7a6f4d445efe9a59f698cdb963e) Thanks [@ghostwriternr](https://github.com/ghostwriternr)! - Fix OAuth redirect handling in MCP clients
+
+- [#624](https://github.com/cloudflare/agents/pull/624) [`3bb54bf`](https://github.com/cloudflare/agents/commit/3bb54bfbdea9cba5928e233b03680dfc6993fc40) Thanks [@threepointone](https://github.com/threepointone)! - Add CLI entry point and tests for agents package
+
+  Introduces a new CLI for the agents package using yargs with the following commands (currently stubs, not yet implemented):
+
+  - `init` / `create` - Initialize an agents project
+  - `dev` - Start development server
+  - `deploy` - Deploy agents to Cloudflare
+  - `mcp` - The agents mcp server
+
+  Adds CLI test suite with comprehensive coverage for all commands and configurations. Updates package.json to register the CLI binary, adds test scripts for CLI testing, and includes yargs dependencies.
+
+## 0.2.20
+
+### Patch Changes
+
+- [#619](https://github.com/cloudflare/agents/pull/619) [`e7d0d4d`](https://github.com/cloudflare/agents/commit/e7d0d4d847debe828d93f0d78cf18b60fecc2b24) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Adds request info to the extra argument in onmessage. Adds a url parm which we will try push upstream to the MCP SDK as it is useful with OpenAI Apps SDK
+
+## 0.2.19
+
+### Patch Changes
+
+- [#607](https://github.com/cloudflare/agents/pull/607) [`c9b76cd`](https://github.com/cloudflare/agents/commit/c9b76cd50d82f3016395fa1d55a3ca7017bf3501) Thanks [@threepointone](https://github.com/threepointone)! - Add jurisdiction support to MCP agent and handlers
+
+  Introduces a `jurisdiction` option to MCP agent server and streaming/SSE handlers, allowing Durable Object instances to be created in specific geographic regions for compliance (e.g., GDPR). Documentation updated to explain usage and available jurisdictions.
+
+## 0.2.18
+
+### Patch Changes
+
+- [#602](https://github.com/cloudflare/agents/pull/602) [`aed8e18`](https://github.com/cloudflare/agents/commit/aed8e1800bdc0881d939b086aaacc3d9f03f180d) Thanks [@threepointone](https://github.com/threepointone)! - Add CORS support to MCP handler and tests
+
+  Introduces CORS configuration to experimental_createMcpHandler, including handling OPTIONS preflight requests and adding CORS headers to responses and errors. Exports corsHeaders from utils. Adds comprehensive tests for CORS behavior in handler.test.ts.
+
+- [#603](https://github.com/cloudflare/agents/pull/603) [`4da191c`](https://github.com/cloudflare/agents/commit/4da191ca9f99674710175c8ad6c6f85dda33fa89) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Drop the experimental\_ prefix on createMcpHandler
+
+## 0.2.17
+
+### Patch Changes
+
+- [#592](https://github.com/cloudflare/agents/pull/592) [`8e9d714`](https://github.com/cloudflare/agents/commit/8e9d714d7550d9d858296026ae4f8a05671863ec) Thanks [@mattzcarey](https://github.com/mattzcarey)! - Fix oauth2 client again
+
+## 0.2.16
+
+### Patch Changes
+
+- [#578](https://github.com/cloudflare/agents/pull/578) [`829866c`](https://github.com/cloudflare/agents/commit/829866c5ed6eebb264f119b862a7f61e095dce83) Thanks [@threepointone](https://github.com/threepointone)! - udpate dependencies
+
+## 0.2.15
+
+### Patch Changes
+
+- [#582](https://github.com/cloudflare/agents/pull/582) [`a215bb2`](https://github.com/cloudflare/agents/commit/a215bb2f926d532e19773e76b7f2c00757e6a656) Thanks [@mattzcarey](https://github.com/mattzcarey)! - chore: remove main field from agents package.json
+
+- [#576](https://github.com/cloudflare/agents/pull/576) [`026696f`](https://github.com/cloudflare/agents/commit/026696f0d6c05e6f81ff6036f9aacf0f8510b9a1) Thanks [@mattzcarey](https://github.com/mattzcarey)! - createMcpHandler for stateless MCP Worker
+
+## 0.2.14
+
+### Patch Changes
+
+- [#566](https://github.com/cloudflare/agents/pull/566) [`7f4616c`](https://github.com/cloudflare/agents/commit/7f4616cb4262637520303c432f14333ccfff5a84) Thanks [@mattzcarey](https://github.com/mattzcarey)! - fix: Oauth2 client flow
+
+## 0.2.13
+
+### Patch Changes
+
+- [#531](https://github.com/cloudflare/agents/pull/531) [`cdfc590`](https://github.com/cloudflare/agents/commit/cdfc590640bcc08da888d8707f923b926ca73225) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - update our cache key in useAgentChat to include agent name (fix for #420)
+
+## 0.2.12
+
+### Patch Changes
+
+- [#559](https://github.com/cloudflare/agents/pull/559) [`3667584`](https://github.com/cloudflare/agents/commit/3667584792aba94aa47760160ef573af4a33a9a9) Thanks [@threepointone](https://github.com/threepointone)! - use lazy imports for ai sdk
+
+## 0.2.11
+
+### Patch Changes
+
+- [#554](https://github.com/cloudflare/agents/pull/554) [`2cc0f02`](https://github.com/cloudflare/agents/commit/2cc0f020323f6e8e363002cebcc6516f7da75c01) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+- [#554](https://github.com/cloudflare/agents/pull/554) [`2cc0f02`](https://github.com/cloudflare/agents/commit/2cc0f020323f6e8e363002cebcc6516f7da75c01) Thanks [@threepointone](https://github.com/threepointone)! - move to tsdown, slim down generated bundles
+
+## 0.2.10
+
+### Patch Changes
+
+- [#550](https://github.com/cloudflare/agents/pull/550) [`336602f`](https://github.com/cloudflare/agents/commit/336602fe3b2eeb9933822b690c8626024da669dd) Thanks [@ainergiz](https://github.com/ainergiz)! - encode MCP message headers with Base64
+
+- [#544](https://github.com/cloudflare/agents/pull/544) [`afd9efd`](https://github.com/cloudflare/agents/commit/afd9efd6da74a9e8f961aa55e87328c9b18fab12) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Startup time optimisations
+
+## 0.2.9
+
+### Patch Changes
+
+- [#545](https://github.com/cloudflare/agents/pull/545) [`70499f1`](https://github.com/cloudflare/agents/commit/70499f1cb30d71af621ec6e16e5d43786559f75d) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Update mcp sdk
+
+## 0.2.8
+
+### Patch Changes
+
+- [#527](https://github.com/cloudflare/agents/pull/527) [`b060233`](https://github.com/cloudflare/agents/commit/b060233cf16c80b4f5b2718afa6358aea8db45ae) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - remove isToolCallInProgress
+
+- [#535](https://github.com/cloudflare/agents/pull/535) [`75865eb`](https://github.com/cloudflare/agents/commit/75865ebae6c1550aea3a130944df35de203a7ef9) Thanks [@threepointone](https://github.com/threepointone)! - move x402 to peerDependencies
+
+- [#525](https://github.com/cloudflare/agents/pull/525) [`789141e`](https://github.com/cloudflare/agents/commit/789141efa79be3d20ac1c098ff1452da488a9f2d) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - use INSERT OR REPLACE for message persistence to allow tool call updates
+
+- [#529](https://github.com/cloudflare/agents/pull/529) [`c41ebbc`](https://github.com/cloudflare/agents/commit/c41ebbcd148b5bab30883fea763401219e66bdcd) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - persist and stream reply in saveMessages
+
+## 0.2.7
+
+### Patch Changes
+
+- [#521](https://github.com/cloudflare/agents/pull/521) [`1bd0c75`](https://github.com/cloudflare/agents/commit/1bd0c75f44bc164e16f81bd20c9c9bd6fe790898) Thanks [@ghostwriternr](https://github.com/ghostwriternr)! - Fix OAuth state parameter security vulnerability by replacing client_id with secure random tokens
+
+- [#524](https://github.com/cloudflare/agents/pull/524) [`06b2ab0`](https://github.com/cloudflare/agents/commit/06b2ab0b7fe1a981441a590ad8779e30a4f0e924) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+## 0.2.6
+
+### Patch Changes
+
+- [`b388447`](https://github.com/cloudflare/agents/commit/b3884475a7c3a268fe27fae2eb55f30c73cef4ab) Thanks [@threepointone](https://github.com/threepointone)! - fix: getAITools shouldn't include hyphens in tool names
+
+## 0.2.5
+
+### Patch Changes
+
+- [`a90de5d`](https://github.com/cloudflare/agents/commit/a90de5d23d99246da8a1bef0bfa557316f75585f) Thanks [@threepointone](https://github.com/threepointone)! - codemode: remove stray logs, fix demo
+
+## 0.2.4
+
+### Patch Changes
+
+- [`9a8fed7`](https://github.com/cloudflare/agents/commit/9a8fed774c263778bb51840e3b2d4891125ccaec) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.2.3
+
+### Patch Changes
+
+- [#458](https://github.com/cloudflare/agents/pull/458) [`d3e7a68`](https://github.com/cloudflare/agents/commit/d3e7a6853ca60bfbe998785ec63938e5b4d7fe90) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Add unified async authentication support to useAgent hook
+  The useAgent hook now automatically detects and handles both sync and async query patterns
+
+- [#512](https://github.com/cloudflare/agents/pull/512) [`f9f03b4`](https://github.com/cloudflare/agents/commit/f9f03b447a6e48eb3fad1c22a91d46d5b147da4c) Thanks [@threepointone](https://github.com/threepointone)! - codemode: a tool that generates code to run your tools
+
+- [#499](https://github.com/cloudflare/agents/pull/499) [`fb62d22`](https://github.com/cloudflare/agents/commit/fb62d2280fe2674bd4893e4e3d720fc7b3bb13a7) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - handle all message types in the reply streaming handler
+
+- [#509](https://github.com/cloudflare/agents/pull/509) [`71def6b`](https://github.com/cloudflare/agents/commit/71def6b8b9bfc75ed0b6e905bc204a78de63c772) Thanks [@ghostwriternr](https://github.com/ghostwriternr)! - Fix OAuth authentication for MCP servers and add transport configuration
+  - Fix authorization codes being consumed during transport fallback
+  - Add transport type option to addMcpServer() for explicit control
+  - Add configurable OAuth callback handling (redirects, custom responses)
+  - Fix callback URL persistence across Durable Object hibernation
+
+## 0.2.2
+
+### Patch Changes
+
+- [#504](https://github.com/cloudflare/agents/pull/504) [`da56baa`](https://github.com/cloudflare/agents/commit/da56baa831781ee1f31026daabf2f79c51e3c897) Thanks [@threepointone](https://github.com/threepointone)! - fix attribution
+
+## 0.2.1
+
+### Patch Changes
+
+- [`5969a16`](https://github.com/cloudflare/agents/commit/5969a162b89eb7a8506e63b5a829a2df7ccae77e) Thanks [@threepointone](https://github.com/threepointone)! - trigger a release
+
+## 0.2.0
+
+### Minor Changes
+
+- [#495](https://github.com/cloudflare/agents/pull/495) [`ff9329f`](https://github.com/cloudflare/agents/commit/ff9329f4fbcdcf770eeaaa0c9d2adb27e72bb0f6) Thanks [@ghostwriternr](https://github.com/ghostwriternr)! - Fix OAuth callback handling and add HOST auto-detection
+  - Fix OAuth callback "Not found" errors by removing MCPClientManager
+    override
+  - Add OAuth callback URL persistence across Durable Object hibernation
+  - Fix OAuth connection reuse during reconnect to prevent state loss
+  - Add OAuth transport tracking to prevent authorization code consumption
+    during auto-fallback
+  - Preserve PKCE verifier across transport attempts
+  - Make callbackHost parameter optional with automatic request-based
+    detection
+  - Add URL normalization for consistent transport endpoint handling
+
+### Patch Changes
+
+- [#465](https://github.com/cloudflare/agents/pull/465) [`6db2cd6`](https://github.com/cloudflare/agents/commit/6db2cd6f1497705f8636b1761a2db364d49d4861) Thanks [@BeiXiao](https://github.com/BeiXiao)! - fix(ai-react): prevent stale agent capture in aiFetch; ensure active connection is used
+
+- [#440](https://github.com/cloudflare/agents/pull/440) [`9ef35e2`](https://github.com/cloudflare/agents/commit/9ef35e218e711b7ba6d7f40d20573944ae68b44a) Thanks [@axuj](https://github.com/axuj)! - fix: pass agent.\_pk as id to useChat to prevent stale WebSocket instances
+
+## 0.1.6
+
+### Patch Changes
+
+- [#492](https://github.com/cloudflare/agents/pull/492) [`00ba881`](https://github.com/cloudflare/agents/commit/00ba88115d62b608564e783faac18754dc8a79cc) Thanks [@threepointone](https://github.com/threepointone)! - fix: this.mcp.getAITools now includes outputSchema
+
+- [#494](https://github.com/cloudflare/agents/pull/494) [`ecbd795`](https://github.com/cloudflare/agents/commit/ecbd7950dd0656e27ca3fcd8cdf69aa7292ec5ba) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.1.5
+
+### Patch Changes
+
+- [#478](https://github.com/cloudflare/agents/pull/478) [`8234d41`](https://github.com/cloudflare/agents/commit/8234d413538add212738d4e9436ace3d0fd222d1) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Refactor streamable HTTP transport
+
+- [#486](https://github.com/cloudflare/agents/pull/486) [`4abd78a`](https://github.com/cloudflare/agents/commit/4abd78af111d297fc1a3a7763728ca36b14a0a29) Thanks [@threepointone](https://github.com/threepointone)! - fix: don't context wrap methods on Agents that have already been wrapped
+
+- [#480](https://github.com/cloudflare/agents/pull/480) [`23db655`](https://github.com/cloudflare/agents/commit/23db65588effe698a77cc9514857dd9611def927) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Update mcp tools and client for x402 support
+
+## 0.1.4
+
+### Patch Changes
+
+- [#470](https://github.com/cloudflare/agents/pull/470) [`28013ba`](https://github.com/cloudflare/agents/commit/28013ba700f6c2c0ce09dd3406f6da95569d68bf) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Store initialize requests and set them in onStart
+
+- [#467](https://github.com/cloudflare/agents/pull/467) [`b8eba58`](https://github.com/cloudflare/agents/commit/b8eba582af89cc119ff15f155636fe7ba05d8534) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Silently handle writer close errors
+
+- [`bfc9c75`](https://github.com/cloudflare/agents/commit/bfc9c75bbe8be4f078051cab9a4b95d3cab73ffc) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - add response metadata
+
+- [#469](https://github.com/cloudflare/agents/pull/469) [`fac1fe8`](https://github.com/cloudflare/agents/commit/fac1fe879892711b6e91760c45780fcbfc56f602) Thanks [@umgefahren](https://github.com/umgefahren)! - Include reasoning parts in finalized and persistet message.
+
+- [#472](https://github.com/cloudflare/agents/pull/472) [`2d0d2e1`](https://github.com/cloudflare/agents/commit/2d0d2e1e1a0883bd71c6e250da5f007a2dce0229) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - use header for session ids in streamable http GET streams
+
+- [`7d9b939`](https://github.com/cloudflare/agents/commit/7d9b9398e982737b4caa7f99c3a521e36df4961d) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+## 0.1.3
+
+### Patch Changes
+
+- [#459](https://github.com/cloudflare/agents/pull/459) [`0ffa9eb`](https://github.com/cloudflare/agents/commit/0ffa9ebeb9a03eae86d167c0624c19858600dd5c) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - update mcp sdk
+
+## 0.1.2
+
+### Patch Changes
+
+- [#415](https://github.com/cloudflare/agents/pull/415) [`f7bd395`](https://github.com/cloudflare/agents/commit/f7bd3959a49ac732baaa2ee9a92cd5544fa0ec29) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Make McpAgent extend Agent + Streaming HTTP protocol features
+
+## 0.1.1
+
+### Patch Changes
+
+- [#451](https://github.com/cloudflare/agents/pull/451) [`9beccdd`](https://github.com/cloudflare/agents/commit/9beccdd7cb4299222eaed72b79278986ef256a73) Thanks [@threepointone](https://github.com/threepointone)! - udpate dependencies
+
+- [#447](https://github.com/cloudflare/agents/pull/447) [`3e523ea`](https://github.com/cloudflare/agents/commit/3e523ea3ed249416b8a464756086bcf3056edd6d) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - add support for plain text responses alongside SSE streaming
+
+## 0.1.0
+
+### Minor Changes
+
+- [#391](https://github.com/cloudflare/agents/pull/391) [`ecf8926`](https://github.com/cloudflare/agents/commit/ecf89262da1acc3874bb9aec9effc3be3c1c5a87) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - update to ai sdk v5
+
+### Patch Changes
+
+- [#445](https://github.com/cloudflare/agents/pull/445) [`14616d3`](https://github.com/cloudflare/agents/commit/14616d3254df1c292730d09a69846d5cffbb1590) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Fix MCP client to treat `client_uri` as a valid URL
+
+- [#410](https://github.com/cloudflare/agents/pull/410) [`25b261e`](https://github.com/cloudflare/agents/commit/25b261e6d7ac2e5cb1b1b7df7dcc9fdef84e9931) Thanks [@amorriscode](https://github.com/amorriscode)! - docs: minor fixes
+
+- [`2684ade`](https://github.com/cloudflare/agents/commit/2684adeb3f545c9c48d23e3a004050efe94735ce) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+- [`01b919d`](https://github.com/cloudflare/agents/commit/01b919db6ab6bb0fd3895e1f6c7c2fdb0905bca2) Thanks [@threepointone](https://github.com/threepointone)! - remove unstable\_ prefixes with deprecation warnings
+
+  This deprecates all unstable\_ prefixes with deprecation warnings. Specifically:
+
+  - unstable_callable -> callable
+  - unstable_getAITools -> getAITools
+  - unstable_getSchedulePrompt -> getSchedulePrompt
+  - unstable_scheduleSchema -> scheduleSchema
+
+  Using the unstable\_ prefixed versions will now emit a deprecation warning. In the next major version, the unstable\_ prefixed versions will be removed.
+
+- [#434](https://github.com/cloudflare/agents/pull/434) [`f0c6dce`](https://github.com/cloudflare/agents/commit/f0c6dceea9eaf4a682d3b0f3ecdbedcf3cc93c19) Thanks [@threepointone](https://github.com/threepointone)! - don't autowrap getters on an agent
+
+- [#446](https://github.com/cloudflare/agents/pull/446) [`696d33e`](https://github.com/cloudflare/agents/commit/696d33e5fcc0821317276b6b18231818f5c54772) Thanks [@Flouse](https://github.com/Flouse)! - fix: use Object.getOwnPropertyDescriptor for property check
+
+- [`1e4188c`](https://github.com/cloudflare/agents/commit/1e4188cb1256bd920ed9dcdb224a7437ac415506) Thanks [@threepointone](https://github.com/threepointone)! - update workers-ai-provider
+
+- [#436](https://github.com/cloudflare/agents/pull/436) [`8dac62c`](https://github.com/cloudflare/agents/commit/8dac62c6f6c513d7fd481eb3b519b533bac17f1f) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - Fix onConnect race condition
+
+- [#409](https://github.com/cloudflare/agents/pull/409) [`352d62c`](https://github.com/cloudflare/agents/commit/352d62c6383797512be112ff3efcb462c0e44395) Thanks [@MrgSub](https://github.com/MrgSub)! - Refactor message types to use enum in AIChatAgent and related files
+
+- [#442](https://github.com/cloudflare/agents/pull/442) [`0dace6e`](https://github.com/cloudflare/agents/commit/0dace6e34cb32a018f0122c036e87d6c7f47d318) Thanks [@threepointone](https://github.com/threepointone)! - fix: don't wrap a method with an agent context if it's already wrapped
+
+## 0.0.113
+
+### Patch Changes
+
+- [`fd59ae2`](https://github.com/cloudflare/agents/commit/fd59ae225019ed8f3b20aa23f853d70d6d36b5db) Thanks [@threepointone](https://github.com/threepointone)! - fix: prefix mcp tool names with tool\_
+
+## 0.0.112
+
+### Patch Changes
+
+- [#404](https://github.com/cloudflare/agents/pull/404) [`2a6e66e`](https://github.com/cloudflare/agents/commit/2a6e66e9e54e14e00a06c87065980bdeefd85369) Thanks [@threepointone](https://github.com/threepointone)! - udpate dependencies
+
+- [#404](https://github.com/cloudflare/agents/pull/404) [`2a6e66e`](https://github.com/cloudflare/agents/commit/2a6e66e9e54e14e00a06c87065980bdeefd85369) Thanks [@threepointone](https://github.com/threepointone)! - log less data
+
+  as part of our observability impl, we were logging way too much data, making it a probable data leak, but also blowing past the max size limit on o11y messages. This reduces the amount of data logged.
+
+## 0.0.111
+
+### Patch Changes
+
+- [`0cf8e80`](https://github.com/cloudflare/agents/commit/0cf8e802b29fed4d83d7ff2c55fdfb72a1fa5a0f) Thanks [@threepointone](https://github.com/threepointone)! - trigegr a release
+
+## 0.0.110
+
+### Patch Changes
+
+- [#392](https://github.com/cloudflare/agents/pull/392) [`669a2b0`](https://github.com/cloudflare/agents/commit/669a2b0d75844495da7fcefed2127d5bd820c551) Thanks [@Maximo-Guk](https://github.com/Maximo-Guk)! - fix: Ensure McpAgent props stay current
+
+- [#394](https://github.com/cloudflare/agents/pull/394) [`e4a2352`](https://github.com/cloudflare/agents/commit/e4a2352b04a588f3e593ebe8bbf78df9cb2ecff8) Thanks [@threepointone](https://github.com/threepointone)! - update state incrementally as mcp servers connect
+
+- [#390](https://github.com/cloudflare/agents/pull/390) [`b123357`](https://github.com/cloudflare/agents/commit/b123357202884e2610cbcdb5857e38b94944fca9) Thanks [@threepointone](https://github.com/threepointone)! - update (most) dependencies
+
+- [#376](https://github.com/cloudflare/agents/pull/376) [`1eac06e`](https://github.com/cloudflare/agents/commit/1eac06e1f3ad61a91227ef54351521435762182d) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - add elicitation support and examples
+
+- [`3bcb134`](https://github.com/cloudflare/agents/commit/3bcb134710d6e7db7830281e29c91c504e6841b9) Thanks [@threepointone](https://github.com/threepointone)! - update partysocket
+
+- [#374](https://github.com/cloudflare/agents/pull/374) [`b63b4a6`](https://github.com/cloudflare/agents/commit/b63b4a6740a8d437109a138d7bea64615afdc1c6) Thanks [@laulauland](https://github.com/laulauland)! - Improve MCP client connection resilience with Promise.allSettled
+
+- [#378](https://github.com/cloudflare/agents/pull/378) [`c69f616`](https://github.com/cloudflare/agents/commit/c69f616c15db81c09916cbd68eb6d07abe023a0b) Thanks [@amorriscode](https://github.com/amorriscode)! - add auto transport option
+
+- [#387](https://github.com/cloudflare/agents/pull/387) [`8c2713f`](https://github.com/cloudflare/agents/commit/8c2713f59f5ba04af7ae06e2f6c28f6fcf6d6d37) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Fix/mcp agent error handling
+
+## 0.0.109
+
+### Patch Changes
+
+- [#372](https://github.com/cloudflare/agents/pull/372) [`a45f8f3`](https://github.com/cloudflare/agents/commit/a45f8f3cd8f4f392d585cc13c721570e263094d7) Thanks [@threepointone](https://github.com/threepointone)! - default Agent's Env to cloudflare's Env
+
+## 0.0.108
+
+### Patch Changes
+
+- [#357](https://github.com/cloudflare/agents/pull/357) [`40bd73c`](https://github.com/cloudflare/agents/commit/40bd73cbb29e5fc4a2625ce7d895b9e8c70d76a3) Thanks [@davemurphysf](https://github.com/davemurphysf)! - Pass incoming headers to the DO fetch method
+
+## 0.0.107
+
+### Patch Changes
+
+- [#364](https://github.com/cloudflare/agents/pull/364) [`885b3db`](https://github.com/cloudflare/agents/commit/885b3db8af3f482b2892764077c05afc491f0b35) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - add HTTP Streamable support
+
+## 0.0.106
+
+### Patch Changes
+
+- [#359](https://github.com/cloudflare/agents/pull/359) [`14bb798`](https://github.com/cloudflare/agents/commit/14bb798a1f79ef4052a9134dc5f5a4baee042812) Thanks [@ghostwriternr](https://github.com/ghostwriternr)! - Fix email routing to be case-insensitive for agent names
+
+## 0.0.105
+
+### Patch Changes
+
+- [#354](https://github.com/cloudflare/agents/pull/354) [`f31397c`](https://github.com/cloudflare/agents/commit/f31397cb7f8b67fc736faece51364edeaf52e5a0) Thanks [@jahands](https://github.com/jahands)! - fix: dequeue items in DB after each task is complete
+
+  Prevents a single failure from causing all items in the queue from being retried (including previously processed items that were successful).
+
+## 0.0.104
+
+### Patch Changes
+
+- [#319](https://github.com/cloudflare/agents/pull/319) [`e48e5f9`](https://github.com/cloudflare/agents/commit/e48e5f928030e3cc8d8a73cfa8783354be0b7648) Thanks [@threepointone](https://github.com/threepointone)! - add lightweight .queue
+
+- [#352](https://github.com/cloudflare/agents/pull/352) [`0bb74b8`](https://github.com/cloudflare/agents/commit/0bb74b89db99c7c31a1b7a9a35e0f2aa9814962d) Thanks [@threepointone](https://github.com/threepointone)! - email adaptor
+
+- [#345](https://github.com/cloudflare/agents/pull/345) [`c5e3a32`](https://github.com/cloudflare/agents/commit/c5e3a324b16c75ace2b48a5842a2755546db4539) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Add automatic context wrapping for custom Agent methods
+
+## 0.0.103
+
+### Patch Changes
+
+- [#350](https://github.com/cloudflare/agents/pull/350) [`70ed631`](https://github.com/cloudflare/agents/commit/70ed6317bc50d32115f39119133fea5f154cde94) Thanks [@ghostwriternr](https://github.com/ghostwriternr)! - Fix TypeScript types resolution by reordering export conditions
+
+## 0.0.102
+
+### Patch Changes
+
+- [#238](https://github.com/cloudflare/agents/pull/238) [`dc7a99c`](https://github.com/cloudflare/agents/commit/dc7a99ca3cc60a8be069bb1094c6dd15bd2555f2) Thanks [@zebp](https://github.com/zebp)! - Basic observability instrumentation
+
+## 0.0.101
+
+### Patch Changes
+
+- [#339](https://github.com/cloudflare/agents/pull/339) [`22d140b`](https://github.com/cloudflare/agents/commit/22d140b360365ac51ed9ebdad2beab6bc7095c9e) Thanks [@threepointone](https://github.com/threepointone)! - udpate dependencies
+
+## 0.0.100
+
+### Patch Changes
+
+- [#331](https://github.com/cloudflare/agents/pull/331) [`7acfd65`](https://github.com/cloudflare/agents/commit/7acfd654bc1773c975fd8f61111c76e83c132fe5) Thanks [@geelen](https://github.com/geelen)! - Adding a new MCP header to the CORS allowlist to follow the updated spec
+
+## 0.0.99
+
+### Patch Changes
+
+- [#332](https://github.com/cloudflare/agents/pull/332) [`75614c2`](https://github.com/cloudflare/agents/commit/75614c2532ab3e9f95e4a45e6e5b4a62be33a846) Thanks [@mchockal](https://github.com/mchockal)! - MCP connect / reconnect refactor
+
+## 0.0.98
+
+### Patch Changes
+
+- [`b4ebb44`](https://github.com/cloudflare/agents/commit/b4ebb44196ff423e06beb347bb0e7b16f08773b4) Thanks [@threepointone](https://github.com/threepointone)! - update dependencies
+
+## 0.0.97
+
+### Patch Changes
+
+- [`efffe3e`](https://github.com/cloudflare/agents/commit/efffe3e2e42a7cf3d97f05122cfd5ffc3ab1ad64) Thanks [@threepointone](https://github.com/threepointone)! - trigger release
+
+## 0.0.96
+
+### Patch Changes
+
+- [#325](https://github.com/cloudflare/agents/pull/325) [`7e0777b`](https://github.com/cloudflare/agents/commit/7e0777b12624cb6903053976742a33ef54ba65d7) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.0.95
+
+### Patch Changes
+
+- [#316](https://github.com/cloudflare/agents/pull/316) [`7856b4d`](https://github.com/cloudflare/agents/commit/7856b4d90afbd3faf59f2d264b59f878648153dd) Thanks [@whoiskatrin](https://github.com/whoiskatrin)! - Add fallback message when agent returns no response
+
+## 0.0.94
+
+### Patch Changes
+
+- [`9c6b2d7`](https://github.com/cloudflare/agents/commit/9c6b2d7c79ff91c1d73279608fa55568f8b91a5a) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+- [#311](https://github.com/cloudflare/agents/pull/311) [`8a4558c`](https://github.com/cloudflare/agents/commit/8a4558cd9f95c1194f3d696bcb23050c3db7d257) Thanks [@threepointone](https://github.com/threepointone)! - Added a call to `this.ctx.abort('destroyed')` in the `destroy` method to ensure the agent is properly evicted during cleanup.
+
+## 0.0.93
+
+### Patch Changes
+
+- [#302](https://github.com/cloudflare/agents/pull/302) [`b57e1d9`](https://github.com/cloudflare/agents/commit/b57e1d918d02607dcb68e1ca55790b6362964090) Thanks [@cmsparks](https://github.com/cmsparks)! - Fix an error where MCP servers pending connection would trigger an error
+
+## 0.0.92
+
+### Patch Changes
+
+- [#299](https://github.com/cloudflare/agents/pull/299) [`eeb70e2`](https://github.com/cloudflare/agents/commit/eeb70e256594d688bb291fd49d96faa6839e4d8a) Thanks [@courtney-sims](https://github.com/courtney-sims)! - Prevent auth url from being regenerated during oauth flow
+
+## 0.0.91
+
+### Patch Changes
+
+- [`7972da4`](https://github.com/cloudflare/agents/commit/7972da40a639611f253c4b4e27d18d4ff3c5a5e2) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.0.90
+
+### Patch Changes
+
+- [#295](https://github.com/cloudflare/agents/pull/295) [`cac66b8`](https://github.com/cloudflare/agents/commit/cac66b824c6dbfeb81623eed18c0e0d13db6d363) Thanks [@threepointone](https://github.com/threepointone)! - duck typing DurableObjectNamespace type
+
+## 0.0.89
+
+### Patch Changes
+
+- [`87b44ab`](https://github.com/cloudflare/agents/commit/87b44ab1e277d691181eabcebde878bedc30bc2d) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+- [#292](https://github.com/cloudflare/agents/pull/292) [`aacf837`](https://github.com/cloudflare/agents/commit/aacf8375ccafad2b3004ee8dca2077e589eccfe7) Thanks [@cmsparks](https://github.com/cmsparks)! - Fix issue where stray MCP connection state is left after closing connection
+
+## 0.0.88
+
+### Patch Changes
+
+- [#289](https://github.com/cloudflare/agents/pull/289) [`86cae6f`](https://github.com/cloudflare/agents/commit/86cae6f7d2190c6b2442bdc2682f75a504f39ae8) Thanks [@ruifigueira](https://github.com/ruifigueira)! - Type-safe serializable RPC methods
+
+- [#287](https://github.com/cloudflare/agents/pull/287) [`94d9a2e`](https://github.com/cloudflare/agents/commit/94d9a2e362fe10764c85327d700ee4c90a0f957e) Thanks [@ruifigueira](https://github.com/ruifigueira)! - Improve agent types
+
+## 0.0.87
+
+### Patch Changes
+
+- [#283](https://github.com/cloudflare/agents/pull/283) [`041b40f`](https://github.com/cloudflare/agents/commit/041b40f7022af097288cc3a29c1b421cde434bb9) Thanks [@ruifigueira](https://github.com/ruifigueira)! - Improve Agent stub
+
+## 0.0.86
+
+### Patch Changes
+
+- [#274](https://github.com/cloudflare/agents/pull/274) [`93ccdbd`](https://github.com/cloudflare/agents/commit/93ccdbd254c083dad9f24f34b524006ce02572ed) Thanks [@ruifigueira](https://github.com/ruifigueira)! - Stub for Agent RPC
+
+## 0.0.85
+
+### Patch Changes
+
+- [#273](https://github.com/cloudflare/agents/pull/273) [`d1f6c02`](https://github.com/cloudflare/agents/commit/d1f6c02fb425ab3f699da77693f70ad3f05652a0) Thanks [@cmsparks](https://github.com/cmsparks)! - Expose getMcpServerState internally in agent
+
+- [#276](https://github.com/cloudflare/agents/pull/276) [`b275dea`](https://github.com/cloudflare/agents/commit/b275dea97ebb96f2a103ee34d8c53d32a02ae5c0) Thanks [@ruifigueira](https://github.com/ruifigueira)! - Fix non-optional parameters after undefined ones
+
+- [#279](https://github.com/cloudflare/agents/pull/279) [`2801d35`](https://github.com/cloudflare/agents/commit/2801d35ff03fb41c75904fe96690766457e6b307) Thanks [@threepointone](https://github.com/threepointone)! - rename getMcpServerState/getMcpServers
+
+## 0.0.84
+
+### Patch Changes
+
+- [#269](https://github.com/cloudflare/agents/pull/269) [`0ac89c6`](https://github.com/cloudflare/agents/commit/0ac89c62b8e829e28034a9eae91d08fc280b93b9) Thanks [@ruifigueira](https://github.com/ruifigueira)! - Add type support to react useAgent().call
+
+## 0.0.83
+
+### Patch Changes
+
+- [#270](https://github.com/cloudflare/agents/pull/270) [`d6a4eda`](https://github.com/cloudflare/agents/commit/d6a4eda221bc36fd9f1bb13f5240697e153ce619) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.0.82
+
+### Patch Changes
+
+- [`04d925e`](https://github.com/cloudflare/agents/commit/04d925ee6795b907de19bcd40940062fb9e99b1b) Thanks [@threepointone](https://github.com/threepointone)! - convert two missed #methods to a private \_methods
+
+## 0.0.81
+
+### Patch Changes
+
+- [#265](https://github.com/cloudflare/agents/pull/265) [`ac0e999`](https://github.com/cloudflare/agents/commit/ac0e999652919600f087f0314ce61c98d3eaf069) Thanks [@threepointone](https://github.com/threepointone)! - refactor #method/#property to private method/private property
+
+- [#267](https://github.com/cloudflare/agents/pull/267) [`385f0b2`](https://github.com/cloudflare/agents/commit/385f0b29c716f8fa1c9719b0c68e5c830767953e) Thanks [@threepointone](https://github.com/threepointone)! - prefix private methods/properties with \_
+
+## 0.0.80
+
+### Patch Changes
+
+- [#254](https://github.com/cloudflare/agents/pull/254) [`25aeaf2`](https://github.com/cloudflare/agents/commit/25aeaf24692bb82601c5df9fdce215cf2c509711) Thanks [@cmsparks](https://github.com/cmsparks)! - Move MCP lifecycle+auth handling into the Agents class
+
+## 0.0.79
+
+### Patch Changes
+
+- [#261](https://github.com/cloudflare/agents/pull/261) [`881f11e`](https://github.com/cloudflare/agents/commit/881f11ec71d539c0bc53fd754662a40c9b9dc090) Thanks [@geelen](https://github.com/geelen)! - update dependencies
+
+- [#253](https://github.com/cloudflare/agents/pull/253) [`8ebc079`](https://github.com/cloudflare/agents/commit/8ebc07945d9c282bc0b6bfd5c41f69380a82f7e6) Thanks [@adesege](https://github.com/adesege)! - fix: allow overriding fetch and request headers in SSEEdgeClientTransport
+
+- [#260](https://github.com/cloudflare/agents/pull/260) [`ca44ae8`](https://github.com/cloudflare/agents/commit/ca44ae8257eac71170540221ddd7bf88ff8756a1) Thanks [@nickfujita](https://github.com/nickfujita)! - Update Agent.alarm to readonly, linking to schedule-task docs
+
+- [#261](https://github.com/cloudflare/agents/pull/261) [`881f11e`](https://github.com/cloudflare/agents/commit/881f11ec71d539c0bc53fd754662a40c9b9dc090) Thanks [@geelen](https://github.com/geelen)! - Adding `mcp-session-id` to McpAgents' CORS headers to permit web-based MCP clients
+
+## 0.0.78
+
+### Patch Changes
+
+- [#258](https://github.com/cloudflare/agents/pull/258) [`eede2bd`](https://github.com/cloudflare/agents/commit/eede2bd61532abeb403417dbbfe1f8e6424b39dc) Thanks [@threepointone](https://github.com/threepointone)! - wrap onRequest so getCurrentAgent works
+
+  Fixes https://github.com/cloudflare/agents/issues/256
+
+## 0.0.77
+
+### Patch Changes
+
+- [#249](https://github.com/cloudflare/agents/pull/249) [`c18c28a`](https://github.com/cloudflare/agents/commit/c18c28a253be85e582a71172e074eb97884894e9) Thanks [@dexxiez](https://github.com/dexxiez)! - chore: add top level default types to package.json
+
+- [#246](https://github.com/cloudflare/agents/pull/246) [`c4d53d7`](https://github.com/cloudflare/agents/commit/c4d53d786da3adf67a658b8a343909ce0f3fb70d) Thanks [@jmorrell-cloudflare](https://github.com/jmorrell-cloudflare)! - Ensure we are passing ctx.props to McpAgent for the Streamable transport
+
+- [#251](https://github.com/cloudflare/agents/pull/251) [`96a8138`](https://github.com/cloudflare/agents/commit/96a81383f6b48be0cc854b8cc72f33317824721c) Thanks [@brettimus](https://github.com/brettimus)! - Ensure isLoading is false after you `stop` an ongoing chat agent request
+
+## 0.0.76
+
+### Patch Changes
+
+- [#242](https://github.com/cloudflare/agents/pull/242) [`c8f53b8`](https://github.com/cloudflare/agents/commit/c8f53b860b40a27f5d2ccfe119b37945454e6576) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+- [#240](https://github.com/cloudflare/agents/pull/240) [`9ff62ed`](https://github.com/cloudflare/agents/commit/9ff62ed03a08837845056adb054b3cb3fda71405) Thanks [@threepointone](https://github.com/threepointone)! - mcp: Log when an error is caught inside onSSEMcpMessage
+
+- [#239](https://github.com/cloudflare/agents/pull/239) [`7bd597a`](https://github.com/cloudflare/agents/commit/7bd597ad453a704bca98204ca2de5dc610808fcf) Thanks [@sushichan044](https://github.com/sushichan044)! - fix(types): explicitly annotate this with void to avoid unbound method warning
+
+## 0.0.75
+
+### Patch Changes
+
+- [`6c24007`](https://github.com/cloudflare/agents/commit/6c240075fb435642407f3a8751a12f3c8df53b6c) Thanks [@threepointone](https://github.com/threepointone)! - Revert "fool typescript into thinking agent will always be defined in ge…
+
+## 0.0.74
+
+### Patch Changes
+
+- [`ad0054b`](https://github.com/cloudflare/agents/commit/ad0054be3b6beffcf77dff616b02a3ab1e60bbb5) Thanks [@threepointone](https://github.com/threepointone)! - fool typescript into thinking agent will always be defined in getCurrentAgent()
+
+## 0.0.73
+
+### Patch Changes
+
+- [#231](https://github.com/cloudflare/agents/pull/231) [`ba99b7c`](https://github.com/cloudflare/agents/commit/ba99b7c789df990ca82191fbd174402dbce79b42) Thanks [@threepointone](https://github.com/threepointone)! - update deps to pick up a potential fix for onStart not firing
+
+## 0.0.72
+
+### Patch Changes
+
+- [`a25eb55`](https://github.com/cloudflare/agents/commit/a25eb55790f8be7b47d4aabac91e167c49ac18a4) Thanks [@threepointone](https://github.com/threepointone)! - don't throw if no current agent
+
+## 0.0.71
+
+### Patch Changes
+
+- [#228](https://github.com/cloudflare/agents/pull/228) [`f973b54`](https://github.com/cloudflare/agents/commit/f973b540fc2b5fdd1a4a7a0d473bb26c785fa2c3) Thanks [@threepointone](https://github.com/threepointone)! - mcp client: fix tool name generation
+
+## 0.0.70
+
+### Patch Changes
+
+- [#226](https://github.com/cloudflare/agents/pull/226) [`5b7f03e`](https://github.com/cloudflare/agents/commit/5b7f03e6126498da25b4e84f83569c06f76b4cbd) Thanks [@threepointone](https://github.com/threepointone)! - mcp client: closeConnection(id) and closeAllConnections()
+
+## 0.0.69
+
+### Patch Changes
+
+- [#224](https://github.com/cloudflare/agents/pull/224) [`b342dcf`](https://github.com/cloudflare/agents/commit/b342dcfcce1192935d83585312b777cd96c33e71) Thanks [@threepointone](https://github.com/threepointone)! - getCurrentAgent()
+
+## 0.0.68
+
+### Patch Changes
+
+- [#222](https://github.com/cloudflare/agents/pull/222) [`44dc3a4`](https://github.com/cloudflare/agents/commit/44dc3a428a7026650c60af95aff64e5b12c76b04) Thanks [@threepointone](https://github.com/threepointone)! - prepend mcp tool names with server id, use nanoid everywhere
+
+- [#221](https://github.com/cloudflare/agents/pull/221) [`f59e6a2`](https://github.com/cloudflare/agents/commit/f59e6a222fffe1422340b43ccab33c2db5251f0b) Thanks [@ruifigueira](https://github.com/ruifigueira)! - Support server as promises in McpAgent
+
+## 0.0.67
+
+### Patch Changes
+
+- [#219](https://github.com/cloudflare/agents/pull/219) [`aa5f972`](https://github.com/cloudflare/agents/commit/aa5f972ee2942107addafd45d6163ae56579f862) Thanks [@jmorrell-cloudflare](https://github.com/jmorrell-cloudflare)! - Fix type error for McpAgent.serve and McpAgent.serveSSE
+
+## 0.0.66
+
+### Patch Changes
+
+- [#215](https://github.com/cloudflare/agents/pull/215) [`be4b7a3`](https://github.com/cloudflare/agents/commit/be4b7a38e7f462cfeed2da0812f0782b23767b9d) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+- [`843745d`](https://github.com/cloudflare/agents/commit/843745dfd5cec77463aa00021d841c2ed1abf51d) Thanks [@threepointone](https://github.com/threepointone)! - Thanks @brettimus for #105: Propagate cancellation signals from useAgentChat to ChatAgent
+
+- [#217](https://github.com/cloudflare/agents/pull/217) [`8d8216c`](https://github.com/cloudflare/agents/commit/8d8216c1e233fabf779994578da6447f1d20cf2b) Thanks [@threepointone](https://github.com/threepointone)! - Add .mcp to the Agent class, and add a helper to McpClientManager to convert tools to work with AI SDK
+
+- [#212](https://github.com/cloudflare/agents/pull/212) [`5342ce4`](https://github.com/cloudflare/agents/commit/5342ce4f67485b2199eed6f4cd6027330964c60f) Thanks [@pbteja1998](https://github.com/pbteja1998)! - do not remove search params and hash from mcp endpoint message
+
+## 0.0.65
+
+### Patch Changes
+
+- [#205](https://github.com/cloudflare/agents/pull/205) [`3f532ba`](https://github.com/cloudflare/agents/commit/3f532bafda1a24ab6a2e8872302093bbc5b51b61) Thanks [@threepointone](https://github.com/threepointone)! - Let .server on McpAgent be a Server or McpServer
+
+- [#208](https://github.com/cloudflare/agents/pull/208) [`85d8edd`](https://github.com/cloudflare/agents/commit/85d8eddc7ab62499cc27100adcd0894be0c8c974) Thanks [@a-type](https://github.com/a-type)! - Fix: resolved a problem in useAgentChat where initial messages would be refetched on re-render when using React StrictMode
+
+## 0.0.64
+
+### Patch Changes
+
+- [#206](https://github.com/cloudflare/agents/pull/206) [`0c4b61c`](https://github.com/cloudflare/agents/commit/0c4b61cc78d6520523eed23a41b0b851ac763753) Thanks [@threepointone](https://github.com/threepointone)! - mcp client: result schema and options are optional
+
+## 0.0.63
+
+### Patch Changes
+
+- [#202](https://github.com/cloudflare/agents/pull/202) [`1e060d3`](https://github.com/cloudflare/agents/commit/1e060d361d1b49aef3717f9d760d521577c06ff9) Thanks [@jmorrell-cloudflare](https://github.com/jmorrell-cloudflare)! - await stream writer calls in websocket handlers
+
+- [#199](https://github.com/cloudflare/agents/pull/199) [`717b21f`](https://github.com/cloudflare/agents/commit/717b21f7763362c8c1321e9befb037dc6664f433) Thanks [@pauldraper](https://github.com/pauldraper)! - Add missing dependencies to agents
+
+- [#203](https://github.com/cloudflare/agents/pull/203) [`f5b5854`](https://github.com/cloudflare/agents/commit/f5b5854aee4f3487974f4ac6452c1064181c1809) Thanks [@jmorrell-cloudflare](https://github.com/jmorrell-cloudflare)! - Jmorrell/fix streamable hibernation issue
+
+- [#186](https://github.com/cloudflare/agents/pull/186) [`90db5ba`](https://github.com/cloudflare/agents/commit/90db5ba878b48ad831ba889d0dff475268971943) Thanks [@jmorrell-cloudflare](https://github.com/jmorrell-cloudflare)! - Rename McpAgent.mount to McpAgent.serveSSE with McpAgent.mount serving as an alias for backward compatibility
+
+- [#186](https://github.com/cloudflare/agents/pull/186) [`90db5ba`](https://github.com/cloudflare/agents/commit/90db5ba878b48ad831ba889d0dff475268971943) Thanks [@jmorrell-cloudflare](https://github.com/jmorrell-cloudflare)! - Update dependencies
+
+## 0.0.62
+
+### Patch Changes
+
+- [#197](https://github.com/cloudflare/agents/pull/197) [`b30ffda`](https://github.com/cloudflare/agents/commit/b30ffda6d7bfd11f5346310c8cdb0f369f505560) Thanks [@threepointone](https://github.com/threepointone)! - fix websocket missing message trigger
+
+## 0.0.61
+
+### Patch Changes
+
+- [#196](https://github.com/cloudflare/agents/pull/196) [`ba5a5fe`](https://github.com/cloudflare/agents/commit/ba5a5fedae6b8ea6e83a3116ea115f5a9465ef0a) Thanks [@threepointone](https://github.com/threepointone)! - expose persistMessages on AIChatAgent
+
+- [#126](https://github.com/cloudflare/agents/pull/126) [`1bfd6a7`](https://github.com/cloudflare/agents/commit/1bfd6a77f2c2019b54f40f5a72ff7e4b4df57157) Thanks [@nickfujita](https://github.com/nickfujita)! - Add ai-types to esm exports
+
+## 0.0.60
+
+### Patch Changes
+
+- [#173](https://github.com/cloudflare/agents/pull/173) [`49fb428`](https://github.com/cloudflare/agents/commit/49fb4282870c77ab9f3ab2a4ae49b7b60cabbfb2) Thanks [@cmsparks](https://github.com/cmsparks)! - fix: require authProvider on client connect and handle client "Method not found" initialization errors
+
+## 0.0.59
+
+### Patch Changes
+
+- [#168](https://github.com/cloudflare/agents/pull/168) [`2781f7d`](https://github.com/cloudflare/agents/commit/2781f7d7275bfada743c6c5531aab42db5e675a7) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.0.58
+
+### Patch Changes
+
+- [`33b22fe`](https://github.com/cloudflare/agents/commit/33b22fe146bb8b721b4d33c607a044ea64c0706a) Thanks [@threepointone](https://github.com/threepointone)! - don't import WorkflowEntrypoint
+
+  fixes https://github.com/cloudflare/agents/issues/166
+
+## 0.0.57
+
+### Patch Changes
+
+- [#163](https://github.com/cloudflare/agents/pull/163) [`956c772`](https://github.com/cloudflare/agents/commit/956c772712962dfeef21d2b7ab6740600b308596) Thanks [@brishin](https://github.com/brishin)! - Fix: Missing agent dep in useCallback
+
+- [#164](https://github.com/cloudflare/agents/pull/164) [`3824fd4`](https://github.com/cloudflare/agents/commit/3824fd4dfdd99c80cba5ea031e950a460d495256) Thanks [@threepointone](https://github.com/threepointone)! - revert https://github.com/cloudflare/agents/pull/161
+
+## 0.0.56
+
+### Patch Changes
+
+- [#161](https://github.com/cloudflare/agents/pull/161) [`1f6598e`](https://github.com/cloudflare/agents/commit/1f6598eda2d6c4528797870fe74529e41142ff96) Thanks [@threepointone](https://github.com/threepointone)! - mcp: remove duplicate agent init, await root .init()
+
+## 0.0.55
+
+### Patch Changes
+
+- [#159](https://github.com/cloudflare/agents/pull/159) [`b8377c1`](https://github.com/cloudflare/agents/commit/b8377c1efcd00fa2719676edc9e8d2ef02a20a23) Thanks [@jmorrell-cloudflare](https://github.com/jmorrell-cloudflare)! - Fix issues with McpAgent and setState introduced by hibernation changes
+
+## 0.0.54
+
+### Patch Changes
+
+- [#140](https://github.com/cloudflare/agents/pull/140) [`2f5cb3a`](https://github.com/cloudflare/agents/commit/2f5cb3ac4a9fbb9dc79b137b74336681f60be5a0) Thanks [@cmsparks](https://github.com/cmsparks)! - Remote MCP Client with auth support
+
+  This PR adds:
+
+  - Support for authentication for MCP Clients (Via a DO based auth provider)
+  - Some improvements to the client API per #135
+  - A more in depth example of MCP Client, which allows you to add any number of remote MCP servers with or without auth
+
+## 0.0.53
+
+### Patch Changes
+
+- [#149](https://github.com/cloudflare/agents/pull/149) [`49e8b36`](https://github.com/cloudflare/agents/commit/49e8b362d77a68f2e891f655b9971b737e394f9e) Thanks [@irvinebroque](https://github.com/irvinebroque)! - Automatically change "/" path to "/\*" in MCP server mount() method
+
+## 0.0.52
+
+### Patch Changes
+
+- [#151](https://github.com/cloudflare/agents/pull/151) [`e376805`](https://github.com/cloudflare/agents/commit/e376805ccd88b08e853b1894cc703e6f67f2ed1d) Thanks [@threepointone](https://github.com/threepointone)! - useAgent: don't throw when `query` is an async url provider
+
+## 0.0.51
+
+### Patch Changes
+
+- [#146](https://github.com/cloudflare/agents/pull/146) [`316f98c`](https://github.com/cloudflare/agents/commit/316f98c3f70792f6daa86d3e92f8a466b5509bb5) Thanks [@threepointone](https://github.com/threepointone)! - remove lowercase warning for agent names
+
+## 0.0.50
+
+### Patch Changes
+
+- [#142](https://github.com/cloudflare/agents/pull/142) [`1461795`](https://github.com/cloudflare/agents/commit/146179598b05945ee07e95261e6a83979c9a07d9) Thanks [@threepointone](https://github.com/threepointone)! - ai-chat-agent: pass query params correctly in /get-messages
+
+## 0.0.49
+
+### Patch Changes
+
+- [#138](https://github.com/cloudflare/agents/pull/138) [`3bbbf81`](https://github.com/cloudflare/agents/commit/3bbbf812bbe3d1a2c3252e88a0ca49c7127b4820) Thanks [@geelen](https://github.com/geelen)! - Fixed internal build issue that caused incomplete package to be published
+
+## 0.0.48
+
+### Patch Changes
+
+- [#125](https://github.com/cloudflare/agents/pull/125) [`62d4e85`](https://github.com/cloudflare/agents/commit/62d4e854e76204737c8b3bd7392934f37abeb3ca) Thanks [@cmsparks](https://github.com/cmsparks)! - MCP Client x Agents Implementation
+
+- [#128](https://github.com/cloudflare/agents/pull/128) [`df716f2`](https://github.com/cloudflare/agents/commit/df716f2911acfc0e7461d3698f8e1b06947ea38b) Thanks [@jmorrell-cloudflare](https://github.com/jmorrell-cloudflare)! - MCP: Hibernate-able transport
+
+- [#137](https://github.com/cloudflare/agents/pull/137) [`c3e8618`](https://github.com/cloudflare/agents/commit/c3e8618fbe64565e3bf039331a445c12945bf9ed) Thanks [@threepointone](https://github.com/threepointone)! - convert input `agent` in clients to kebab-case as expected by the server
+
+## 0.0.47
+
+### Patch Changes
+
+- [#133](https://github.com/cloudflare/agents/pull/133) [`6dc3b6a`](https://github.com/cloudflare/agents/commit/6dc3b6aa2b4137f0a3022932d2038def9e03f5d2) Thanks [@threepointone](https://github.com/threepointone)! - remove description as an arg from getSchedules
+
+- [#130](https://github.com/cloudflare/agents/pull/130) [`7ff0509`](https://github.com/cloudflare/agents/commit/7ff050994c223bbd1cb390e3a085b31023c2554f) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.0.46
+
+### Patch Changes
+
+- [`7c40201`](https://github.com/cloudflare/agents/commit/7c402012fa43c606e5455a13604ef7a6369989ed) Thanks [@threepointone](https://github.com/threepointone)! - mark context as unstable\_
+
+## 0.0.45
+
+### Patch Changes
+
+- [#122](https://github.com/cloudflare/agents/pull/122) [`d045755`](https://github.com/cloudflare/agents/commit/d045755a3f465481531ca7556317c0a0be811438) Thanks [@threepointone](https://github.com/threepointone)! - `import {context} from 'agents';`
+
+  Export the current agent, request, and connection from a shared context. Particularly useful for tool calls that might not have access to the current agent in their module scope.
+
+## 0.0.44
+
+### Patch Changes
+
+- [#118](https://github.com/cloudflare/agents/pull/118) [`6e66bd4`](https://github.com/cloudflare/agents/commit/6e66bd4471d1eef10043297208033bd172898f10) Thanks [@max-stytch](https://github.com/max-stytch)! - fix: Pass Env param thru to DurableObject definition
+
+- [#121](https://github.com/cloudflare/agents/pull/121) [`82d5412`](https://github.com/cloudflare/agents/commit/82d54121a6fa8c035a1e2d6b036165eae0624899) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.0.43
+
+### Patch Changes
+
+- [#111](https://github.com/cloudflare/agents/pull/111) [`eb6827a`](https://github.com/cloudflare/agents/commit/eb6827a8b97b3ce5f7e06afbe83a01201350d26a) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+  replace the beta release of partysocket with a real one
+
+## 0.0.42
+
+### Patch Changes
+
+- [#107](https://github.com/cloudflare/agents/pull/107) [`4f3dfc7`](https://github.com/cloudflare/agents/commit/4f3dfc710797697aedaa29cef64923533a2cb071) Thanks [@threepointone](https://github.com/threepointone)! - update deps, allow sub/path/prefix, AND_BINDINGS_LIKE_THIS
+
+  of note,
+
+  - the partyserver update now allows for prefixes that/have/sub/paths
+  - bindings THAT_LOOK_LIKE_THIS are correctly converted to kebabcase now
+
+## 0.0.41
+
+### Patch Changes
+
+- [#106](https://github.com/cloudflare/agents/pull/106) [`1d1b74c`](https://github.com/cloudflare/agents/commit/1d1b74ce9f4a5f5fc698da280da71c08f0a7c7ce) Thanks [@geelen](https://github.com/geelen)! - Adding the first iteration of McpAgent
+
+- [#103](https://github.com/cloudflare/agents/pull/103) [`9be8008`](https://github.com/cloudflare/agents/commit/9be80083a80a89c1b106599bda28d4a8aa7292f2) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.0.40
+
+### Patch Changes
+
+- [#100](https://github.com/cloudflare/agents/pull/100) [`ee727ca`](https://github.com/cloudflare/agents/commit/ee727caf52071221fbf79fd651f37ce12185bdae) Thanks [@danieljvdm](https://github.com/danieljvdm)! - Pass state generic through `useAgentChat`
+
+## 0.0.39
+
+### Patch Changes
+
+- [#96](https://github.com/cloudflare/agents/pull/96) [`d7d2876`](https://github.com/cloudflare/agents/commit/d7d287608fcdf78a4c914ee0590ea4ef8e81623f) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+## 0.0.38
+
+### Patch Changes
+
+- [#94](https://github.com/cloudflare/agents/pull/94) [`fb4d0a6`](https://github.com/cloudflare/agents/commit/fb4d0a6a564824a7faba02d7a181ae4b170ba820) Thanks [@threepointone](https://github.com/threepointone)! - better error handling (based on #65 by @elithrar)
+  - implement `this.onError` for custom error handling
+  - log errors from more places
+  - catch some missed async errors and log them
+  - mark some methods as actually private
+
+## 0.0.37
+
+### Patch Changes
+
+- [#92](https://github.com/cloudflare/agents/pull/92) [`fbaa8f7`](https://github.com/cloudflare/agents/commit/fbaa8f799d1c666aba57b38bfc342580f19be70e) Thanks [@threepointone](https://github.com/threepointone)! - Renamed agents-sdk -> agents
+
+## 0.0.36
+
+### Patch Changes
+
+- [#74](https://github.com/cloudflare/agents/pull/74) [`7bcdd83`](https://github.com/cloudflare/agents/commit/7bcdd8396d6789b1fc7323be465fbd61311c5181) Thanks [@gingerhendrix](https://github.com/gingerhendrix)! - Replace discriminatedUnion with simple object for Gemini models
+
+## 0.0.35
+
+### Patch Changes
+
+- [#88](https://github.com/cloudflare/agents/pull/88) [`7532166`](https://github.com/cloudflare/agents/commit/7532166ecfc2bcf4f169907d0dd9c399336212ac) Thanks [@threepointone](https://github.com/threepointone)! - pass `cors:true` to `routeAgentRequest` to automatically use across domains
+
+## 0.0.34
+
+### Patch Changes
+
+- [`39197ab`](https://github.com/cloudflare/agents/commit/39197ab65a08784b4d5851d5844cb5287c43040e) Thanks [@threepointone](https://github.com/threepointone)! - remove `cf_agent_chat_init` message
+
+## 0.0.33
+
+### Patch Changes
+
+- [#85](https://github.com/cloudflare/agents/pull/85) [`acbc34e`](https://github.com/cloudflare/agents/commit/acbc34e0122835fbeae3a18b88932cc1b0a1802d) Thanks [@threepointone](https://github.com/threepointone)! - Add RPC support with `unstable_callable` decorator for method exposure. This feature enables:
+
+  - Remote procedure calls from clients to agents
+  - Method decoration with `@unstable_callable` to expose agent methods
+  - Support for both regular and streaming RPC calls
+  - Type-safe RPC calls with automatic response handling
+  - Real-time streaming responses for long-running operations
+
+  Note: The `callable` decorator has been renamed to `unstable_callable` to indicate its experimental status.
+
+## 0.0.32
+
+### Patch Changes
+
+- [#83](https://github.com/cloudflare/agents/pull/83) [`a9248c7`](https://github.com/cloudflare/agents/commit/a9248c74c3b7af2a0085d15f02712c243e870cc3) Thanks [@threepointone](https://github.com/threepointone)! - add state sync to the regular agent client
+
+  fixes https://github.com/cloudflare/agents/issues/9
+
+## 0.0.31
+
+### Patch Changes
+
+- [`2c077c7`](https://github.com/cloudflare/agents/commit/2c077c7e800d20679afe23a37b6bbbec87ed53ac) Thanks [@threepointone](https://github.com/threepointone)! - warn if agent/name passed to client isn't in lowercase
+
+## 0.0.30
+
+### Patch Changes
+
+- [`db70ceb`](https://github.com/cloudflare/agents/commit/db70ceb22e8d27717ca13cbdcf9d6364a792d1ab) Thanks [@threepointone](https://github.com/threepointone)! - fix async/await error for useAgentChat
+
+## 0.0.29
+
+### Patch Changes
+
+- [#79](https://github.com/cloudflare/agents/pull/79) [`1dad549`](https://github.com/cloudflare/agents/commit/1dad5492fbf7e07af76da83767b48af56c503763) Thanks [@threepointone](https://github.com/threepointone)! - clear initial message cache on unmount, add getInitialMessages
+
+  This clears the initial messages cache whenever useAgentChat is unmounted. Additionally, it adds a getInitialMessages option to pass your own custom method for setting initial messages. Setting getInitialMessages:null disables any fetch for initial messages, so that the user can populate initialMessages by themselves if they'd like.
+
+  I also added a chat example to the playground.
+
+## 0.0.28
+
+### Patch Changes
+
+- [`8ade3af`](https://github.com/cloudflare/agents/commit/8ade3af36d1b18636adfeb2491805e1368fba9d7) Thanks [@threepointone](https://github.com/threepointone)! - export Schedule type
+
+- [#77](https://github.com/cloudflare/agents/pull/77) [`82f277d`](https://github.com/cloudflare/agents/commit/82f277d118b925af822e147240aa9918a5f3851e) Thanks [@threepointone](https://github.com/threepointone)! - pass credentials to get-messages call
+
+## 0.0.27
+
+### Patch Changes
+
+- [`5b96c8a`](https://github.com/cloudflare/agents/commit/5b96c8a2cb26c683b34d41783eaced74216092e1) Thanks [@threepointone](https://github.com/threepointone)! - unstable\_ scheduling prompt helper shouldn't take input text
+
+## 0.0.26
+
+### Patch Changes
+
+- [`06c4386`](https://github.com/cloudflare/agents/commit/06c438620873068499d757fb9fcef11c48c0e558) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+- [#62](https://github.com/cloudflare/agents/pull/62) [`2d680f3`](https://github.com/cloudflare/agents/commit/2d680f3cccc200afdfe456e9432b645247fbce9a) Thanks [@threepointone](https://github.com/threepointone)! - unstable\_ scheduling helpers
+
+- [`48ff237`](https://github.com/cloudflare/agents/commit/48ff2376087c71e6e7316c85c86e7e0559d57222) Thanks [@threepointone](https://github.com/threepointone)! - (for @sam-goodwin, #58) fix: pass headers to /get-messages
+
+## 0.0.25
+
+### Patch Changes
+
+- [#53](https://github.com/cloudflare/agents/pull/53) [`877d551`](https://github.com/cloudflare/agents/commit/877d55169a49a767b703e39e0032a4df6681709f) Thanks [@deathbyknowledge](https://github.com/deathbyknowledge)! - fix onMessage not getting called
+
+## 0.0.24
+
+### Patch Changes
+
+- [#51](https://github.com/cloudflare/agents/pull/51) [`b244068`](https://github.com/cloudflare/agents/commit/b244068c7266f048493b3796393cfa74bbbd9ec1) Thanks [@elithrar](https://github.com/elithrar)! - Fixes a bug with JSON parsing and the React state hooks.
+
+## 0.0.23
+
+### Patch Changes
+
+- [#46](https://github.com/cloudflare/agents/pull/46) [`6efb950`](https://github.com/cloudflare/agents/commit/6efb9502612189f4a6f06435fc908e65af65eb88) Thanks [@threepointone](https://github.com/threepointone)! - update deps
+
+- [#49](https://github.com/cloudflare/agents/pull/49) [`653ebad`](https://github.com/cloudflare/agents/commit/653ebadcfd49b57595a6ecb010467d3810742b93) Thanks [@threepointone](https://github.com/threepointone)! - add linting, fix a bunch of bugs.
+
+## 0.0.22
+
+### Patch Changes
+
+- [#39](https://github.com/cloudflare/agents/pull/39) [`2afea20`](https://github.com/cloudflare/agents/commit/2afea2023d96204fbe6829c400c7a22baedbad2f) Thanks [@elithrar](https://github.com/elithrar)! - adds JSDoc to public symbols.
+
+## 0.0.21
+
+### Patch Changes
+
+- [#37](https://github.com/cloudflare/agents/pull/37) [`ff0679f`](https://github.com/cloudflare/agents/commit/ff0679f638d377c8629a1fd2762c58045ec397b5) Thanks [@threepointone](https://github.com/threepointone)! - `Agent::initialState`
+
+  You can now set an initial state for an agent
+
+  ```ts
+  type State = {
+    counter: number;
+    text: string;
+    color: string;
+  };
+
+  class MyAgent extends Agent<Env, State> {
+    initialState = {
+      counter: 0,
+      text: "",
+      color: "#3B82F6",
+    };
+
+    doSomething() {
+      console.log(this.state); // {counter: 0, text: "", color: "#3B82F6"}, if you haven't set the state yet
+    }
+  }
+  ```
+
+  As before, this gets synced to useAgent, so you can do:
+
+  ```ts
+  const [state, setState] = useState<State>();
+  const agent = useAgent<State>({
+    agent: "my-agent",
+    onStateUpdate: (state) => {
+      setState(state);
+    },
+  });
+  ```
+
+## 0.0.20
+
+### Patch Changes
+
+- [#32](https://github.com/cloudflare/agents/pull/32) [`3d4e0f9`](https://github.com/cloudflare/agents/commit/3d4e0f9db69303dd2f93de37b4f54fefacb18a33) Thanks [@Cherry](https://github.com/Cherry)! - fix: add repo/bug tracker links to packages
+
+## 0.0.19
+
+### Patch Changes
+
+- [`9938444`](https://github.com/cloudflare/agents/commit/9938444b0d8d1b4910fc50647ed223a22af564a4) Thanks [@threepointone](https://github.com/threepointone)! - scheduling: do a typecheck/throw error if not a valid method on this
+
+## 0.0.18
+
+### Patch Changes
+
+- [`7149fd2`](https://github.com/cloudflare/agents/commit/7149fd27371cd13ae9814bb52f777c6ffc99af62) Thanks [@threepointone](https://github.com/threepointone)! - don't log when state updates on the server
+
+## 0.0.17
+
+### Patch Changes
+
+- [`54962fe`](https://github.com/cloudflare/agents/commit/54962fe37c09be752fb8d713827337986ad6343a) Thanks [@threepointone](https://github.com/threepointone)! - trigger a release
+
+## 0.0.16
+
+### Patch Changes
+
+- [`d798d99`](https://github.com/cloudflare/agents/commit/d798d9959030337dce50602ab3fbd23586379e69) Thanks [@threepointone](https://github.com/threepointone)! - don't bork if connection disconnects
+
+- [`fd17e02`](https://github.com/cloudflare/agents/commit/fd17e021a2aacf8c55b2d2ad181589d5bce79893) Thanks [@threepointone](https://github.com/threepointone)! - respond to server saved messages
+
+- [`90fe787`](https://github.com/cloudflare/agents/commit/90fe7878ff0be64a41023070cc77742e49ec542e) Thanks [@threepointone](https://github.com/threepointone)! - fix scheduler implementation/types
+
+## 0.0.15
+
+### Patch Changes
+
+- [`9075920`](https://github.com/cloudflare/agents/commit/9075920b732160ca7456ae394812a30f32c99f70) Thanks [@threepointone](https://github.com/threepointone)! - change onChatMessage signature
+
+## 0.0.14
+
+### Patch Changes
+
+- [`2610509`](https://github.com/cloudflare/agents/commit/26105091622cef2c2f8aae60d4e673587d142739) Thanks [@threepointone](https://github.com/threepointone)! - Hono Agents
+
+- [`7a3a1a0`](https://github.com/cloudflare/agents/commit/7a3a1a049adfe3d125696ce65881d04eb0ebe8df) Thanks [@threepointone](https://github.com/threepointone)! - AgentContext
+
+## 0.0.13
+
+### Patch Changes
+
+- [`066c378`](https://github.com/cloudflare/agents/commit/066c378f4bcfaf2aa231e4e898bf2e22dc81f9f1) Thanks [@threepointone](https://github.com/threepointone)! - setState() doesn't take source anymore
+
+## 0.0.12
+
+### Patch Changes
+
+- [`2864acf`](https://github.com/cloudflare/agents/commit/2864acfeab983efa3316c44f339cddb5bc86cd14) Thanks [@threepointone](https://github.com/threepointone)! - chat agent can now saveMessages explicitly
+
+## 0.0.11
+
+### Patch Changes
+
+- [`7035ef5`](https://github.com/cloudflare/agents/commit/7035ef5327b650a11f721c08b57373a294354e9a) Thanks [@threepointone](https://github.com/threepointone)! - trigger a release
+
+## 0.0.10
+
+### Patch Changes
+
+- [#15](https://github.com/cloudflare/agents/pull/15) [`ecd9324`](https://github.com/cloudflare/agents/commit/ecd9324d8470c521dd3566446d7afae1fa0c1b9f) Thanks [@elithrar](https://github.com/elithrar)! - env type fixes
+
+## 0.0.9
+
+### Patch Changes
+
+- [`8335b4b`](https://github.com/cloudflare/agents/commit/8335b4bdfc17d4cc47ca5b03d0dad7f9c64ce6a1) Thanks [@threepointone](https://github.com/threepointone)! - fix some types
+
+## 0.0.8
+
+### Patch Changes
+
+- [`619dac5`](https://github.com/cloudflare/agents/commit/619dac55e11543609f2a0869b6a3f05a78fa83fd) Thanks [@threepointone](https://github.com/threepointone)! - new useChat, with multiplayer, syncing, persistence; updated HITL guide with useChat
+
+## 0.0.7
+
+### Patch Changes
+
+- [`0680a02`](https://github.com/cloudflare/agents/commit/0680a0245c41959588895c0d2bd39c98ca189a38) Thanks [@threepointone](https://github.com/threepointone)! - remove email mentions from readme
+
+## 0.0.6
+
+### Patch Changes
+
+- [`acbd0f6`](https://github.com/cloudflare/agents/commit/acbd0f6e1375a42ba1ad577b68f6a8264f6e9827) Thanks [@threepointone](https://github.com/threepointone)! - .state/.setState/.onStateUpdate
+
+## 0.0.5
+
+### Patch Changes
+
+- [`7dab6bc`](https://github.com/cloudflare/agents/commit/7dab6bcb4429cfa02dfdb62bbce59fd29e94308f) Thanks [@threepointone](https://github.com/threepointone)! - more on agentFetch
+
+## 0.0.4
+
+### Patch Changes
+
+- [`411c149`](https://github.com/cloudflare/agents/commit/411c1490c79373d8e7959fd90cfcdc4a0d87290f) Thanks [@threepointone](https://github.com/threepointone)! - actually fix client fetch
+
+## 0.0.3
+
+### Patch Changes
+
+- [`40bfbef`](https://github.com/cloudflare/agents/commit/40bfbefb3d7a0b15ae83e91d76bba8c8bb62be92) Thanks [@threepointone](https://github.com/threepointone)! - fix client.fetch
+
+## 0.0.2
+
+### Patch Changes
+
+- [`3f1ad74`](https://github.com/cloudflare/agents/commit/3f1ad7466bb74574131cd4ffdf7ce4d116f03d70) Thanks [@threepointone](https://github.com/threepointone)! - export some types, use a default agent name
+
+## 0.0.1
+
+### Patch Changes
+
+- [`eaba262`](https://github.com/cloudflare/agents/commit/eaba262167e8b10d55fc88e4bcdb26ba17879261) Thanks [@threepointone](https://github.com/threepointone)! - do a release

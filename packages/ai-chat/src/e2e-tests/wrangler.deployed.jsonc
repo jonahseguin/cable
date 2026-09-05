@@ -1,0 +1,77 @@
+{
+  // Dedicated config for the OPT-IN deployed recovery e2e (test:e2e:deployed).
+  // Distinct name so it never collides with a real Worker; the suite deploys it,
+  // drives a mid-turn redeploy to force a real DO eviction, then deletes it.
+  "name": "chat-recovery-e2e-deployed",
+  "main": "worker.ts",
+  "compatibility_date": "2026-06-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ChatRecoveryTestAgent",
+        "class_name": "ChatRecoveryTestAgent"
+      },
+      {
+        "name": "ChatNoProgressExhaustAgent",
+        "class_name": "ChatNoProgressExhaustAgent"
+      },
+      {
+        "name": "ChatAbortedExhaustAgent",
+        "class_name": "ChatAbortedExhaustAgent"
+      },
+      {
+        "name": "ChatWorkBudgetExhaustAgent",
+        "class_name": "ChatWorkBudgetExhaustAgent"
+      },
+      {
+        "name": "ChatNoContinueAgent",
+        "class_name": "ChatNoContinueAgent"
+      },
+      {
+        "name": "ChatNoPersistNoContinueAgent",
+        "class_name": "ChatNoPersistNoContinueAgent"
+      },
+      {
+        "name": "ChatBufferCleanupAgent",
+        "class_name": "ChatBufferCleanupAgent"
+      },
+      {
+        "name": "ChatHangingRecoveryAgent",
+        "class_name": "ChatHangingRecoveryAgent"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ChatRecoveryTestAgent"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "ChatNoProgressExhaustAgent",
+        "ChatAbortedExhaustAgent"
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["ChatWorkBudgetExhaustAgent"]
+    },
+    {
+      "tag": "v4",
+      "new_sqlite_classes": [
+        "ChatNoContinueAgent",
+        "ChatNoPersistNoContinueAgent"
+      ]
+    },
+    {
+      "tag": "v5",
+      "new_sqlite_classes": ["ChatBufferCleanupAgent"]
+    },
+    {
+      "tag": "v6",
+      "new_sqlite_classes": ["ChatHangingRecoveryAgent"]
+    }
+  ]
+}

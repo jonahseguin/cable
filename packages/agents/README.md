@@ -1,0 +1,592 @@
+# agents
+
+![npm install agents](../../assets/npm-install-agents.svg)
+
+**Build software that thinks and does.**
+
+Persistent AI agents on Cloudflare's global network. They remember context, reason through problems, schedule their own work, and take action—all without you managing servers.
+
+```sh
+npm create cloudflare@latest -- --template cloudflare/agents-starter
+```
+
+Or add to an existing project:
+
+```sh
+npm install agents
+```
+
+The examples below use `@callable()` decorators. Vite projects must extend
+`agents/tsconfig` and add the `agents/vite` plugin; other bundlers must support
+TC39 decorators (`2023-11`). See
+[Adding Agents to an Existing Project](../../docs/agents/adding-to-existing-project.md#4-configure-typescript-and-vite).
+
+---
+
+## Why Agents, Why Now
+
+LLMs can reason, plan, and use tools—but they need infrastructure that matches their capabilities. Traditional serverless is stateless and ephemeral. Agents are persistent and purposeful.
+
+```
+From request handlers    →  to autonomous entities
+From stateless functions →  to persistent intelligence
+
+Traditional serverless:  Request → Response → Gone
+Agents:                  Thinking, remembering, acting — continuously
+```
+
+**Pay only when active.** Agents hibernate between requests. You can have millions of agents—one per user, per session, per game room—each costs nothing when idle.
+
+Built on Cloudflare Durable Objects, agents run globally, close to your users, with persistent state that survives restarts.
+
+---
+
+## Quick Example
+
+A counter agent with real-time state sync and callable methods:
+
+```typescript
+// server.ts
+import { Agent, callable } from "agents";
+
+export type State = { count: number };
+
+export class CounterAgent extends Agent<Env, State> {
+  initialState: State = { count: 0 };
+
+  @callable()
+  increment() {
+    this.setState({ count: this.state.count + 1 });
+    return this.state.count;
+  }
+
+  @callable()
+  decrement() {
+    this.setState({ count: this.state.count - 1 });
+    return this.state.count;
+  }
+}
+```
+
+```tsx
+// client.tsx
+import { useAgent } from "agents/react";
+import { useState } from "react";
+import type { CounterAgent, State } from "./server";
+
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  const agent = useAgent<CounterAgent, State>({
+    agent: "counter-agent",
+    name: "my-counter",
+    onStateUpdate: (state) => setCount(state.count)
+  });
+
+  return (
+    <div>
+      <span>{count}</span>
+      <button onClick={() => agent.stub.increment()}>+</button>
+      <button onClick={() => agent.stub.decrement()}>-</button>
+    </div>
+  );
+}
+```
+
+State changes sync to all connected clients automatically. Call methods like they're local functions.
+
+---
+
+## What You Can Build
+
+| Use Case               | Why Agents                                            |
+| ---------------------- | ----------------------------------------------------- |
+| Multiplayer game rooms | Per-room state, real-time sync, hibernates when empty |
+| Customer support bots  | Remembers conversation history, escalates to humans   |
+| Collaborative editors  | Presence, cursors, document state                     |
+| Approval workflows     | Long-running, pauses for human input, durable         |
+| Personal AI assistants | Per-user memory, tool access via MCP                  |
+| Notification systems   | Scheduled delivery, user preferences, retry logic     |
+
+---
+
+## Features
+
+```
+Core         State sync · Routing · HTTP & WebSockets · @callable RPC · Sub-agents (facets)
+Clients      React hook · Vanilla JS · Real-time state sync
+Channels     WebSocket · HTTP · Email · (coming: SMS, Voice, Messengers)
+Background   Queue · Scheduling · Managed fibers · Workflows · Human-in-the-loop
+AI           Chat agents · Agent tools · Tool calling · MCP servers & clients
+Platform     Observability · Cross-domain auth · Resumable streams
+```
+
+### State Management
+
+State persists across requests and syncs to all connected clients:
+
+```typescript
+import { Agent, callable, type Connection } from "agents";
+
+type State = { items: string[] };
+
+export class MyAgent extends Agent<Env, State> {
+  initialState: State = { items: [] };
+
+  @callable()
+  addItem(item: string) {
+    this.setState({ items: [...this.state.items, item] });
+  }
+
+  onStateChanged(state: State, source: Connection | "server") {
+    // Called after state is persisted and broadcast
+  }
+}
+```
+
+### Callable Methods
+
+Expose methods to clients with the `@callable()` decorator:
+
+```typescript
+@callable()
+async processOrder(orderId: string, items: Item[]) {
+  // Full type safety - clients call this like a local function
+  const result = await this.validateAndProcess(orderId, items);
+  return result;
+}
+```
+
+```typescript
+// Client
+const result = await agent.stub.processOrder("order-123", items);
+```
+
+### Scheduling
+
+Run tasks later, on intervals, or with cron expressions:
+
+```typescript
+// In 60 seconds
+this.schedule(60, "sendReminder", { userId: "123" });
+
+// Every hour
+this.scheduleEvery(3600, "syncData");
+
+// Daily at 9am UTC
+this.schedule("0 9 * * *", "dailyReport");
+
+// At a specific date
+this.schedule(new Date("2025-12-31"), "yearEndTask");
+```
+
+### Background Tasks
+
+Queue immediate background work:
+
+```typescript
+await this.queue("processUpload", { fileId: "abc" });
+// Returns immediately, task runs in background
+```
+
+### Sub-agents
+
+Spawn child Durable Objects (facets) from a parent agent. Each child has
+its own SQLite storage and runs in parallel, but is addressed under the
+parent's URL:
+
+```typescript
+export class Inbox extends Agent {
+  @callable()
+  async createChat() {
+    const id = crypto.randomUUID();
+    await this.subAgent(Chat, id);
+    return id;
+  }
+
+  override async onBeforeSubAgent(_req, { className, name }) {
+    if (!this.hasSubAgent(className, name)) {
+      return new Response("Not found", { status: 404 });
+    }
+  }
+}
+
+export class Chat extends Agent {
+  async writePreview(text: string) {
+    const inbox = await this.parentAgent(Inbox);
+    await inbox.savePreview(this.name, text);
+  }
+}
+```
+
+Client-side, connect to a child with `useAgent({ sub: [...] })`:
+
+```tsx
+const inbox = useAgent({ agent: "Inbox", name: userId });
+const chat = useAgent({
+  agent: "Inbox",
+  name: userId,
+  sub: [{ agent: "Chat", name: chatId }]
+});
+```
+
+The routed URL becomes `/agents/inbox/{userId}/sub/chat/{chatId}`.
+
+Child WebSocket clients can use the same URL shape. The parent remains the
+public address, while child agents still receive `onConnect`, `onMessage`,
+`onClose`, `broadcast()`, and `getConnections()` calls scoped to their own
+clients. Parent broadcasts do not leak to child-targeted sockets, and child
+connection tags, readonly state, and protocol-message settings are preserved
+when a connection is resumed from hibernation.
+
+Nested sub-agent URLs are supported using repeated `/sub/{agent}/{name}`
+segments, subject to the platform's current facet nesting limits.
+
+### Agent Tools
+
+Run chat-capable sub-agents as tools from a parent chat agent. Think agents and
+`AIChatAgent` subclasses are supported. The child keeps its own messages, tools,
+SQLite storage, and resumable stream, while the parent broadcasts
+`agent-tool-event` frames so the UI can render the child timeline inline.
+
+```typescript
+import { Think } from "@cloudflare/think";
+import { agentTool } from "agents/agent-tools";
+import { z } from "zod";
+
+export class Researcher extends Think<Env> {
+  getSystemPrompt() {
+    return "Research the requested topic and end with a concise summary.";
+  }
+}
+
+export class Assistant extends Think<Env> {
+  getTools() {
+    return {
+      research: agentTool(Researcher, {
+        description: "Research one topic in depth.",
+        inputSchema: z.object({ query: z.string().min(3) })
+      })
+    };
+  }
+}
+```
+
+`inputSchema` accepts schemas supported by the AI SDK, including Zod, Standard
+JSON Schema-compatible schemas, raw JSON Schema through `jsonSchema()`, and
+schemas exposed through AI SDK adapters. For example, use `@ai-sdk/valibot` v2
+with AI SDK 6 or v3 with AI SDK 7:
+
+```typescript
+import { valibotSchema } from "@ai-sdk/valibot";
+import * as v from "valibot";
+
+const researchInput = valibotSchema(
+  v.object({ query: v.pipe(v.string(), v.minLength(3)) })
+);
+
+agentTool(Researcher, {
+  description: "Research one topic in depth.",
+  inputSchema: researchInput
+});
+```
+
+Tool inputs need model-facing JSON Schema in addition to runtime validation. A
+validation-only Standard Schema is therefore insufficient; use its Standard
+JSON Schema extension or an AI SDK adapter.
+
+For deterministic fan-out, call `this.runAgentTool(Researcher, { input })`
+directly. Parent recovery reconciles stale child rows after restarts and marks
+unrecoverable runs `interrupted` instead of hanging. In React, use
+`useAgentToolEvents({ agent })` to render retained and replayed child timelines.
+AIChatAgent children run headlessly, so browser client tools require a separate
+bridge; server-side tools work normally. See the full
+[Agent Tools guide](../../docs/agents/agent-tools.md).
+
+### WebSocket Connections
+
+Handle real-time communication:
+
+```typescript
+async onConnect(connection: Connection) {
+  console.log(`Client ${connection.id} connected`);
+}
+
+async onMessage(connection: Connection, message: unknown) {
+  // Handle incoming messages
+  connection.send(JSON.stringify({ received: true }));
+}
+
+async onClose(connection: Connection) {
+  console.log(`Client ${connection.id} disconnected`);
+}
+```
+
+### Email
+
+Agents can receive and respond to emails:
+
+```typescript
+import type { AgentEmail } from "agents/email";
+
+async onEmail(email: AgentEmail) {
+  const from = email.from;
+  const subject = email.headers.get("subject");
+  // Process incoming email
+}
+```
+
+---
+
+## Client SDK
+
+### React
+
+```tsx
+import { useAgent } from "agents/react";
+import { useState } from "react";
+
+function App() {
+  const [state, setState] = useState<MyState | null>(null);
+
+  const agent = useAgent<MyState>({
+    agent: "my-agent",
+    name: "instance-name",
+    onStateUpdate: (newState) => setState(newState)
+  });
+
+  return (
+    <div>
+      <pre>{JSON.stringify(state, null, 2)}</pre>
+      <button onClick={() => agent.stub.doSomething()}>Call Agent</button>
+    </div>
+  );
+}
+```
+
+### Vanilla JavaScript
+
+```typescript
+import { AgentClient } from "agents/client";
+
+const client = new AgentClient({
+  agent: "my-agent",
+  name: "instance-name",
+  onStateUpdate: (state) => console.log("State:", state)
+});
+
+// Call methods
+const result = await client.call("processData", [payload]);
+
+// Or use the stub
+const result = await client.stub.processData(payload);
+```
+
+---
+
+## Workflows Integration
+
+For durable, multi-step tasks that survive failures and can pause for human approval, integrate with [Cloudflare Workflows](https://developers.cloudflare.com/workflows/):
+
+```typescript
+import { AgentWorkflow } from "agents";
+
+export class OrderWorkflow extends AgentWorkflow<OrderAgent, OrderParams> {
+  async run(event, step) {
+    // Step 1: Validate (retries automatically on failure)
+    const validated = await step.do("validate", async () => {
+      return validateOrder(event.payload);
+    });
+
+    // Step 2: Wait for human approval
+    await this.reportProgress({ step: "approval", status: "pending" });
+    const approval = await this.waitForApproval(step, { timeout: "7 days" });
+
+    // Step 3: Process the approved order
+    await step.do("process", async () => {
+      return processOrder(validated, approval);
+    });
+  }
+}
+```
+
+Workflows provide:
+
+- **Durable execution** — steps retry automatically, state persists across failures
+- **Human-in-the-loop** — pause for approval with `waitForApproval()`
+- **Long-running tasks** — run for days or weeks
+- **Progress tracking** — report status back to the agent
+
+See [Workflows](../../docs/agents/workflows.md) and [Human in the Loop](../../docs/agents/human-in-the-loop.md).
+
+---
+
+## AI Chat Integration
+
+For AI-powered chat experiences with persistent conversations, streaming responses, and tool support, see [`@cloudflare/ai-chat`](../ai-chat/README.md).
+
+```typescript
+import { AIChatAgent } from "@cloudflare/ai-chat";
+import { createWorkersAI } from "workers-ai-provider";
+import { convertToModelMessages, streamText } from "ai";
+
+export class ChatAgent extends AIChatAgent<Env> {
+  async onChatMessage() {
+    const workersai = createWorkersAI({ binding: this.env.AI });
+    const result = streamText({
+      model: workersai("@cf/moonshotai/kimi-k2.7-code"),
+      messages: await convertToModelMessages(this.messages)
+    });
+
+    return result.toUIMessageStreamResponse();
+  }
+}
+```
+
+```tsx
+// Client
+import { useAgentChat } from "@cloudflare/ai-chat/react";
+
+const { messages, sendMessage } = useAgentChat({
+  agent: useAgent({ agent: "chat-agent" })
+});
+```
+
+Features:
+
+- Automatic message persistence
+- Resumable streaming (survives disconnections)
+- Server and client-side tool execution
+- Human-in-the-loop approval for sensitive tools
+
+---
+
+## MCP (Model Context Protocol)
+
+Agents integrate with MCP to act as servers (providing tools to AI assistants) or clients (using tools from other services).
+
+### Creating a Stateless MCP server
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/server";
+import { createMcpHandler } from "agents/mcp/server";
+import { z } from "zod";
+
+function createServer() {
+  const server = new McpServer({ name: "my-tools", version: "1.0.0" });
+  server.registerTool(
+    "lookup",
+    { description: "Look up data", inputSchema: { query: z.string() } },
+    async ({ query }) => ({
+      content: [{ type: "text", text: await lookup(query) }]
+    })
+  );
+  return server;
+}
+
+export default {
+  fetch(request, env, ctx) {
+    return createMcpHandler(createServer)(request, env, ctx);
+  }
+} satisfies ExportedHandler;
+```
+
+Use `McpAgent`, `createLegacyMcpHandler`, and `WorkerTransport` from
+`agents/mcp` only when retaining Legacy session behavior.
+
+### Using MCP Tools
+
+```typescript
+// Connect to external MCP servers
+await this.addMcpServer(
+  "weather-service",
+  "https://weather-mcp.example.com/mcp",
+  {
+    transport: { type: "streamable-http" }
+  }
+);
+
+// Use with AI SDK
+const result = await generateText({
+  model: openai("gpt-4o"),
+  tools: this.mcp.getAITools(),
+  prompt: "What's the weather in Tokyo?"
+});
+```
+
+---
+
+## Configuration
+
+Add your agent to `wrangler.jsonc`:
+
+```jsonc
+{
+  "durable_objects": {
+    "bindings": [{ "name": "MyAgent", "class_name": "MyAgent" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MyAgent"] }]
+}
+```
+
+Route requests to your agent:
+
+```typescript
+import { routeAgentRequest } from "agents";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    return (
+      (await routeAgentRequest(request, env)) ??
+      new Response("Not found", { status: 404 })
+    );
+  }
+};
+```
+
+---
+
+## Coming Soon
+
+- **Browse the Web** — Headless browser for web scraping and automation
+- **Cloudflare Sandboxes** — Isolated environments for code execution
+- **SMS, Voice, Messengers** — Multi-channel communication
+
+---
+
+## Learn More
+
+The published package includes the complete documentation tree at
+`docs/index.md`.
+
+[Getting Started](../../docs/agents/getting-started.md) ·
+[State Management](../../docs/agents/state.md) ·
+[Scheduling](../../docs/agents/scheduling.md) ·
+[Callable Methods](../../docs/agents/callable-methods.md) ·
+[Durable Object Lifecycle](../../docs/agents/lifecycle.md) ·
+[MCP Integration](../../docs/agents/mcp-client.md) ·
+[Full Documentation](../../docs/agents/index.md)
+
+---
+
+## Contributing
+
+Contributions are welcome, especially when:
+
+- You've opened an issue as an RFC to discuss your proposal
+- The contribution isn't "AI slop" — LLMs are tools, but vibe-coded PRs won't meet the quality bar
+- You're open to feedback to ensure changes fit the SDK's goals
+
+Small fixes, type bugs, and documentation improvements can be raised directly as PRs.
+
+---
+
+## License
+
+MIT licensed. See the [LICENSE](../../LICENSE) file for details.
+
+---
+
+<p align="center">
+  <i>Build something that thinks. Ship something that does.</i>
+</p>

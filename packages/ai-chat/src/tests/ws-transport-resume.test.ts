@@ -1,0 +1,1181 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { UIMessage as ChatMessage, UIMessageChunk } from "ai";
+import { WebSocketChatTransport } from "../ws-chat-transport";
+import { MessageType } from "../types";
+
+/**
+ * Minimal mock of the AgentConnection interface.
+ * Supports both addEventListener listeners AND direct handleStreamResuming calls.
+ */
+function createMockAgent() {
+  const sent: string[] = [];
+  const target = new EventTarget();
+
+  return {
+    sent,
+    target,
+    send(data: string) {
+      sent.push(data);
+    },
+    addEventListener(
+      type: string,
+      listener: (event: MessageEvent) => void,
+      options?: { signal?: AbortSignal }
+    ) {
+      target.addEventListener(type, listener as EventListener, options);
+    },
+    removeEventListener(type: string, listener: (event: MessageEvent) => void) {
+      target.removeEventListener(type, listener as EventListener);
+    },
+    /** Simulate a message arriving from the server */
+    dispatch(data: Record<string, unknown>) {
+      target.dispatchEvent(
+        new MessageEvent("message", { data: JSON.stringify(data) })
+      );
+    },
+    /** Simulate the underlying WebSocket closing */
+    close() {
+      target.dispatchEvent(new CloseEvent("close"));
+    }
+  };
+}
+
+describe("WebSocketChatTransport reconnectToStream + handleStreamResuming", () => {
+  let agent: ReturnType<typeof createMockAgent>;
+  let activeRequestIds: Set<string>;
+  let transport: WebSocketChatTransport<ChatMessage>;
+
+  beforeEach(() => {
+    agent = createMockAgent();
+    activeRequestIds = new Set();
+    transport = new WebSocketChatTransport<ChatMessage>({
+      agent,
+      activeRequestIds
+    });
+  });
+
+  // ── sendMessages lifecycle ───────────────────────────────────────────
+
+  it("closes the original sendMessages stream when the socket closes before done", async () => {
+    const stream = await transport.sendMessages({
+      chatId: "chat-1",
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          parts: [{ type: "text", text: "hello" }]
+        }
+      ],
+      abortSignal: undefined,
+      trigger: "submit-message"
+    });
+    const reader = stream.getReader();
+
+    expect(activeRequestIds.size).toBe(1);
+
+    agent.close();
+
+    await expect(reader.read()).resolves.toEqual({
+      done: true,
+      value: undefined
+    });
+    expect(activeRequestIds.size).toBe(0);
+  });
+
+  // ── handleStreamResuming basics ──────────────────────────────────────
+
+  it("handleStreamResuming returns false when no reconnectToStream is pending", () => {
+    expect(transport.handleStreamResuming({ id: "req-1" })).toBe(false);
+  });
+
+  // ── reconnectToStream sends RESUME_REQUEST ───────────────────────────
+
+  it("sends CF_AGENT_STREAM_RESUME_REQUEST immediately", async () => {
+    // Start reconnectToStream (don't await — it's waiting for handleStreamResuming)
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // Verify the request was sent
+    expect(agent.sent).toHaveLength(1);
+    const msg = JSON.parse(agent.sent[0]);
+    expect(msg.type).toBe(MessageType.CF_AGENT_STREAM_RESUME_REQUEST);
+
+    // Resolve by calling handleStreamResuming
+    transport.handleStreamResuming({ id: "req-1" });
+
+    const result = await promise;
+    expect(result).toBeInstanceOf(ReadableStream);
+  });
+
+  it("does not overwrite an active handshake with a concurrent caller", async () => {
+    const first = transport.reconnectToStream({ chatId: "chat-1" });
+    const second = transport.reconnectToStream({ chatId: "chat-1" });
+
+    await expect(second).resolves.toBeNull();
+    expect(agent.sent).toHaveLength(1);
+    expect(transport.handleStreamResuming({ id: "req-owned" })).toBe(true);
+    await expect(first).resolves.toBeInstanceOf(ReadableStream);
+  });
+
+  it("retransmits the active handshake without creating another resolver", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+    expect(agent.sent).toHaveLength(1);
+
+    expect(transport.retryPendingResume()).toBe(true);
+    expect(agent.sent).toHaveLength(2);
+    expect(agent.sent.map((message) => JSON.parse(message).type)).toEqual([
+      MessageType.CF_AGENT_STREAM_RESUME_REQUEST,
+      MessageType.CF_AGENT_STREAM_RESUME_REQUEST
+    ]);
+
+    expect(transport.handleStreamResumeNone()).toBe(true);
+    await expect(promise).resolves.toBeNull();
+    expect(transport.retryPendingResume()).toBe(false);
+  });
+
+  it("settles an old agent's resolver before accepting a new generation", async () => {
+    const oldPromise = transport.reconnectToStream({ chatId: "chat-1" });
+    const replacement = createMockAgent();
+
+    transport.setAgent(replacement);
+    await expect(oldPromise).resolves.toBeNull();
+    expect(transport.handleStreamResuming({ id: "stale" })).toBe(false);
+
+    const currentPromise = transport.reconnectToStream({ chatId: "chat-1" });
+    expect(replacement.sent).toHaveLength(1);
+    expect(transport.handleStreamResuming({ id: "current" })).toBe(true);
+    await expect(currentPromise).resolves.toBeInstanceOf(ReadableStream);
+  });
+
+  it("locally detaches an attached resume stream on agent replacement", async () => {
+    const oldPromise = transport.reconnectToStream({ chatId: "chat-1" });
+    transport.handleStreamResuming({ id: "old-stream" });
+    const oldStream = (await oldPromise) as ReadableStream<UIMessageChunk>;
+    const reader = oldStream.getReader();
+    const replacement = createMockAgent();
+
+    transport.setAgent(replacement);
+    await expect(reader.read()).resolves.toEqual({
+      done: true,
+      value: undefined
+    });
+    expect(activeRequestIds.has("old-stream")).toBe(false);
+
+    const currentPromise = transport.reconnectToStream({ chatId: "chat-1" });
+    expect(transport.handleStreamResuming({ id: "new-stream" })).toBe(true);
+    await expect(currentPromise).resolves.toBeInstanceOf(ReadableStream);
+  });
+
+  // ── handleStreamResuming resolves reconnectToStream ──────────────────
+
+  it("resolves with ReadableStream when handleStreamResuming is called", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // Simulate onAgentMessage calling handleStreamResuming
+    const handled = transport.handleStreamResuming({ id: "req-abc" });
+    expect(handled).toBe(true);
+
+    const stream = await promise;
+    expect(stream).toBeInstanceOf(ReadableStream);
+  });
+
+  it("sends ACK when handleStreamResuming is called", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-42" });
+    await promise;
+
+    // First message is RESUME_REQUEST, second is ACK
+    expect(agent.sent).toHaveLength(2);
+    const ack = JSON.parse(agent.sent[1]);
+    expect(ack.type).toBe(MessageType.CF_AGENT_STREAM_RESUME_ACK);
+    expect(ack.id).toBe("req-42");
+  });
+
+  it("attaches the resume stream listener before sending ACK", async () => {
+    const originalSend = agent.send.bind(agent);
+    agent.send = (data: string) => {
+      originalSend(data);
+      const message = JSON.parse(data) as { type?: string; id?: string };
+      if (message.type === MessageType.CF_AGENT_STREAM_RESUME_ACK) {
+        agent.dispatch({
+          type: MessageType.CF_AGENT_USE_CHAT_RESPONSE,
+          id: message.id,
+          body: JSON.stringify({
+            type: "text-delta",
+            id: "text-1",
+            delta: "sync replay"
+          }),
+          done: false,
+          replay: true
+        });
+        agent.dispatch({
+          type: MessageType.CF_AGENT_USE_CHAT_RESPONSE,
+          id: message.id,
+          body: "",
+          done: true,
+          replay: true
+        });
+      }
+    };
+
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+    transport.handleStreamResuming({ id: "req-sync-replay" });
+
+    const stream = (await promise) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { type: "text-delta", id: "text-1", delta: "sync replay" }
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: true,
+      value: undefined
+    });
+  });
+
+  it("adds requestId to activeRequestIds when handleStreamResuming is called", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-tracked" });
+    await promise;
+
+    expect(activeRequestIds.has("req-tracked")).toBe(true);
+  });
+
+  it("cancelActiveServerTurn cancels a resumed stream", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-resumed-stop" });
+    const stream = (await promise) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    expect(transport.cancelActiveServerTurn()).toBe(true);
+
+    expect(agent.sent).toHaveLength(3);
+    expect(JSON.parse(agent.sent[2])).toEqual({
+      type: MessageType.CF_AGENT_CHAT_REQUEST_CANCEL,
+      id: "req-resumed-stop"
+    });
+    expect(activeRequestIds.has("req-resumed-stop")).toBe(true);
+    await expect(reader.read()).rejects.toMatchObject({
+      name: "AbortError"
+    });
+  });
+
+  it("can opt in to server cancellation when a resumed stream is cancelled", async () => {
+    transport = new WebSocketChatTransport<ChatMessage>({
+      agent,
+      activeRequestIds,
+      cancelOnClientAbort: true
+    });
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-resumed-client-cancel" });
+    const stream = (await promise) as ReadableStream<UIMessageChunk>;
+
+    await expect(stream.cancel()).resolves.toBeUndefined();
+
+    expect(agent.sent).toHaveLength(3);
+    expect(JSON.parse(agent.sent[2])).toEqual({
+      type: MessageType.CF_AGENT_CHAT_REQUEST_CANCEL,
+      id: "req-resumed-client-cancel"
+    });
+    expect(activeRequestIds.has("req-resumed-client-cancel")).toBe(true);
+  });
+
+  // ── handleStreamResumeNone basics ────────────────────────────────────
+
+  it("handleStreamResumeNone returns false when no reconnectToStream is pending", () => {
+    expect(transport.handleStreamResumeNone()).toBe(false);
+  });
+
+  it("handleStreamResumeNone resolves reconnectToStream with null immediately", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    const handled = transport.handleStreamResumeNone();
+    expect(handled).toBe(true);
+
+    const result = await promise;
+    expect(result).toBeNull();
+  });
+
+  it("rejects a correlated NONE owned by an older probe", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+    const requestFrame = agent.sent.at(-1);
+    if (!requestFrame) throw new Error("Expected a resume request");
+    const request = JSON.parse(requestFrame) as { probeId: string };
+
+    expect(transport.handleStreamResumeNone({ probeId: "stale-probe" })).toBe(
+      false
+    );
+    expect(transport.isAwaitingResume()).toBe(true);
+    expect(transport.handleStreamResumeNone({ probeId: request.probeId })).toBe(
+      true
+    );
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it("tool continuation path registers handleStreamResuming resolver", async () => {
+    transport.expectToolContinuation();
+
+    const stream = await transport.reconnectToStream({ chatId: "chat-1" });
+
+    expect(stream).toBeInstanceOf(ReadableStream);
+    expect(agent.sent).toHaveLength(1);
+    expect(JSON.parse(agent.sent[0]).type).toBe(
+      MessageType.CF_AGENT_STREAM_RESUME_REQUEST
+    );
+
+    agent.dispatch({
+      type: MessageType.CF_AGENT_STREAM_RESUMING,
+      id: "req-tool-direct"
+    });
+
+    expect(agent.sent).toHaveLength(1);
+    expect(transport.handleStreamResuming({ id: "req-tool" })).toBe(true);
+    expect(agent.sent).toHaveLength(2);
+    expect(JSON.parse(agent.sent[1])).toEqual({
+      type: MessageType.CF_AGENT_STREAM_RESUME_ACK,
+      id: "req-tool"
+    });
+  });
+
+  it("tool continuation path registers handleStreamResumeNone resolver", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+
+    expect(transport.handleStreamResumeNone()).toBe(true);
+
+    const reader = stream.getReader();
+    const result = await reader.read();
+    expect(result.done).toBe(true);
+  });
+
+  it("tool continuation closes and clears resolvers when socket closes before handshake", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    agent.close();
+
+    await expect(reader.read()).resolves.toEqual({
+      done: true,
+      value: undefined
+    });
+    expect(transport.handleStreamResuming({ id: "late-tool" })).toBe(false);
+    expect(transport.handleStreamResumeNone()).toBe(false);
+    expect(transport.abortActiveToolContinuation()).toBe(false);
+    expect(activeRequestIds.size).toBe(0);
+  });
+
+  it("abortActiveToolContinuation sends cancel for the continuation request", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    expect(transport.handleStreamResuming({ id: "req-tool-stop" })).toBe(true);
+    expect(transport.abortActiveToolContinuation()).toBe(true);
+
+    expect(JSON.parse(agent.sent[2])).toEqual({
+      type: MessageType.CF_AGENT_CHAT_REQUEST_CANCEL,
+      id: "req-tool-stop"
+    });
+
+    await expect(reader.read()).rejects.toMatchObject({
+      name: "AbortError"
+    });
+  });
+
+  it("tool continuation stream cancel is local-only by default", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+
+    expect(
+      transport.handleStreamResuming({ id: "req-tool-local-cancel" })
+    ).toBe(true);
+    await expect(stream.cancel()).resolves.toBeUndefined();
+
+    expect(agent.sent).toHaveLength(2);
+    expect(activeRequestIds.has("req-tool-local-cancel")).toBe(false);
+  });
+
+  it("tool continuation stream cancel sends server cancel when cancelOnClientAbort is true", async () => {
+    transport = new WebSocketChatTransport<ChatMessage>({
+      agent,
+      activeRequestIds,
+      cancelOnClientAbort: true
+    });
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+
+    expect(
+      transport.handleStreamResuming({ id: "req-tool-client-cancel" })
+    ).toBe(true);
+    await expect(stream.cancel()).resolves.toBeUndefined();
+
+    expect(agent.sent).toHaveLength(3);
+    expect(JSON.parse(agent.sent[2])).toEqual({
+      type: MessageType.CF_AGENT_CHAT_REQUEST_CANCEL,
+      id: "req-tool-client-cancel"
+    });
+    expect(activeRequestIds.has("req-tool-client-cancel")).toBe(true);
+  });
+
+  it("abortActiveToolContinuation keeps requestId in activeIds for server cleanup", async () => {
+    transport.expectToolContinuation();
+
+    await transport.reconnectToStream({ chatId: "chat-1" });
+
+    expect(transport.handleStreamResuming({ id: "req-keep-id" })).toBe(true);
+    expect(activeRequestIds.has("req-keep-id")).toBe(true);
+
+    expect(transport.abortActiveToolContinuation()).toBe(true);
+    expect(activeRequestIds.has("req-keep-id")).toBe(true);
+  });
+
+  it("tool continuation closes and removes requestId when socket closes mid-stream", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    expect(transport.handleStreamResuming({ id: "req-tool-close" })).toBe(true);
+    expect(activeRequestIds.has("req-tool-close")).toBe(true);
+
+    agent.dispatch({
+      type: MessageType.CF_AGENT_USE_CHAT_RESPONSE,
+      id: "req-tool-close",
+      body: '{"type":"text-start","id":"t1"}',
+      done: false
+    });
+
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { type: "text-start", id: "t1" }
+    });
+
+    agent.close();
+
+    await expect(reader.read()).resolves.toEqual({
+      done: true,
+      value: undefined
+    });
+    expect(activeRequestIds.has("req-tool-close")).toBe(false);
+    expect(transport.abortActiveToolContinuation()).toBe(false);
+  });
+
+  it("abortActiveToolContinuation returns false when no continuation is active", async () => {
+    expect(transport.abortActiveToolContinuation()).toBe(false);
+  });
+
+  it("abortActiveToolContinuation returns false after already completed", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    expect(transport.handleStreamResuming({ id: "req-no-double" })).toBe(true);
+    expect(transport.abortActiveToolContinuation()).toBe(true);
+
+    // Second call after abort — already completed
+    expect(transport.abortActiveToolContinuation()).toBe(false);
+
+    await expect(reader.read()).rejects.toMatchObject({
+      name: "AbortError"
+    });
+  });
+
+  it("abortActiveToolContinuation before handshake closes stream and prevents late resume", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    // Abort before STREAM_RESUMING arrives (requestId is still null)
+    expect(transport.abortActiveToolContinuation()).toBe(true);
+
+    await expect(reader.read()).rejects.toMatchObject({
+      name: "AbortError"
+    });
+
+    // Late STREAM_RESUMING should be ignored — resolvers were cleared
+    expect(transport.handleStreamResuming({ id: "late-resume" })).toBe(false);
+    expect(activeRequestIds.has("late-resume")).toBe(false);
+  });
+
+  it("abortActiveToolContinuation mid-stream stops chunks and errors the reader", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    // Complete handshake
+    expect(transport.handleStreamResuming({ id: "req-mid" })).toBe(true);
+
+    // Simulate some chunks arriving
+    agent.dispatch({
+      type: MessageType.CF_AGENT_USE_CHAT_RESPONSE,
+      id: "req-mid",
+      body: '{"type":"text-start","id":"t1"}',
+      done: false
+    });
+    agent.dispatch({
+      type: MessageType.CF_AGENT_USE_CHAT_RESPONSE,
+      id: "req-mid",
+      body: '{"type":"text-delta","id":"t1","delta":"Hello"}',
+      done: false
+    });
+
+    // Read the chunks that arrived
+    const chunk1 = await reader.read();
+    expect(chunk1.done).toBe(false);
+    const chunk2 = await reader.read();
+    expect(chunk2.done).toBe(false);
+
+    // Now abort mid-stream
+    expect(transport.abortActiveToolContinuation()).toBe(true);
+
+    // Cancel was sent
+    expect(JSON.parse(agent.sent[2])).toEqual({
+      type: MessageType.CF_AGENT_CHAT_REQUEST_CANCEL,
+      id: "req-mid"
+    });
+
+    // Next read should error
+    await expect(reader.read()).rejects.toMatchObject({
+      name: "AbortError"
+    });
+
+    // Further chunks from the server are ignored (listener detached)
+    agent.dispatch({
+      type: MessageType.CF_AGENT_USE_CHAT_RESPONSE,
+      id: "req-mid",
+      body: '{"type":"text-delta","id":"t1","delta":" world"}',
+      done: false
+    });
+  });
+
+  it("abortActiveToolContinuation tolerates agent.send() throwing", async () => {
+    transport.expectToolContinuation();
+
+    const stream = (await transport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+    const reader = stream.getReader();
+
+    expect(transport.handleStreamResuming({ id: "req-send-fail" })).toBe(true);
+
+    // Make send throw (simulates disconnected WebSocket)
+    const originalSend = agent.send.bind(agent);
+    agent.send = () => {
+      throw new Error("WebSocket is closed");
+    };
+
+    // Should still return true and error the stream, not throw
+    expect(transport.abortActiveToolContinuation()).toBe(true);
+
+    await expect(reader.read()).rejects.toMatchObject({
+      name: "AbortError"
+    });
+
+    // Restore send for cleanup
+    agent.send = originalSend;
+  });
+
+  it("handleStreamResumeNone clears both resolvers so subsequent calls return false", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResumeNone();
+    await promise;
+
+    expect(transport.handleStreamResumeNone()).toBe(false);
+    expect(transport.handleStreamResuming({ id: "late" })).toBe(false);
+  });
+
+  it("handleStreamResuming after handleStreamResumeNone does not double-resolve", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // RESUME_NONE arrives first
+    transport.handleStreamResumeNone();
+    const result = await promise;
+    expect(result).toBeNull();
+
+    // Late STREAM_RESUMING should be ignored
+    expect(transport.handleStreamResuming({ id: "req-late" })).toBe(false);
+  });
+
+  // ── Timeout behavior ─────────────────────────────────────────────────
+
+  it("resolves null after timeout when no handleStreamResuming is called", async () => {
+    vi.useFakeTimers();
+    try {
+      const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+      // Advance past the 5s timeout
+      vi.advanceTimersByTime(5001);
+
+      const result = await promise;
+      expect(result).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears _resumeResolver after timeout so handleStreamResuming returns false", async () => {
+    vi.useFakeTimers();
+    try {
+      const promise = transport.reconnectToStream({ chatId: "chat-1" });
+      vi.advanceTimersByTime(5001);
+      await promise;
+
+      // After timeout, resolver is cleared
+      expect(transport.handleStreamResuming({ id: "late" })).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // ── Idempotency / double-call safety ─────────────────────────────────
+
+  it("keeps the first resolver identity-owned under a StrictMode double call", async () => {
+    const promise1 = transport.reconnectToStream({ chatId: "chat-1" });
+    const promise2 = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // The duplicate declines immediately instead of overwriting callbacks whose
+    // older timeout could later erase the active resolver set.
+    await expect(promise2).resolves.toBeNull();
+    expect(agent.sent).toHaveLength(1);
+    expect(transport.handleStreamResuming({ id: "req-sm" })).toBe(true);
+    await expect(promise1).resolves.toBeInstanceOf(ReadableStream);
+  });
+
+  it("handleStreamResuming returns false after resolver is consumed", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // First call succeeds
+    expect(transport.handleStreamResuming({ id: "req-1" })).toBe(true);
+    await promise;
+
+    // Second call — resolver was cleared
+    expect(transport.handleStreamResuming({ id: "req-2" })).toBe(false);
+  });
+
+  // ── Chunk reception via _createResumeStream ──────────────────────────
+
+  it("returns a stream that receives chunks via addEventListener", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-chunks" });
+    const stream = await promise;
+    expect(stream).toBeInstanceOf(ReadableStream);
+
+    const reader = stream!.getReader();
+
+    // Simulate chunk arriving over WebSocket
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-chunks",
+      body: '{"type":"text-start","id":"t1"}',
+      done: false,
+      replay: true
+    });
+
+    const { value, done } = await reader.read();
+    expect(done).toBe(false);
+    expect((value as UIMessageChunk).type).toBe("text-start");
+  });
+
+  it("stream closes when done:true chunk arrives", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-done" });
+    const stream = await promise;
+    const reader = stream!.getReader();
+
+    // Send a chunk then done
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-done",
+      body: '{"type":"text-start","id":"t1"}',
+      done: false
+    });
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-done",
+      body: '{"type":"text-delta","id":"t1","delta":"Hello"}',
+      done: false
+    });
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-done",
+      body: "",
+      done: true
+    });
+
+    const chunks: UIMessageChunk[] = [];
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0].type).toBe("text-start");
+    expect(chunks[1].type).toBe("text-delta");
+  });
+
+  it("removes requestId from activeRequestIds when stream completes", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-cleanup" });
+    const stream = await promise;
+    const reader = stream!.getReader();
+
+    expect(activeRequestIds.has("req-cleanup")).toBe(true);
+
+    // Complete the stream
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-cleanup",
+      body: "",
+      done: true
+    });
+
+    await reader.read(); // { done: true }
+
+    expect(activeRequestIds.has("req-cleanup")).toBe(false);
+  });
+
+  it("removes requestId from activeRequestIds when resumed stream socket closes", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-close-cleanup" });
+    const stream = await promise;
+    const reader = stream!.getReader();
+
+    expect(activeRequestIds.has("req-close-cleanup")).toBe(true);
+
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-close-cleanup",
+      body: '{"type":"text-start","id":"t1"}',
+      done: false
+    });
+
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { type: "text-start", id: "t1" }
+    });
+
+    agent.close();
+
+    await expect(reader.read()).resolves.toEqual({
+      done: true,
+      value: undefined
+    });
+    expect(activeRequestIds.has("req-close-cleanup")).toBe(false);
+  });
+
+  it("stream ignores chunks for different request IDs", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-A" });
+    const stream = await promise;
+    const reader = stream!.getReader();
+
+    // This chunk is for a different request — should be ignored
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-B",
+      body: '{"type":"text-start","id":"t1"}',
+      done: false
+    });
+
+    // This chunk is for our request — should be received
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-A",
+      body: '{"type":"text-delta","id":"t1","delta":"correct"}',
+      done: false
+    });
+
+    const { value } = await reader.read();
+    expect((value as { type: string; delta?: string }).delta).toBe("correct");
+  });
+
+  // ── Error handling ───────────────────────────────────────────────────
+
+  it("stream errors when error chunk arrives", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-err" });
+    const stream = await promise;
+    const reader = stream!.getReader();
+
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-err",
+      body: "Something went wrong",
+      error: true
+    });
+
+    await expect(reader.read()).rejects.toThrow("Something went wrong");
+  });
+
+  it("stream errors with fallback message when error body is empty", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    transport.handleStreamResuming({ id: "req-err2" });
+    const stream = await promise;
+    const reader = stream!.getReader();
+
+    agent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-err2",
+      body: "",
+      error: true
+    });
+
+    await expect(reader.read()).rejects.toThrow("Stream error");
+  });
+
+  // ── send() failure tolerance ─────────────────────────────────────────
+
+  it("reconnectToStream does not throw when send() throws", async () => {
+    const failAgent = createMockAgent();
+    failAgent.send = () => {
+      throw new Error("WebSocket closed");
+    };
+    const failTransport = new WebSocketChatTransport<ChatMessage>({
+      agent: failAgent
+    });
+
+    vi.useFakeTimers();
+    try {
+      const promise = failTransport.reconnectToStream({ chatId: "chat-1" });
+
+      // Should not throw — the try/catch handles it
+      vi.advanceTimersByTime(5001);
+      const result = await promise;
+      expect(result).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("tool continuation stream closes immediately when send() throws", async () => {
+    const failAgent = createMockAgent();
+    failAgent.send = () => {
+      throw new Error("WebSocket closed");
+    };
+    const failTransport = new WebSocketChatTransport<ChatMessage>({
+      agent: failAgent
+    });
+
+    failTransport.expectToolContinuation();
+
+    const stream = (await failTransport.reconnectToStream({
+      chatId: "chat-1"
+    })) as ReadableStream<UIMessageChunk>;
+
+    const reader = stream.getReader();
+    const result = await reader.read();
+
+    expect(result.done).toBe(true);
+    expect(failTransport.handleStreamResuming({ id: "late" })).toBe(false);
+    expect(failTransport.handleStreamResumeNone()).toBe(false);
+  });
+
+  // ── No activeRequestIds (optional) ───────────────────────────────────
+
+  // ── Double STREAM_RESUMING (server sends from onConnect + RESUME_REQUEST) ──
+
+  it("activeRequestIds contains the ID after handleStreamResuming so caller can dedupe", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // First STREAM_RESUMING — transport handles it
+    expect(transport.handleStreamResuming({ id: "req-dup" })).toBe(true);
+    await promise;
+
+    // requestId is now in activeRequestIds
+    expect(activeRequestIds.has("req-dup")).toBe(true);
+
+    // Second STREAM_RESUMING with same ID — transport returns false
+    // (resolver consumed), but the caller can check activeRequestIds
+    // to skip the fallback and avoid a duplicate ACK.
+    expect(transport.handleStreamResuming({ id: "req-dup" })).toBe(false);
+    expect(activeRequestIds.has("req-dup")).toBe(true);
+  });
+
+  it("works without activeRequestIds", async () => {
+    const noIdsTransport = new WebSocketChatTransport<ChatMessage>({
+      agent
+    });
+
+    const promise = noIdsTransport.reconnectToStream({ chatId: "chat-1" });
+    const handled = noIdsTransport.handleStreamResuming({ id: "req-noids" });
+    expect(handled).toBe(true);
+
+    const stream = await promise;
+    expect(stream).toBeInstanceOf(ReadableStream);
+  });
+
+  // ── Singleton transport: agent update survives resolver ───────────
+
+  it("agent property can be updated after construction", () => {
+    const newAgent = createMockAgent();
+    transport.agent = newAgent;
+    expect(transport.agent).toBe(newAgent);
+  });
+
+  it("resolver survives agent swap — handleStreamResuming works on same transport", async () => {
+    // Start reconnectToStream on the original agent
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // Simulate _pk change: swap agent to a new socket
+    const newAgent = createMockAgent();
+    transport.agent = newAgent;
+
+    // handleStreamResuming still finds the resolver (same transport instance)
+    const handled = transport.handleStreamResuming({ id: "req-swap" });
+    expect(handled).toBe(true);
+
+    const stream = await promise;
+    expect(stream).toBeInstanceOf(ReadableStream);
+  });
+
+  it("ACK is sent via the NEW agent after agent swap", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // Swap to new agent before resolving
+    const newAgent = createMockAgent();
+    transport.agent = newAgent;
+
+    transport.handleStreamResuming({ id: "req-ack-swap" });
+    await promise;
+
+    // ACK should go to the NEW agent, not the old one
+    expect(newAgent.sent).toHaveLength(1);
+    const ack = JSON.parse(newAgent.sent[0]);
+    expect(ack.type).toBe(MessageType.CF_AGENT_STREAM_RESUME_ACK);
+    expect(ack.id).toBe("req-ack-swap");
+
+    // Old agent only received RESUME_REQUEST (no ACK)
+    expect(agent.sent).toHaveLength(1);
+    const req = JSON.parse(agent.sent[0]);
+    expect(req.type).toBe(MessageType.CF_AGENT_STREAM_RESUME_REQUEST);
+  });
+
+  it("resumed chunk listener attaches to the agent at resolve time", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // Swap to new agent before resolving
+    const newAgent = createMockAgent();
+    transport.agent = newAgent;
+
+    transport.handleStreamResuming({ id: "req-listen" });
+    const stream = await promise;
+    const reader = stream!.getReader();
+
+    // Dispatch chunk on the NEW agent — should be received
+    newAgent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-listen",
+      body: '{"type":"text-delta","id":"t1","delta":"from-new"}',
+      done: false
+    });
+
+    const { value } = await reader.read();
+    expect((value as { type: string; delta?: string }).delta).toBe("from-new");
+  });
+
+  it("full agent-swap scenario: reconnect on old socket, resume on new socket", async () => {
+    // 1. Start reconnectToStream on old agent (socket may be closed)
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+    // 2. _pk changes — swap to new agent
+    const newAgent = createMockAgent();
+    transport.agent = newAgent;
+
+    // 3. Server sends STREAM_RESUMING on the new socket
+    //    (onAgentMessage calls handleStreamResuming on the same transport)
+    transport.handleStreamResuming({ id: "req-full" });
+    const stream = await promise;
+
+    // 4. ACK goes to new agent
+    expect(newAgent.sent).toHaveLength(1);
+    expect(JSON.parse(newAgent.sent[0]).type).toBe(
+      MessageType.CF_AGENT_STREAM_RESUME_ACK
+    );
+
+    // 5. Chunks arrive on new agent's EventTarget
+    const reader = stream!.getReader();
+    newAgent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-full",
+      body: '{"type":"text-start","id":"t1"}',
+      done: false
+    });
+    newAgent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-full",
+      body: '{"type":"text-delta","id":"t1","delta":"hello"}',
+      done: false
+    });
+    newAgent.dispatch({
+      type: "cf_agent_use_chat_response",
+      id: "req-full",
+      body: "",
+      done: true
+    });
+
+    const chunks: UIMessageChunk[] = [];
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0].type).toBe("text-start");
+    expect(chunks[1].type).toBe("text-delta");
+
+    // 6. Request ID cleaned up
+    expect(activeRequestIds.has("req-full")).toBe(false);
+  });
+});
+
+describe("WebSocketChatTransport STREAM_PENDING keep-waiting (#1784)", () => {
+  let agent: ReturnType<typeof createMockAgent>;
+  let activeRequestIds: Set<string>;
+  let transport: WebSocketChatTransport<ChatMessage>;
+
+  beforeEach(() => {
+    agent = createMockAgent();
+    activeRequestIds = new Set();
+    transport = new WebSocketChatTransport<ChatMessage>({
+      agent,
+      activeRequestIds
+    });
+  });
+
+  it("handleStreamPending returns false when no resume is pending", () => {
+    expect(transport.handleStreamPending()).toBe(false);
+  });
+
+  it("extends the short probe timeout: a pending turn does not resolve null at 5s", async () => {
+    vi.useFakeTimers();
+    try {
+      const promise = transport.reconnectToStream({ chatId: "chat-1" });
+
+      // Server says "accepted, not streaming yet".
+      expect(transport.handleStreamPending()).toBe(true);
+
+      // The original 5s probe window passes — must NOT resolve yet.
+      vi.advanceTimersByTime(5001);
+      let settled = false;
+      void promise.then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      // A later STREAM_RESUMING still resolves with a live stream.
+      transport.handleStreamResuming({ id: "req-pending" });
+      const stream = await promise;
+      expect(stream).toBeInstanceOf(ReadableStream);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still resolves null at the extended backstop if the server never follows up", async () => {
+    vi.useFakeTimers();
+    try {
+      const promise = transport.reconnectToStream({ chatId: "chat-1" });
+      expect(transport.handleStreamPending()).toBe(true);
+
+      // Past the short window but before the backstop: still waiting.
+      vi.advanceTimersByTime(5001);
+      // Past the 60s backstop: degrade to null rather than hang forever.
+      vi.advanceTimersByTime(60000);
+
+      const result = await promise;
+      expect(result).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a STREAM_RESUME_NONE after a pending frame still resolves null immediately", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+    expect(transport.handleStreamPending()).toBe(true);
+    expect(transport.handleStreamResumeNone()).toBe(true);
+
+    const result = await promise;
+    expect(result).toBeNull();
+  });
+
+  it("clears the keep-waiting hook once resolved", async () => {
+    const promise = transport.reconnectToStream({ chatId: "chat-1" });
+    transport.handleStreamResuming({ id: "req-x" });
+    await promise;
+
+    expect(transport.handleStreamPending()).toBe(false);
+  });
+
+  it("extends the tool-continuation probe window too", async () => {
+    vi.useFakeTimers();
+    try {
+      transport.expectToolContinuation();
+      const stream = (await transport.reconnectToStream({
+        chatId: "chat-1"
+      })) as ReadableStream<UIMessageChunk>;
+      const reader = stream.getReader();
+
+      expect(transport.handleStreamPending()).toBe(true);
+
+      // The 5s window passes without closing the (deferred) stream.
+      vi.advanceTimersByTime(5001);
+
+      // STREAM_RESUMING then completes the handshake and the stream flows.
+      expect(transport.handleStreamResuming({ id: "req-cont" })).toBe(true);
+      agent.dispatch({
+        type: MessageType.CF_AGENT_USE_CHAT_RESPONSE,
+        id: "req-cont",
+        body: '{"type":"text-start","id":"t1"}',
+        done: false
+      });
+      await expect(reader.read()).resolves.toEqual({
+        done: false,
+        value: { type: "text-start", id: "t1" }
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

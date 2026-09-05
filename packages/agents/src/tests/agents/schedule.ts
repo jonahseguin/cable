@@ -1,0 +1,696 @@
+import {
+  Agent,
+  callable,
+  getCurrentAgent,
+  type Schedule
+} from "../../index.ts";
+import type { RecoveryLoopScheduleOptions } from "../../schedules/types";
+import { captureConsoleWarnings } from "../capabilities/console-capture";
+
+/**
+ * Test agent that verifies this.name is accessible during scheduled callback
+ * execution. This catches lifecycle initialization being bypassed by
+ * Agent.alarm(), which would leave this.name unavailable in scheduled
+ * callbacks.
+ */
+export class TestAlarmInitAgent extends Agent {
+  // Track the name captured during callback execution
+  _capturedName: string | null = null;
+  _onStartCalled = false;
+  _callbackError: string | null = null;
+  _scheduleContextEvents: string[] = [];
+
+  override observability = {
+    emit: (event: { type: string }) => {
+      if (event.type !== "schedule:execute") return;
+      const current = getCurrentAgent().agent;
+      this._scheduleContextEvents.push(
+        current === undefined ? "capability:no-context" : "capability:context"
+      );
+    }
+  };
+
+  async onStart() {
+    this._onStartCalled = true;
+  }
+
+  onAlarm(): void {
+    this._scheduleContextEvents.push(
+      getCurrentAgent().agent === this ? "host:context" : "host:missing-context"
+    );
+  }
+
+  // Callback that reads this.name — would throw before the fix if
+  // #ensureInitialized() hadn't run
+  nameCheckCallback() {
+    try {
+      this._capturedName = this.name;
+    } catch (e) {
+      this._callbackError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async scheduleNameCheck(delaySeconds: number): Promise<string> {
+    const schedule = await this.schedule(delaySeconds, "nameCheckCallback");
+    return schedule.id;
+  }
+
+  contextCheckCallback(): void {
+    this._scheduleContextEvents.push(
+      getCurrentAgent().agent === this
+        ? "callback:context"
+        : "callback:missing-context"
+    );
+  }
+
+  async scheduleContextCheck(delaySeconds: number): Promise<string> {
+    this._scheduleContextEvents = [];
+    const schedule = await this.schedule(delaySeconds, "contextCheckCallback");
+    return schedule.id;
+  }
+
+  @callable()
+  async clearStoredAlarm(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+  }
+
+  @callable()
+  async setStoredAlarm(timeMs: number): Promise<void> {
+    await this.ctx.storage.setAlarm(timeMs);
+  }
+}
+
+export class TestDestroyScheduleAgent extends Agent<
+  Cloudflare.Env,
+  { status: string }
+> {
+  initialState = {
+    status: "unscheduled"
+  };
+
+  async scheduleSelfDestructingAlarm(delaySeconds = 86400): Promise<string> {
+    this.setState({ status: "scheduled" });
+    await this.schedule(delaySeconds, "destroy");
+    return this.state.status;
+  }
+
+  async makeSelfDestructingAlarmDue(): Promise<void> {
+    const past = Date.now() - 1_000;
+    this.sql`
+      UPDATE cf_agents_jobs SET time = ${past} WHERE fn = 'destroy'
+    `;
+    await this.ctx.storage.setAlarm(Date.now() + 1000);
+  }
+
+  getStatus() {
+    return this.state.status;
+  }
+
+  onAlarm(): void {
+    throw new Error("onAlarm must not run after a scheduled destroy");
+  }
+}
+
+/**
+ * Agent that calls schedule() in onStart() without idempotent — should warn.
+ */
+export class TestOnStartScheduleWarnAgent extends Agent {
+  readonly scheduleWarnings: string[] = [];
+
+  maintenanceCallback() {
+    // no-op
+  }
+
+  async onStart() {
+    await captureConsoleWarnings(this.scheduleWarnings, async () => {
+      await this.schedule(60, "maintenanceCallback");
+    });
+  }
+
+  @callable()
+  wasWarnedFor(cb: string): boolean {
+    return this.scheduleWarnings.some((warning) =>
+      warning.includes(`Scheduling "${cb}"`)
+    );
+  }
+
+  @callable()
+  async getScheduleCount(): Promise<number> {
+    const result = this.sql<{ count: number }>`
+      SELECT COUNT(*) as count FROM cf_agents_jobs WHERE capability = 'scheduler'
+    `;
+    return result[0].count;
+  }
+}
+
+/**
+ * Agent that calls schedule() in onStart() WITH idempotent — should not warn.
+ */
+export class TestOnStartScheduleNoWarnAgent extends Agent {
+  readonly scheduleWarnings: string[] = [];
+
+  maintenanceCallback() {
+    // no-op
+  }
+
+  async onStart() {
+    await captureConsoleWarnings(this.scheduleWarnings, async () => {
+      await this.schedule(60, "maintenanceCallback", undefined, {
+        idempotent: true
+      });
+    });
+  }
+
+  @callable()
+  wasWarnedFor(cb: string): boolean {
+    return this.scheduleWarnings.some((warning) =>
+      warning.includes(`Scheduling "${cb}"`)
+    );
+  }
+
+  @callable()
+  async getScheduleCount(): Promise<number> {
+    const result = this.sql<{ count: number }>`
+      SELECT COUNT(*) as count FROM cf_agents_jobs WHERE capability = 'scheduler'
+    `;
+    return result[0].count;
+  }
+}
+
+/**
+ * Agent that calls schedule() in onStart() with idempotent: false — should
+ * NOT warn because the user explicitly opted out.
+ */
+export class TestOnStartScheduleExplicitFalseAgent extends Agent {
+  readonly scheduleWarnings: string[] = [];
+
+  maintenanceCallback() {
+    // no-op
+  }
+
+  async onStart() {
+    await captureConsoleWarnings(this.scheduleWarnings, async () => {
+      await this.schedule(60, "maintenanceCallback", undefined, {
+        idempotent: false
+      });
+    });
+  }
+
+  @callable()
+  wasWarnedFor(cb: string): boolean {
+    return this.scheduleWarnings.some((warning) =>
+      warning.includes(`Scheduling "${cb}"`)
+    );
+  }
+}
+
+export class TestScheduleAgent extends Agent {
+  /**
+   * Legacy chat-package sealing hook retained by already-published hosts.
+   * Agents 0.23 must invoke it when the host has no new onAlarmMemoryLimit.
+   */
+  protected async _cf_sealMemoryLimitedRecovery(): Promise<void> {
+    const count =
+      (await this.ctx.storage.get<number>("legacyMemoryLimitSeals")) ?? 0;
+    await this.ctx.storage.put("legacyMemoryLimitSeals", count + 1);
+  }
+
+  async getLegacyMemoryLimitSealsForTest(): Promise<number> {
+    return (await this.ctx.storage.get<number>("legacyMemoryLimitSeals")) ?? 0;
+  }
+
+  /**
+   * Simulate a memory-limit reset thrown during startup hydration (#1825):
+   * while the durable countdown is set, every cold start throws the
+   * platform's memory-limit error before any job can run.
+   */
+  async onStart() {
+    const remaining =
+      (await this.ctx.storage.get<number>("oomOnStartRemaining")) ?? 0;
+    if (remaining > 0) {
+      await this.ctx.storage.put("oomOnStartRemaining", remaining - 1);
+      throw new Error(
+        "Durable Object's isolate exceeded its memory limit and was reset."
+      );
+    }
+  }
+
+  // A no-op callback method for testing schedules
+  testCallback() {
+    // Intentionally empty - used for testing schedule creation
+  }
+
+  // Callback that tracks execution count
+  intervalCallbackCount = 0;
+
+  intervalCallback() {
+    this.intervalCallbackCount++;
+  }
+
+  // Callback that throws an error (for testing error resilience)
+  throwingCallback() {
+    throw new Error("Intentional test error");
+  }
+
+  // Track slow callback execution for concurrent execution testing
+  slowCallbackExecutionCount = 0;
+  slowCallbackStartTimes: number[] = [];
+  slowCallbackEndTimes: number[] = [];
+
+  async slowCallback() {
+    this.slowCallbackExecutionCount++;
+    this.slowCallbackStartTimes.push(Date.now());
+    // Simulate a slow operation (500ms)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    this.slowCallbackEndTimes.push(Date.now());
+  }
+
+  @callable()
+  async cancelScheduleById(id: string): Promise<boolean> {
+    return this.cancelSchedule(id);
+  }
+
+  @callable()
+  async getStoredScheduleById(
+    id: string
+  ): Promise<Schedule<string> | undefined> {
+    return (await super.getScheduleById(id)) as Schedule<string> | undefined;
+  }
+
+  @callable()
+  async clearStoredAlarm(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+  }
+
+  @callable()
+  async setStoredAlarm(timeMs: number): Promise<void> {
+    await this.ctx.storage.setAlarm(timeMs);
+  }
+
+  @callable()
+  async getStoredAlarm(): Promise<number | null> {
+    return this.ctx.storage.getAlarm();
+  }
+
+  @callable()
+  async backdateSchedule(id: string, time: number): Promise<void> {
+    // `time` is historical unix seconds; the job queue stores milliseconds.
+    this.sql`UPDATE cf_agents_jobs SET time = ${time * 1000} WHERE id = ${id}`;
+  }
+
+  @callable()
+  async createSchedule(delaySeconds: number): Promise<string> {
+    const schedule = await this.schedule(delaySeconds, "testCallback");
+    return schedule.id;
+  }
+
+  // A schedule flagged as part of an OOM-prone recovery loop (#1825): the
+  // alarm memory-limit breaker backs it off on a strike and purges it at seal.
+  @callable()
+  async createRecoveryLoopSchedule(delaySeconds: number): Promise<string> {
+    const options: RecoveryLoopScheduleOptions = {
+      idempotent: false,
+      recoveryLoop: true
+    };
+    const schedule = await this.schedule(
+      delaySeconds,
+      "testCallback",
+      undefined,
+      options
+    );
+    return schedule.id;
+  }
+
+  @callable()
+  async createIntervalSchedule(intervalSeconds: number): Promise<string> {
+    const schedule = await this.scheduleEvery(
+      intervalSeconds,
+      "intervalCallback"
+    );
+    return schedule.id;
+  }
+
+  @callable()
+  async createIntervalScheduleAndReadAlarm(
+    intervalSeconds: number
+  ): Promise<{ alarm: number | null; id: string }> {
+    const schedule = await this.scheduleEvery(
+      intervalSeconds,
+      "intervalCallback"
+    );
+    const alarm = await this.ctx.storage.getAlarm();
+    return { alarm, id: schedule.id };
+  }
+
+  @callable()
+  async createThrowingIntervalSchedule(
+    intervalSeconds: number
+  ): Promise<string> {
+    const schedule = await this.scheduleEvery(
+      intervalSeconds,
+      "throwingCallback"
+    );
+    return schedule.id;
+  }
+
+  @callable()
+  async getSchedulesByType(
+    type: "scheduled" | "delayed" | "cron" | "interval"
+  ): Promise<Schedule<string>[]> {
+    return (await this.listSchedules({ type })) as Schedule<string>[];
+  }
+
+  @callable()
+  async createSlowIntervalSchedule(intervalSeconds: number): Promise<string> {
+    const schedule = await this.scheduleEvery(intervalSeconds, "slowCallback");
+    return schedule.id;
+  }
+
+  @callable()
+  async simulateHungSchedule(intervalSeconds: number): Promise<string> {
+    // Create an interval schedule
+    const schedule = await this.scheduleEvery(
+      intervalSeconds,
+      "intervalCallback"
+    );
+
+    // Manually set running=1 and execution_started_at to 60 seconds ago
+    // to simulate a hung callback
+    const hungStartTime = Date.now() - 60_000;
+    this
+      .sql`UPDATE cf_agents_jobs SET running = 1, execution_started_at = ${hungStartTime} WHERE id = ${schedule.id}`;
+
+    // Clear the alarm armed by scheduleEvery in the same RPC. Otherwise the
+    // alarm can fire in the gap before the test re-arms it manually, observe
+    // the row as hung, force-reset it, run the callback, and leave running=0 —
+    // racing the test setup. Tests that need an alarm should call
+    // setStoredAlarm() explicitly afterwards.
+    await this.ctx.storage.deleteAlarm();
+
+    return schedule.id;
+  }
+
+  @callable()
+  async simulateLegacyHungSchedule(intervalSeconds: number): Promise<string> {
+    // Create an interval schedule
+    const schedule = await this.scheduleEvery(
+      intervalSeconds,
+      "intervalCallback"
+    );
+
+    // Manually set running=1 but leave execution_started_at as NULL
+    // to simulate a legacy schedule that was running before the migration
+    this
+      .sql`UPDATE cf_agents_jobs SET running = 1, execution_started_at = NULL WHERE id = ${schedule.id}`;
+
+    // See note in simulateHungSchedule: clear the alarm in the same RPC to
+    // avoid a race where it fires before the test can re-arm it.
+    await this.ctx.storage.deleteAlarm();
+
+    return schedule.id;
+  }
+
+  // --- Cron/schedule idempotency test helpers ---
+
+  cronCallback() {
+    // Intentionally empty — used for cron schedule testing
+  }
+
+  @callable()
+  async createCronSchedule(cronExpr: string): Promise<string> {
+    const schedule = await this.schedule(cronExpr, "cronCallback");
+    return schedule.id;
+  }
+
+  @callable()
+  async createCronScheduleWithPayload(
+    cronExpr: string,
+    payload: string
+  ): Promise<string> {
+    const schedule = await this.schedule(cronExpr, "cronCallback", payload);
+    return schedule.id;
+  }
+
+  @callable()
+  async createCronScheduleNonIdempotent(cronExpr: string): Promise<string> {
+    const schedule = await this.schedule(cronExpr, "cronCallback", undefined, {
+      idempotent: false
+    });
+    return schedule.id;
+  }
+
+  @callable()
+  async createIdempotentDelayedSchedule(delaySeconds: number): Promise<string> {
+    const schedule = await this.schedule(
+      delaySeconds,
+      "testCallback",
+      undefined,
+      {
+        idempotent: true
+      }
+    );
+    return schedule.id;
+  }
+
+  @callable()
+  async createIdempotentDelayedScheduleWithPayload(
+    delaySeconds: number,
+    payload: string
+  ): Promise<string> {
+    const schedule = await this.schedule(
+      delaySeconds,
+      "testCallback",
+      payload,
+      {
+        idempotent: true
+      }
+    );
+    return schedule.id;
+  }
+
+  @callable()
+  async createIdempotentScheduledSchedule(dateMs: number): Promise<string> {
+    const schedule = await this.schedule(
+      new Date(dateMs),
+      "testCallback",
+      undefined,
+      { idempotent: true }
+    );
+    return schedule.id;
+  }
+
+  @callable()
+  async getScheduleCount(): Promise<number> {
+    const result = this.sql<{ count: number }>`
+      SELECT COUNT(*) as count FROM cf_agents_jobs WHERE capability = 'scheduler'
+    `;
+    return result[0].count;
+  }
+
+  @callable()
+  async getScheduleCountByTypeAndCallback(
+    type: string,
+    cb: string
+  ): Promise<number> {
+    const result = this.sql<{ count: number }>`
+      SELECT COUNT(*) as count FROM cf_agents_jobs
+      WHERE capability = 'scheduler'
+        AND fn = ${cb}
+        AND json_extract(payload, '$.type') = ${type}
+    `;
+    return result[0].count;
+  }
+
+  // --- Superseded-isolate (deploy/code-update) defer test helpers ---
+
+  private _platformErrorForTest = "";
+
+  // One-shot callback that throws a configurable error. Used to assert that
+  // `_executeScheduleCallback` DEFERS (re-throws → preserves the row so the
+  // platform re-runs it) for the superseded-isolate error family, vs SWALLOWS
+  // + deletes the row for other errors.
+  async platformErrorCallbackForTest(): Promise<void> {
+    throw new Error(this._platformErrorForTest);
+  }
+
+  // Schedule a one-shot throwing callback (due now), drive `alarm()` once
+  // in-instance, and report whether the alarm rejected (deferred) and whether
+  // the one-shot row survived. Deterministic — no reliance on the external
+  // alarm scheduler's timing.
+  @callable()
+  async runOneShotThrowingForTest(
+    message: string
+  ): Promise<{ threw: boolean; remaining: number }> {
+    this._platformErrorForTest = message;
+    // Retry disabled so a non-deferred error fails fast and deterministically
+    // instead of burning the default in-process retries with backoff.
+    const schedule = await this.schedule(
+      60,
+      "platformErrorCallbackForTest",
+      undefined,
+      { retry: { maxAttempts: 1 } }
+    );
+    // Backdate so the row is due when alarm() scans `time <= now`.
+    this.sql`
+      UPDATE cf_agents_jobs
+      SET time = ${Date.now() - 1_000}
+      WHERE id = ${schedule.id}
+    `;
+    let threw = false;
+    try {
+      await this.alarm();
+    } catch {
+      // A deferred (re-thrown) error rejects alarm(); a swallowed one does not.
+      threw = true;
+    }
+    const rows = this.sql<{ count: number }>`
+      SELECT COUNT(*) as count FROM cf_agents_jobs WHERE id = ${schedule.id}
+    `;
+    return { threw, remaining: rows[0].count };
+  }
+
+  // Current durable memory-limit strike count (#1825), for asserting the
+  // breaker counts CONSECUTIVE resets (a clean alarm must reset it).
+  async getAlarmStrikesForTest(): Promise<number> {
+    return (
+      (await this.ctx.storage.get<number>("cf_agents:oom_alarm_strikes")) ?? 0
+    );
+  }
+
+  // Drive a clean alarm (no due throwing row) so `_cf_runAlarmBody` completes
+  // successfully and the strike counter is cleared.
+  async runCleanAlarmForTest(): Promise<void> {
+    this._platformErrorForTest = "";
+    await this.alarm();
+  }
+
+  // --- Exhaustion-defer (platform-transient) test helpers (#1730) ---
+
+  private _errorSequenceForTest: Array<{
+    kind: "throw" | "throw-retryable" | "throw-wrapped" | "succeed";
+    message?: string;
+  }> = [];
+  private _errorSequenceCallsForTest = 0;
+
+  // One-shot callback that consumes a scripted step per attempt, so tests can
+  // exercise the in-process retry loop with attempt-by-attempt error shapes
+  // (e.g. "Network connection lost." on attempt 1, success on attempt 2).
+  async sequencedErrorCallbackForTest(): Promise<void> {
+    const step = this._errorSequenceForTest[
+      this._errorSequenceCallsForTest
+    ] ?? {
+      kind: "succeed" as const
+    };
+    this._errorSequenceCallsForTest++;
+    switch (step.kind) {
+      case "succeed":
+        return;
+      case "throw":
+        throw new Error(step.message ?? "scripted error");
+      case "throw-retryable": {
+        const e = new Error(step.message ?? "scripted retryable error");
+        (e as unknown as { retryable: boolean }).retryable = true;
+        throw e;
+      }
+      case "throw-wrapped":
+        // The `SqlError` shape: a wrapper that prefixes the message and keeps
+        // the original platform error only in `cause` (no `retryable` flag on
+        // the wrapper itself).
+        throw new Error(`SQL query failed: ${step.message ?? "inner error"}`, {
+          cause: new Error(step.message ?? "inner error")
+        });
+    }
+  }
+
+  // Schedule a one-shot callback driven by a scripted error sequence (one step
+  // per in-process attempt), drive `alarm()` once in-instance, and report
+  // whether the alarm rejected (deferred), whether the one-shot row survived,
+  // and how many attempts ran. Deterministic — tight retry delays, no reliance
+  // on the external alarm scheduler's timing.
+  @callable()
+  async runOneShotSequenceForTest(
+    steps: Array<{
+      kind: "throw" | "throw-retryable" | "throw-wrapped" | "succeed";
+      message?: string;
+    }>,
+    maxAttempts: number
+  ): Promise<{ threw: boolean; remaining: number; calls: number }> {
+    this._errorSequenceForTest = steps;
+    this._errorSequenceCallsForTest = 0;
+    const schedule = await this.schedule(
+      60,
+      "sequencedErrorCallbackForTest",
+      undefined,
+      { retry: { maxAttempts, baseDelayMs: 1, maxDelayMs: 2 } }
+    );
+    // Backdate so the row is due when alarm() scans `time <= now`.
+    this.sql`
+      UPDATE cf_agents_jobs
+      SET time = ${Date.now() - 1_000}
+      WHERE id = ${schedule.id}
+    `;
+    let threw = false;
+    try {
+      await this.alarm();
+    } catch {
+      // A deferred (re-thrown) error rejects alarm(); a swallowed one does not.
+      threw = true;
+    }
+    const rows = this.sql<{ count: number }>`
+      SELECT COUNT(*) as count FROM cf_agents_jobs WHERE id = ${schedule.id}
+    `;
+    const calls = this._errorSequenceCallsForTest;
+    this._errorSequenceForTest = [];
+    this._errorSequenceCallsForTest = 0;
+    // Clean up a deferred (surviving) row so it doesn't leak into later tests
+    // on the same instance.
+    this.sql`DELETE FROM cf_agents_jobs WHERE id = ${schedule.id}`;
+    return { threw, remaining: rows[0].count, calls };
+  }
+
+  @callable()
+  async insertStaleDelayedRows(count: number, cb: string): Promise<void> {
+    const past = Date.now() - 60_000;
+    const payload = JSON.stringify({
+      payload: null,
+      type: "delayed",
+      delayInSeconds: 60
+    });
+    for (let i = 0; i < count; i++) {
+      this.sql`
+        INSERT INTO cf_agents_jobs (id, capability, fn, time, payload)
+        VALUES (${`stale-${i}`}, 'scheduler', ${cb}, ${past}, ${payload})
+      `;
+    }
+    await this.ctx.storage.setAlarm(Date.now() + 1000);
+  }
+
+  // --- Idempotency test helpers ---
+
+  // A second callback for testing that idempotency is per-callback
+  secondIntervalCallback() {
+    // Intentionally empty
+  }
+
+  @callable()
+  async createIntervalScheduleWithPayload(
+    intervalSeconds: number,
+    payload: string
+  ): Promise<string> {
+    const schedule = await this.scheduleEvery(
+      intervalSeconds,
+      "intervalCallback",
+      payload
+    );
+    return schedule.id;
+  }
+
+  @callable()
+  async createSecondIntervalSchedule(intervalSeconds: number): Promise<string> {
+    const schedule = await this.scheduleEvery(
+      intervalSeconds,
+      "secondIntervalCallback"
+    );
+    return schedule.id;
+  }
+}

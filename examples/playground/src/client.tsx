@@ -1,0 +1,155 @@
+import "./styles.css";
+import { createRoot } from "react-dom/client";
+import { forwardRef } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  Link as RouterLink
+} from "react-router-dom";
+import { LinkProvider, type LinkComponentProps } from "@cloudflare/kumo";
+
+/**
+ * Adapter between Kumo's LinkProvider (to?: string) and React Router's Link (to: To).
+ * Falls back to a plain <a> when `to` is not provided.
+ */
+const AppLink = forwardRef<HTMLAnchorElement, LinkComponentProps>(
+  ({ to, ...props }, ref) => {
+    if (to) {
+      return <RouterLink ref={ref} to={to} {...props} />;
+    }
+    // oxlint-disable-next-line jsx-a11y/anchor-has-content -- content comes from spread props
+    return <a ref={ref} {...props} />;
+  }
+);
+import { Layout } from "./layout";
+import { Home } from "./pages/Home";
+
+// Core demos
+import {
+  StateDemo,
+  CallableDemo,
+  StreamingDemo,
+  ScheduleDemo,
+  ConnectionsDemo,
+  SqlDemo,
+  RoutingDemo,
+  ReadonlyDemo,
+  RetryDemo
+} from "./demos/core";
+
+// AI demos
+import {
+  ChatDemo,
+  ToolsDemo,
+  CodemodeDemo,
+  AgentToolsDemo,
+  ThinkShellDemo
+} from "./demos/ai";
+
+// MCP demos
+import {
+  McpServerDemo,
+  McpClientDemo,
+  McpOAuthDemo,
+  AdvancedMcpDemo
+} from "./demos/mcp";
+
+// Workflow demos
+import { WorkflowBasicDemo, WorkflowApprovalDemo } from "./demos/workflow";
+
+// Durable execution demos
+import { DurableExecutionDemo } from "./demos/durable";
+
+// Voice demos
+import { VoiceDemo } from "./demos/voice";
+
+// Email demos
+import { ReceiveDemo, SecureDemo } from "./demos/email";
+
+// Product integration demos
+import { ProductIntegrationsDemo } from "./demos/integrations";
+
+// Multi-Agent demos
+import {
+  SupervisorDemo,
+  ChatRoomsDemo,
+  WorkersDemo,
+  PipelineDemo
+} from "./demos/multi-agent";
+
+function App() {
+  return (
+    <LinkProvider component={AppLink}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Home />} />
+
+            {/* Core */}
+            <Route path="core/state" element={<StateDemo />} />
+            <Route path="core/callable" element={<CallableDemo />} />
+            <Route path="core/streaming" element={<StreamingDemo />} />
+            <Route path="core/schedule" element={<ScheduleDemo />} />
+            <Route path="core/connections" element={<ConnectionsDemo />} />
+            <Route path="core/sql" element={<SqlDemo />} />
+            <Route path="core/routing" element={<RoutingDemo />} />
+            <Route path="core/readonly" element={<ReadonlyDemo />} />
+            <Route path="core/retry" element={<RetryDemo />} />
+
+            {/* AI */}
+            <Route path="ai/chat" element={<ChatDemo />} />
+            <Route path="ai/tools" element={<ToolsDemo />} />
+            <Route path="ai/codemode" element={<CodemodeDemo />} />
+            <Route path="ai/agent-tools" element={<AgentToolsDemo />} />
+            <Route path="ai/think-shell" element={<ThinkShellDemo />} />
+
+            {/* MCP */}
+            <Route path="mcp/server" element={<McpServerDemo />} />
+            <Route path="mcp/client" element={<McpClientDemo />} />
+            <Route path="mcp/oauth" element={<McpOAuthDemo />} />
+            <Route path="mcp/advanced" element={<AdvancedMcpDemo />} />
+
+            {/* Workflow */}
+            <Route path="workflow/basic" element={<WorkflowBasicDemo />} />
+            <Route
+              path="workflow/approval"
+              element={<WorkflowApprovalDemo />}
+            />
+
+            {/* Durable execution */}
+            <Route
+              path="durable/execution"
+              element={<DurableExecutionDemo />}
+            />
+
+            {/* Multi-Agent */}
+            <Route path="multi-agent/supervisor" element={<SupervisorDemo />} />
+            <Route path="multi-agent/rooms" element={<ChatRoomsDemo />} />
+            <Route path="multi-agent/workers" element={<WorkersDemo />} />
+            <Route path="multi-agent/pipeline" element={<PipelineDemo />} />
+
+            {/* Voice */}
+            <Route path="voice/chat" element={<VoiceDemo />} />
+
+            {/* Email */}
+            <Route path="email/receive" element={<ReceiveDemo />} />
+            <Route path="email/secure" element={<SecureDemo />} />
+
+            {/* Product integrations */}
+            <Route
+              path="integrations/products"
+              element={<ProductIntegrationsDemo />}
+            />
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </LinkProvider>
+  );
+}
+
+createRoot(document.getElementById("root")!).render(<App />);
