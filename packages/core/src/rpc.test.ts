@@ -5,6 +5,7 @@ import {
   createRpcHandler,
   decodeBatch,
   decodeBatchResponse,
+  decodeResult,
   encodeBatch,
   encodeInput,
   type RpcCall,
@@ -253,9 +254,11 @@ describe("createRpcHandler", () => {
 
       expect(response.status).toBe(500);
       expect(response.headers.get("cache-control")).toBe("no-store");
-      expect(await response.text()).toBe(
-        '{"error":{"code":"INTERNAL","message":"Internal server error","status":500}}',
-      );
+      expect(decodeResult(await response.text())).toEqual({
+        id: "get",
+        ok: false,
+        error: { code: "INTERNAL", message: "Internal server error", status: 500 },
+      });
     },
   );
 });
