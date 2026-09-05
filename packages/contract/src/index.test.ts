@@ -27,8 +27,26 @@ describe("contract DSL", () => {
 
     expect(contract).toBe(definition);
     expect(Object.keys(contract)).toEqual(["greeting"]);
+    expect(Object.keys(contract.greeting)).toEqual(["errors", "input", "kind", "output"]);
     expect(isContract(contract)).toBe(true);
     expect(isProcedureContract(contract.greeting)).toBe(true);
+  });
+
+  it("rejects structural lookalikes that were not built by the DSL", () => {
+    const lookalike = {
+      errors: {},
+      input: stringSchema,
+      kind: "query" as const,
+      output: stringSchema,
+    };
+
+    expect(isProcedureContract(lookalike)).toBe(false);
+    expect(() =>
+      c.contract({
+        // @ts-expect-error Contract leaves must carry the DSL-installed node brand.
+        lookalike,
+      }),
+    ).toThrow("is not a cable node");
   });
 
   it("normalizes channel events and validates generated pattern params", async () => {

@@ -1,8 +1,9 @@
-import { isChannelContract, isProcedureContract } from "@cable/contract";
+import { isChannelContract, isProcedureContract, isContract } from "@cable/contract";
 import type {
   InferInput,
   InferOutput,
   AnyProcedureContract,
+  AnyContract,
   ContractNode,
   ContractTree,
   QueryTransport,
@@ -35,7 +36,7 @@ export interface ClientAuth {
 }
 
 /** Configure the base endpoint and optional middleware or in-process transport links. */
-export interface ClientOptions<Tree extends ContractTree = ContractTree> {
+export interface ClientOptions<Tree extends AnyContract = AnyContract> {
   /** Supply the shared contract to honor runtime transport metadata such as GET. */
   readonly contract?: Tree;
   readonly url?: string;
@@ -56,10 +57,15 @@ function isHeadersFactory(
   return typeof headers === "function";
 }
 
+function isBranch(node: ContractTree | ContractNode): node is ContractTree {
+  // Contract construction validates every leaf; the remaining nodes are router branches.
+  return !isProcedureContract(node) && !isChannelContract(node);
+}
+
 function findTransport(contract: ContractTree, path: string): QueryTransport | undefined {
   let node: ContractTree | ContractNode = contract;
   for (const segment of path.split(".")) {
-    if (isProcedureContract(node) || isChannelContract(node)) return undefined;
+    if (!isBranch(node)) return undefined;
     const child: ContractNode | ContractTree | undefined = node[segment];
     if (child === undefined) return undefined;
     node = child;
@@ -83,14 +89,16 @@ const unavailable: NextLink = () =>
 type ProxyCall = (input?: RpcCall["input"]) => Promise<RpcSuccess["data"]>;
 
 /** Create a lazy, contract-shaped client. No request is made until an operation is called. */
-export function createClient<Tree extends ContractTree>(
-  options: ClientOptions<Tree>,
-): Client<Tree> {
+export function createClient<Tree extends AnyContract>(options: ClientOptions<Tree>): Client<Tree> {
+  const contract = options.contract;
+  if (contract !== undefined && !isContract(contract)) {
+    throw new TypeError("Client metadata must come from c.contract().");
+  }
   let nextId = 0;
   const context = {
     url: options.url ?? "/_cable",
     transport(path: string): QueryTransport | undefined {
-      return options.contract === undefined ? undefined : findTransport(options.contract, path);
+      return contract === undefined ? undefined : findTransport(contract, path);
     },
     fetch: options.fetch ?? globalThis.fetch,
     async headers(): Promise<Headers> {

@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 const contractBrand: unique symbol = Symbol("cable.contract");
+const contractNodeBrand: unique symbol = Symbol("cable.contract-node");
 const emptyErrors: EmptyErrorMap = Object.freeze({});
 const emptyProcedures: EmptyProcedureMap = Object.freeze({});
 
@@ -16,6 +17,11 @@ export type EmptyErrorMap = Readonly<Record<never, never>>;
 /** The two procedure execution modes supported by the contract. */
 export type ProcedureKind = "mutation" | "query";
 
+/** The shallow marker shared by every procedure and channel built by cable. */
+export interface ContractNode {
+  readonly [contractNodeBrand]: true;
+}
+
 /** Settings for a query served with an HTTP GET request. */
 export interface QueryTransport {
   readonly cache?: string;
@@ -28,7 +34,7 @@ export interface ProcedureContract<
   TInput extends AnyStandardSchema = AnyStandardSchema,
   TOutput extends AnyStandardSchema = AnyStandardSchema,
   TErrors extends ErrorMap = ErrorMap,
-> {
+> extends ContractNode {
   readonly errors: TErrors;
   readonly input: TInput;
   readonly kind: TKind;
@@ -182,7 +188,7 @@ export interface ChannelContract<
   TProcedures extends ProcedureMap = ProcedureMap,
   TPresence extends AnyStandardSchema | undefined = AnyStandardSchema | undefined,
   THistory extends HistoryOptions | undefined = HistoryOptions | undefined,
-> {
+> extends ContractNode {
   readonly client: TClient;
   readonly history?: THistory;
   readonly kind: "channel";
@@ -197,18 +203,18 @@ export interface ChannelContract<
 /** A channel contract when its exact schemas and event names are not known. */
 export type AnyChannelContract = ChannelContract;
 
-/** A leaf that can appear in a contract tree. */
-export type ContractNode = AnyChannelContract | AnyProcedureContract;
-
 /** A nested object containing procedure and channel contracts. */
 export interface ContractTree {
   readonly [name: string]: ContractNode | ContractTree;
 }
 
 /** A branded contract tree returned by `c.contract`. */
-export type Contract<TTree extends ContractTree = ContractTree> = TTree & {
+export interface AnyContract {
   readonly [contractBrand]: true;
-};
+}
+
+/** A validated contract that retains the exact shape supplied to `c.contract`. */
+export type Contract<TTree extends ContractTree = ContractTree> = TTree & AnyContract;
 
 /** Infers the caller input accepted by one procedure contract. */
 export type InferInput<TProcedure extends AnyProcedureContract> = InferSchemaInput<
@@ -353,9 +359,6 @@ export interface CableContractBuilder {
   contract<const TTree extends ContractTree>(definition: TTree): Contract<TTree>;
 
   /** Declares a mutation procedure. Mutations always use batched POST transport. */
-  mutation<TInput extends AnyStandardSchema, TOutput extends AnyStandardSchema>(
-    definition: MutationDefinitionWithoutErrors<TInput, TOutput>,
-  ): MutationContract<TInput, TOutput, EmptyErrorMap>;
   mutation<
     TInput extends AnyStandardSchema,
     TOutput extends AnyStandardSchema,
@@ -363,11 +366,11 @@ export interface CableContractBuilder {
   >(
     definition: MutationDefinitionWithErrors<TInput, TOutput, TErrors>,
   ): MutationContract<TInput, TOutput, TErrors>;
+  mutation<TInput extends AnyStandardSchema, TOutput extends AnyStandardSchema>(
+    definition: MutationDefinitionWithoutErrors<TInput, TOutput>,
+  ): MutationContract<TInput, TOutput, EmptyErrorMap>;
 
   /** Declares a query procedure, with optional cacheable GET transport. */
-  query<TInput extends AnyStandardSchema, TOutput extends AnyStandardSchema>(
-    definition: QueryDefinitionWithoutErrors<TInput, TOutput>,
-  ): QueryContract<TInput, TOutput, EmptyErrorMap>;
   query<
     TInput extends AnyStandardSchema,
     TOutput extends AnyStandardSchema,
@@ -375,6 +378,9 @@ export interface CableContractBuilder {
   >(
     definition: QueryDefinitionWithErrors<TInput, TOutput, TErrors>,
   ): QueryContract<TInput, TOutput, TErrors>;
+  query<TInput extends AnyStandardSchema, TOutput extends AnyStandardSchema>(
+    definition: QueryDefinitionWithoutErrors<TInput, TOutput>,
+  ): QueryContract<TInput, TOutput, EmptyErrorMap>;
 
   /** Declares a parameterized channel and normalizes its client event forms. */
   channel<const TPattern extends string, const TDefinition extends ChannelDefinition>(
@@ -420,6 +426,9 @@ export function isProcedureContract(value: unknown): value is AnyProcedureContra
   if (value["kind"] !== "query" && value["kind"] !== "mutation") {
     return false;
   }
+  if (!(contractNodeBrand in value)) {
+    return false;
+  }
   if (!isStandardSchema(value["input"]) || !isStandardSchema(value["output"])) {
     return false;
   }
@@ -436,6 +445,7 @@ export function isProcedureContract(value: unknown): value is AnyProcedureContra
 export function isChannelContract(value: unknown): value is AnyChannelContract {
   return (
     isPlainRecord(value) &&
+    contractNodeBrand in value &&
     value["kind"] === "channel" &&
     typeof value["pattern"] === "string" &&
     isStringArray(value["paramNames"]) &&
@@ -449,7 +459,7 @@ export function isChannelContract(value: unknown): value is AnyChannelContract {
 }
 
 /** Checks whether a value was returned by `c.contract`. */
-export function isContract(value: unknown): value is Contract {
+export function isContract(value: unknown): value is AnyContract & ContractTree {
   return isPlainRecord(value) && contractBrand in value;
 }
 
@@ -467,9 +477,6 @@ function contract<const TTree extends ContractTree>(definition: TTree): Contract
   return definition as Contract<TTree>;
 }
 
-function query<TInput extends AnyStandardSchema, TOutput extends AnyStandardSchema>(
-  definition: QueryDefinitionWithoutErrors<TInput, TOutput>,
-): QueryContract<TInput, TOutput, EmptyErrorMap>;
 function query<
   TInput extends AnyStandardSchema,
   TOutput extends AnyStandardSchema,
@@ -477,6 +484,9 @@ function query<
 >(
   definition: QueryDefinitionWithErrors<TInput, TOutput, TErrors>,
 ): QueryContract<TInput, TOutput, TErrors>;
+function query<TInput extends AnyStandardSchema, TOutput extends AnyStandardSchema>(
+  definition: QueryDefinitionWithoutErrors<TInput, TOutput>,
+): QueryContract<TInput, TOutput, EmptyErrorMap>;
 function query(
   definition: QueryDefinitionBase<AnyStandardSchema, AnyStandardSchema> & {
     readonly errors?: ErrorMap;
@@ -500,12 +510,9 @@ function query(
   if (definition.transport !== undefined) {
     result.transport = Object.freeze({ ...definition.transport });
   }
-  return Object.freeze(result);
+  return Object.freeze(brandContractNode(result));
 }
 
-function mutation<TInput extends AnyStandardSchema, TOutput extends AnyStandardSchema>(
-  definition: MutationDefinitionWithoutErrors<TInput, TOutput>,
-): MutationContract<TInput, TOutput, EmptyErrorMap>;
 function mutation<
   TInput extends AnyStandardSchema,
   TOutput extends AnyStandardSchema,
@@ -513,6 +520,9 @@ function mutation<
 >(
   definition: MutationDefinitionWithErrors<TInput, TOutput, TErrors>,
 ): MutationContract<TInput, TOutput, TErrors>;
+function mutation<TInput extends AnyStandardSchema, TOutput extends AnyStandardSchema>(
+  definition: MutationDefinitionWithoutErrors<TInput, TOutput>,
+): MutationContract<TInput, TOutput, EmptyErrorMap>;
 function mutation(
   definition: MutationDefinitionBase<AnyStandardSchema, AnyStandardSchema> & {
     readonly errors?: ErrorMap;
@@ -524,12 +534,14 @@ function mutation(
   assertSchema(definition.output, "Mutation output");
   const errors = definition.errors ?? emptyErrors;
   assertErrorMap(errors, "Mutation errors");
-  return Object.freeze({
-    errors,
-    input: definition.input,
-    kind: "mutation" as const,
-    output: definition.output,
-  });
+  return Object.freeze(
+    brandContractNode({
+      errors,
+      input: definition.input,
+      kind: "mutation" as const,
+      output: definition.output,
+    }),
+  );
 }
 
 function channel<const TPattern extends string, const TDefinition extends ChannelDefinition>(
@@ -579,11 +591,23 @@ function channel(pattern: string, definition: ChannelDefinition): AnyChannelCont
   if (definition.presence !== undefined) {
     result.presence = definition.presence;
   }
-  return Object.freeze(result);
+  return Object.freeze(brandContractNode(result));
 }
 
 /** The contract builder for procedures, channels, and nested contract trees. */
 export const c: CableContractBuilder = Object.freeze({ channel, contract, mutation, query });
+
+function brandContractNode<TNode extends object>(node: TNode): TNode & ContractNode {
+  Object.defineProperty(node, contractNodeBrand, {
+    configurable: false,
+    enumerable: false,
+    value: true,
+    writable: false,
+  });
+  // SAFETY: The hidden node brand was installed immediately above.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The unique property now exists on this object.
+  return node as TNode & ContractNode;
+}
 
 interface UnparsedRecord {
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Guards parse every value before domain use.
