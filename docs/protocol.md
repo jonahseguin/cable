@@ -1,49 +1,155 @@
-# Wire protocol v1 — implementation draft
+# Wire protocol v1
 
-Status: design-only, copied from DESIGN section 9. No codec exists in M0.
-Resolve the ambiguities listed in [PLAN.md](PLAN.md) before implementing M2;
-then change this spec, codec tests, and a changeset together.
+Status: implemented by the M2 channel codecs in `packages/core/src/channel-protocol.ts`.
+JSON text is the only structured encoding in v1. The literal strings `ping` and
+`pong` are the only non-JSON frames. The codec rejects binary frames and counts
+limits in UTF-8 bytes.
 
-Full spec lives in `docs/protocol.md` and must stay in sync with
-`packages/core/src/protocol/*.test.ts`. JSON text frames. Every frame has `t`.
-Unknown `t` → `err PARSE_ERROR` and continue (forward compatibility). `v` is
-negotiated in `hello`/`welcome`; the host answers with the highest version it
-supports ≤ the client's.
+## Channel upgrade and routing
 
-### 9.1 Client → host
+A client upgrades with `GET /_cable/ws?ch=<hostKey>&params=<rawParamsJson>`.
+Both query values use normal URL percent encoding. `params` contains the raw
+Standard Schema input, not values decoded from the host key.
 
-| Frame      | Shape                                                            | Notes                                                                                                                    |
-| ---------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `hello`    | `{ t:'hello', v:1, cid?: string, since?: number, enc?: 'json' }` | Must be the first frame. `cid` = previous connection id to resume identity; `since` = last `seq` seen for this host key. |
-| `emit`     | `{ t:'emit', id?: string, ev: string, d: unknown }`              | Client→host event. If `id` present, host replies `res`.                                                                  |
-| `call`     | `{ t:'call', id: string, p: string, d: unknown }`                | Host-scoped procedure.                                                                                                   |
-| `presence` | `{ t:'presence', d: unknown }`                                   | Full self-state; host diffs and broadcasts.                                                                              |
-| ping       | literal string `"ping"`                                          | Not JSON. CF auto-response replies `"pong"` without waking. Client sends every 25s when idle.                            |
+The edge finds the one channel pattern that can parse `ch`, validates `params`
+with that channel's Standard Schema, and derives the host key from the parsed
+output. It rejects the request unless the derived key exactly matches `ch`.
+Contract construction rejects overlapping patterns, so route selection has no
+priority rules.
 
-### 9.2 Host → client
+A host key expands the channel pattern in order, applies RFC 3986 percent
+encoding to each literal or parsed parameter segment, and joins the encoded
+segments with `:`. For example, `chat.{roomId}` and `{ roomId: 'a:b' }` produce
+`chat:a%3Ab`. Decoding rejects malformed escapes, alternate encodings such as
+`%61` for `a`, the wrong literal, and the wrong segment count.
 
-| Frame      | Shape                                                                                                          | Notes                                                                                                                         |
-| ---------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `welcome`  | `{ t:'welcome', v:1, cid: string, seq: number, presence: PresenceSnapshot, replay?: EvFrame[], reset?: true }` | `seq` = current head. `replay` may be chunked into several `welcome` frames with `more: true`.                                |
-| `ev`       | `{ t:'ev', seq: number, ev: string, d: unknown }`                                                              | Logged broadcast. `seq` strictly increasing per host.                                                                         |
-| `evt`      | `{ t:'evt', ev: string, d: unknown }`                                                                          | Targeted, unlogged (`emitTo`). No seq.                                                                                        |
-| `res`      | `{ t:'res', id: string, ok: true, d?: unknown }` / `{ t:'res', id, ok: false, e: { code, message?, data? } }`  | Reply to `emit`(with id)/`call`.                                                                                              |
-| `presence` | `{ t:'presence', join?: P[], update?: P[], leave?: string[] }`                                                 | Diffs. `P = { cid, uid?, d }`.                                                                                                |
-| `err`      | `{ t:'err', code: string, message?: string }`                                                                  | Non-fatal, not tied to a request.                                                                                             |
-| `bye`      | `{ t:'bye', code: number, reason: string, retry?: number }`                                                    | Sent immediately before host-initiated close. `retry` in ms; absent = don't reconnect (e.g., 4003 kicked, 4001 unauthorized). |
+The edge sends a short-lived signed grant with the upgrade. The grant payload is
+unpadded base64url containing UTF-8 JSON. Its signature is unpadded base64url
+HMAC-SHA256 over these exact ASCII bytes:
 
-Close codes: 4000 protocol error, 4001 unauthorized, 4002 grant expired,
-4003 kicked, 4008 too far behind, 4013 payload too large.
+```text
+cable.grant.v1.<literal payload>
+```
 
-### 9.3 Delivery semantics
+The host verifies the signature before decoding payload JSON. It then requires
+version 1, a future Unix millisecond `exp`, its own `hostKey`, unique nonempty
+capabilities, JSON-native identity, and a plain string parameter map. It checks
+that the parameters reproduce `hostKey` without running their schema again.
+Invalid, expired, and wrong-host grants fail as `UNAUTHORIZED` with a typed
+reason.
 
-- At-least-once from the log; the client dedupes on `seq` → exactly-once
-  presentation to the app.
-- `since` persists client-side per host key (memory; optional
-  `sessionStorage`) so a tab reload can resume.
-- Ordering guaranteed per host only.
-- Host may drop a client that is `> N` frames behind on `send` buffering with
-  `bye 4008 retry:1000`; the client reconnects and resumes.
+The host creates a fresh `cid` for every physical socket. A client cannot choose
+or reclaim it. Immutable socket tags include `cid:<cid>` and, when present,
+`uid:<uid>`. The attachment stores `{ v:1, cid, grantId, phase, since? }`; the
+full verified record at `gr:<grantId>` stores identity, grants, parsed params,
+expiry, and host key. The host deletes that record when it closes the socket.
+This pointer keeps attachments bounded and restores identity after hibernation.
+
+## Client to host frames
+
+Every JSON object rejects unknown keys. Optional `d` means the property may be
+absent. Passing `undefined` for that property encodes the absent form used by
+void schemas. Encoders reject class instances, cycles, and non-finite numbers.
+
+| Frame      | Shape                                                | Behavior                                                                                               |
+| ---------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `hello`    | `{ t:'hello', v:1, since?: number, enc?: 'json' }`   | Must be the first frame. `since` is the highest event sequence the client presented for this host key. |
+| `emit`     | `{ t:'emit', id?: string, ev: string, d?: unknown }` | Sends a named client event. An `id` requests a `res` frame.                                            |
+| `call`     | `{ t:'call', id: string, p: string, d?: unknown }`   | Calls a host procedure and always receives a `res` frame.                                              |
+| `presence` | `{ t:'presence', d?: unknown }`                      | Replaces this connection's complete presence value.                                                    |
+| ping       | literal `ping`                                       | In any phase, the host answers with literal `pong`; it does not satisfy or extend the hello deadline.  |
+
+The accepted socket starts in persisted `pending` phase. It must send `hello`
+within 10 seconds. The engine persists the deadline in its timer heap so a
+hibernation does not reset it. Except for literal ping, a non-hello frame before
+the handshake, a repeated hello, an unsupported version or encoding, or
+malformed JSON closes with code 4000. After the handshake, an unknown `t` produces a nonfatal
+`{ t:'err', code:'PARSE_ERROR' }` and leaves the socket open.
+
+The Host interface reserves an optional ping/pong auto-response capability.
+Adapters may answer literal ping without waking a hibernating host. Since this
+response performs no application work, it is deliberately independent of the
+persisted handshake phase.
+
+## Host to client frames
+
+`P` below is `{ cid: string, uid?: string, d?: unknown }`. `E` is
+`{ t:'ev', seq: number, ev: string, d?: unknown }`.
+
+| Frame      | Shape                                                                               | Behavior                                                                                  |
+| ---------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `welcome`  | `{ t:'welcome', v:1, cid, seq, presence:P[], replay:E[], reset?:true, more?:true }` | One bounded snapshot/replay chunk. `more:true` promises another chunk.                    |
+| `ev`       | `{ t:'ev', seq, ev, d?:unknown }`                                                   | Logged broadcast with a strictly increasing host sequence.                                |
+| `evt`      | `{ t:'evt', ev, d?:unknown }`                                                       | Targeted event that does not advance the durable cursor.                                  |
+| `res`      | `{ t:'res', id, ok:true, d?:unknown }` or `{ t:'res', id, ok:false, e }`            | Independent result for one acknowledged emit or call. `e` is `{ code, message?, data? }`. |
+| `presence` | `{ t:'presence', join?:P[], update?:P[], leave?:string[] }`                         | A nonempty diff. One `cid` cannot occur twice in a frame.                                 |
+| `err`      | `{ t:'err', code, message?:string }`                                                | Nonfatal protocol failure without a request ID.                                           |
+| `bye`      | `{ t:'bye', code, reason, retry?:number }`                                          | Final host instruction before close. `retry` is a nonnegative delay in milliseconds.      |
+| pong       | literal `pong`                                                                      | Response to literal `ping`.                                                               |
+
+Close codes are 4000 for a protocol error, 4001 for unauthorized, 4002 for an
+expired grant, 4003 for a kick, 4008 for a client that must reconnect and resume,
+and 4013 for an oversized payload.
+
+## Welcome, resume, and reset
+
+The host serializes replay, presence, broadcasts, and close cleanup through one
+rejection-safe delivery mutex. `hello` moves the attachment to `resuming`, then
+the engine captures one event head and one presence snapshot. It partitions
+both presence and replay across welcome frames. Every chunk repeats the same
+`cid`, `seq`, and `reset`; the arrays contain disjoint partitions. Every
+nonterminal chunk has `more:true`, and the terminal chunk omits `more`.
+
+The preferred chunk size is 256 KiB and no encoded chunk may exceed the host's
+`maxFrameBytes`. Presence is chunked along with replay. If one entry or event
+cannot fit, the host closes with 4013. A send or encode failure after a partial
+welcome closes the socket. A socket found in persisted `resuming` phase after a
+wake also closes, allowing the client to reconnect from the last event it
+presented.
+
+For a retained range whose oldest sequence is `oldest` and current head is
+`head`:
+
+- No `since` starts at `head` and has no replay.
+- `oldest - 1 <= since <= head` replays `(since, head]` in ascending order.
+- A cursor older than `oldest - 1` or ahead of `head` resets at `head`.
+
+A reset welcome has `reset:true` and an empty replay in every chunk. Presence may
+still require several chunks.
+
+The client applies replay events as each chunk arrives. It deduplicates by
+sequence and persists only the highest event it actually presented. It does not
+advance to the advertised `seq` until the terminal chunk arrives. The client
+assembles the presence partitions separately and replaces its snapshot only at
+the terminal chunk. A reset notification also waits for that barrier.
+
+After sending the terminal chunk, the engine persists `ready` before it releases
+the mutex. The mutex prevents logged events and presence diffs from reaching the
+socket before that terminal frame. The client treats any other host frame during
+resume as a protocol error. Once ready, new events follow the captured head and
+presence diffs follow the captured snapshot.
+
+Delivery from the log is at least once. Sequence deduplication gives each client
+one presentation of a logged event. Ordering is per host only. `since` belongs
+to the client and may persist in session storage; it does not acknowledge or
+reclaim a previous `cid`.
+
+## Presence, backpressure, and durable work
+
+The first valid presence update creates a join, later values create updates, and
+socket cleanup creates a leave. Welcome entries sort by `cid`. The delivery
+mutex orders concurrent snapshot and diff work. A durable sweep removes presence
+records whose `cid` no longer exists in `host.connections()` and broadcasts the
+leave after deletion.
+
+An adapter may expose `Connection.bufferedAmount` as queued bytes. The engine
+applies its backpressure byte limit only when that capability exists. It never
+treats a queued frame count as bytes.
+
+Runtime memory is a cache. Attachments, storage, live runtime sockets, and the
+single durable alarm contain all authoritative state. Timer handlers delete a
+timer only after successful completion. A failed callback remains stored and
+re-arms the alarm for the configured retry delay.
 
 ---
 

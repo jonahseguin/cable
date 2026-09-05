@@ -4,8 +4,11 @@ Status: accepted during M1, 2026-09-05. Clarifies DESIGN sections 5.1 and 5.2.
 
 `c.query`, `c.mutation`, and `c.channel` install the same non-enumerable node
 brand. `c.contract` checks that shallow brand while walking a definition, then
-installs a separate root brand after its runtime validation succeeds. Structural
-lookalikes are not contract nodes.
+installs a separate root brand after its runtime validation succeeds and freezes
+the branch objects. Contract branches contain data properties only, so an
+accessor cannot return one value during validation and another during use.
+Structural lookalikes are not contract nodes, and later mutation cannot
+invalidate the evidence recorded by the root brand.
 
 Consumers that accept a complete contract constrain it to the minimal
 `AnyContract` root brand. They do not prove every schema-backed leaf against the

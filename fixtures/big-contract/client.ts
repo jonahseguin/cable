@@ -1,9 +1,8 @@
 import { createClient } from "@cable/client";
-import type { Link } from "@cable/client";
+import type { ChannelStatus, Link, PresenceMember } from "@cable/client";
 import type {
   InferChannelParams,
   InferClientEventErrors,
-  InferClientEventInput,
   InferErrors,
   InferInput,
   InferOutput,
@@ -11,10 +10,10 @@ import type {
   InferServerEvent,
 } from "@cable/contract";
 
-import type { Api, api } from "./contract.js";
+import { api, type Api } from "./contract.js";
 
 const memoryLink: Link = () => async (call) => ({ id: call.id, ok: true, data: undefined });
-const client = createClient<Api>({ links: [memoryLink] });
+const client = createClient<Api>({ contract: api, links: [memoryLink] });
 
 const input0: InferInput<typeof api.group0.section0.procedure0> = {
   id: "item-0",
@@ -3023,842 +3022,2662 @@ export const procedureErrors = [
   error199,
 ] as const;
 
-export interface Channel0Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel0>;
-  readonly created: InferServerEvent<typeof api.channels.channel0, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel0, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel0, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel0, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel0, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel0, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel0, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel0, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel0, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel0, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel0)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel0)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel0)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel0)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel0)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel0)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel0>;
-}
+const channel0Params: InferChannelParams<typeof api.channels.channel0> = { roomId: "room-0" };
+const channel0 = client.channels.channel0(channel0Params);
+export const channel0Status: ChannelStatus = channel0.status;
+export const channel0Created = channel0.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel0, "created"> = event;
+  void value;
+});
+export const channel0Updated = channel0.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel0, "updated"> = event;
+  void value;
+});
+export const channel0Deleted = channel0.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel0, "deleted"> = event;
+  void value;
+});
+export const channel0Typing = channel0.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel0, "typing"> = event;
+  void value;
+});
+export const channel0Send: Promise<void> = channel0.send(
+  { text: "message-0", nonce: 0 },
+  { ack: true },
+);
+channel0.edit({ id: "item-0", text: "edited-0", nonce: 0 });
+channel0.remove({ id: "item-0", nonce: 0 });
+export const channel0SendError: InferClientEventErrors<typeof api.channels.channel0, "send"> = {
+  code: "MUTED",
+  data: { until: 0 },
+};
+export const channel0EditError: InferClientEventErrors<typeof api.channels.channel0, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 0 },
+};
+export const channel0RemoveError: InferClientEventErrors<typeof api.channels.channel0, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-0" },
+};
+export const channel0Load: Promise<
+  InferOutput<(typeof api.channels.channel0)["procedures"]["load"]>
+> = channel0.load({ cursor: 0, channel: 0 });
+export const channel0LoadError: InferErrors<(typeof api.channels.channel0)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-0" },
+  };
+export const channel0Moderate: Promise<
+  InferOutput<(typeof api.channels.channel0)["procedures"]["moderate"]>
+> = channel0.moderate({ userId: "user-0", channel: 0 });
+export const channel0ModerateError: InferErrors<
+  (typeof api.channels.channel0)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-0" },
+};
+channel0.presence.update({ typing: true, channel: 0 });
+export const channel0Presence: InferPresence<typeof api.channels.channel0> | undefined =
+  channel0.presence.self;
+export const channel0Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel0>
+>[] = channel0.presence.others;
+export const channel0PresenceOff = channel0.presence.on(() => undefined);
+export const channel0Dispose = (): void => {
+  channel0.dispose();
+};
 
-export interface Channel1Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel1>;
-  readonly created: InferServerEvent<typeof api.channels.channel1, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel1, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel1, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel1, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel1, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel1, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel1, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel1, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel1, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel1, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel1)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel1)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel1)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel1)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel1)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel1)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel1>;
-}
+const channel1Params: InferChannelParams<typeof api.channels.channel1> = { roomId: "room-1" };
+const channel1 = client.channels.channel1(channel1Params);
+export const channel1Status: ChannelStatus = channel1.status;
+export const channel1Created = channel1.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel1, "created"> = event;
+  void value;
+});
+export const channel1Updated = channel1.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel1, "updated"> = event;
+  void value;
+});
+export const channel1Deleted = channel1.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel1, "deleted"> = event;
+  void value;
+});
+export const channel1Typing = channel1.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel1, "typing"> = event;
+  void value;
+});
+export const channel1Send: Promise<void> = channel1.send(
+  { text: "message-1", nonce: 1 },
+  { ack: true },
+);
+channel1.edit({ id: "item-1", text: "edited-1", nonce: 1 });
+channel1.remove({ id: "item-1", nonce: 1 });
+export const channel1SendError: InferClientEventErrors<typeof api.channels.channel1, "send"> = {
+  code: "MUTED",
+  data: { until: 1 },
+};
+export const channel1EditError: InferClientEventErrors<typeof api.channels.channel1, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 1 },
+};
+export const channel1RemoveError: InferClientEventErrors<typeof api.channels.channel1, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-1" },
+};
+export const channel1Load: Promise<
+  InferOutput<(typeof api.channels.channel1)["procedures"]["load"]>
+> = channel1.load({ cursor: 1, channel: 1 });
+export const channel1LoadError: InferErrors<(typeof api.channels.channel1)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-1" },
+  };
+export const channel1Moderate: Promise<
+  InferOutput<(typeof api.channels.channel1)["procedures"]["moderate"]>
+> = channel1.moderate({ userId: "user-1", channel: 1 });
+export const channel1ModerateError: InferErrors<
+  (typeof api.channels.channel1)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-1" },
+};
+channel1.presence.update({ typing: true, channel: 1 });
+export const channel1Presence: InferPresence<typeof api.channels.channel1> | undefined =
+  channel1.presence.self;
+export const channel1Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel1>
+>[] = channel1.presence.others;
+export const channel1PresenceOff = channel1.presence.on(() => undefined);
+export const channel1Dispose = (): void => {
+  channel1.dispose();
+};
 
-export interface Channel2Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel2>;
-  readonly created: InferServerEvent<typeof api.channels.channel2, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel2, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel2, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel2, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel2, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel2, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel2, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel2, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel2, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel2, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel2)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel2)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel2)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel2)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel2)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel2)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel2>;
-}
+const channel2Params: InferChannelParams<typeof api.channels.channel2> = { roomId: "room-2" };
+const channel2 = client.channels.channel2(channel2Params);
+export const channel2Status: ChannelStatus = channel2.status;
+export const channel2Created = channel2.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel2, "created"> = event;
+  void value;
+});
+export const channel2Updated = channel2.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel2, "updated"> = event;
+  void value;
+});
+export const channel2Deleted = channel2.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel2, "deleted"> = event;
+  void value;
+});
+export const channel2Typing = channel2.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel2, "typing"> = event;
+  void value;
+});
+export const channel2Send: Promise<void> = channel2.send(
+  { text: "message-2", nonce: 2 },
+  { ack: true },
+);
+channel2.edit({ id: "item-2", text: "edited-2", nonce: 2 });
+channel2.remove({ id: "item-2", nonce: 2 });
+export const channel2SendError: InferClientEventErrors<typeof api.channels.channel2, "send"> = {
+  code: "MUTED",
+  data: { until: 2 },
+};
+export const channel2EditError: InferClientEventErrors<typeof api.channels.channel2, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 2 },
+};
+export const channel2RemoveError: InferClientEventErrors<typeof api.channels.channel2, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-2" },
+};
+export const channel2Load: Promise<
+  InferOutput<(typeof api.channels.channel2)["procedures"]["load"]>
+> = channel2.load({ cursor: 2, channel: 2 });
+export const channel2LoadError: InferErrors<(typeof api.channels.channel2)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-2" },
+  };
+export const channel2Moderate: Promise<
+  InferOutput<(typeof api.channels.channel2)["procedures"]["moderate"]>
+> = channel2.moderate({ userId: "user-2", channel: 2 });
+export const channel2ModerateError: InferErrors<
+  (typeof api.channels.channel2)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-2" },
+};
+channel2.presence.update({ typing: true, channel: 2 });
+export const channel2Presence: InferPresence<typeof api.channels.channel2> | undefined =
+  channel2.presence.self;
+export const channel2Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel2>
+>[] = channel2.presence.others;
+export const channel2PresenceOff = channel2.presence.on(() => undefined);
+export const channel2Dispose = (): void => {
+  channel2.dispose();
+};
 
-export interface Channel3Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel3>;
-  readonly created: InferServerEvent<typeof api.channels.channel3, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel3, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel3, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel3, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel3, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel3, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel3, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel3, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel3, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel3, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel3)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel3)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel3)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel3)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel3)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel3)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel3>;
-}
+const channel3Params: InferChannelParams<typeof api.channels.channel3> = { roomId: "room-3" };
+const channel3 = client.channels.channel3(channel3Params);
+export const channel3Status: ChannelStatus = channel3.status;
+export const channel3Created = channel3.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel3, "created"> = event;
+  void value;
+});
+export const channel3Updated = channel3.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel3, "updated"> = event;
+  void value;
+});
+export const channel3Deleted = channel3.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel3, "deleted"> = event;
+  void value;
+});
+export const channel3Typing = channel3.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel3, "typing"> = event;
+  void value;
+});
+export const channel3Send: Promise<void> = channel3.send(
+  { text: "message-3", nonce: 3 },
+  { ack: true },
+);
+channel3.edit({ id: "item-3", text: "edited-3", nonce: 3 });
+channel3.remove({ id: "item-3", nonce: 3 });
+export const channel3SendError: InferClientEventErrors<typeof api.channels.channel3, "send"> = {
+  code: "MUTED",
+  data: { until: 3 },
+};
+export const channel3EditError: InferClientEventErrors<typeof api.channels.channel3, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 3 },
+};
+export const channel3RemoveError: InferClientEventErrors<typeof api.channels.channel3, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-3" },
+};
+export const channel3Load: Promise<
+  InferOutput<(typeof api.channels.channel3)["procedures"]["load"]>
+> = channel3.load({ cursor: 3, channel: 3 });
+export const channel3LoadError: InferErrors<(typeof api.channels.channel3)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-3" },
+  };
+export const channel3Moderate: Promise<
+  InferOutput<(typeof api.channels.channel3)["procedures"]["moderate"]>
+> = channel3.moderate({ userId: "user-3", channel: 3 });
+export const channel3ModerateError: InferErrors<
+  (typeof api.channels.channel3)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-3" },
+};
+channel3.presence.update({ typing: true, channel: 3 });
+export const channel3Presence: InferPresence<typeof api.channels.channel3> | undefined =
+  channel3.presence.self;
+export const channel3Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel3>
+>[] = channel3.presence.others;
+export const channel3PresenceOff = channel3.presence.on(() => undefined);
+export const channel3Dispose = (): void => {
+  channel3.dispose();
+};
 
-export interface Channel4Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel4>;
-  readonly created: InferServerEvent<typeof api.channels.channel4, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel4, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel4, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel4, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel4, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel4, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel4, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel4, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel4, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel4, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel4)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel4)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel4)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel4)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel4)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel4)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel4>;
-}
+const channel4Params: InferChannelParams<typeof api.channels.channel4> = { roomId: "room-4" };
+const channel4 = client.channels.channel4(channel4Params);
+export const channel4Status: ChannelStatus = channel4.status;
+export const channel4Created = channel4.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel4, "created"> = event;
+  void value;
+});
+export const channel4Updated = channel4.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel4, "updated"> = event;
+  void value;
+});
+export const channel4Deleted = channel4.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel4, "deleted"> = event;
+  void value;
+});
+export const channel4Typing = channel4.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel4, "typing"> = event;
+  void value;
+});
+export const channel4Send: Promise<void> = channel4.send(
+  { text: "message-4", nonce: 4 },
+  { ack: true },
+);
+channel4.edit({ id: "item-4", text: "edited-4", nonce: 4 });
+channel4.remove({ id: "item-4", nonce: 4 });
+export const channel4SendError: InferClientEventErrors<typeof api.channels.channel4, "send"> = {
+  code: "MUTED",
+  data: { until: 4 },
+};
+export const channel4EditError: InferClientEventErrors<typeof api.channels.channel4, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 4 },
+};
+export const channel4RemoveError: InferClientEventErrors<typeof api.channels.channel4, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-4" },
+};
+export const channel4Load: Promise<
+  InferOutput<(typeof api.channels.channel4)["procedures"]["load"]>
+> = channel4.load({ cursor: 4, channel: 4 });
+export const channel4LoadError: InferErrors<(typeof api.channels.channel4)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-4" },
+  };
+export const channel4Moderate: Promise<
+  InferOutput<(typeof api.channels.channel4)["procedures"]["moderate"]>
+> = channel4.moderate({ userId: "user-4", channel: 4 });
+export const channel4ModerateError: InferErrors<
+  (typeof api.channels.channel4)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-4" },
+};
+channel4.presence.update({ typing: true, channel: 4 });
+export const channel4Presence: InferPresence<typeof api.channels.channel4> | undefined =
+  channel4.presence.self;
+export const channel4Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel4>
+>[] = channel4.presence.others;
+export const channel4PresenceOff = channel4.presence.on(() => undefined);
+export const channel4Dispose = (): void => {
+  channel4.dispose();
+};
 
-export interface Channel5Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel5>;
-  readonly created: InferServerEvent<typeof api.channels.channel5, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel5, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel5, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel5, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel5, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel5, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel5, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel5, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel5, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel5, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel5)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel5)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel5)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel5)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel5)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel5)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel5>;
-}
+const channel5Params: InferChannelParams<typeof api.channels.channel5> = { roomId: "room-5" };
+const channel5 = client.channels.channel5(channel5Params);
+export const channel5Status: ChannelStatus = channel5.status;
+export const channel5Created = channel5.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel5, "created"> = event;
+  void value;
+});
+export const channel5Updated = channel5.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel5, "updated"> = event;
+  void value;
+});
+export const channel5Deleted = channel5.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel5, "deleted"> = event;
+  void value;
+});
+export const channel5Typing = channel5.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel5, "typing"> = event;
+  void value;
+});
+export const channel5Send: Promise<void> = channel5.send(
+  { text: "message-5", nonce: 5 },
+  { ack: true },
+);
+channel5.edit({ id: "item-5", text: "edited-5", nonce: 5 });
+channel5.remove({ id: "item-5", nonce: 5 });
+export const channel5SendError: InferClientEventErrors<typeof api.channels.channel5, "send"> = {
+  code: "MUTED",
+  data: { until: 5 },
+};
+export const channel5EditError: InferClientEventErrors<typeof api.channels.channel5, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 5 },
+};
+export const channel5RemoveError: InferClientEventErrors<typeof api.channels.channel5, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-5" },
+};
+export const channel5Load: Promise<
+  InferOutput<(typeof api.channels.channel5)["procedures"]["load"]>
+> = channel5.load({ cursor: 5, channel: 5 });
+export const channel5LoadError: InferErrors<(typeof api.channels.channel5)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-5" },
+  };
+export const channel5Moderate: Promise<
+  InferOutput<(typeof api.channels.channel5)["procedures"]["moderate"]>
+> = channel5.moderate({ userId: "user-5", channel: 5 });
+export const channel5ModerateError: InferErrors<
+  (typeof api.channels.channel5)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-5" },
+};
+channel5.presence.update({ typing: true, channel: 5 });
+export const channel5Presence: InferPresence<typeof api.channels.channel5> | undefined =
+  channel5.presence.self;
+export const channel5Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel5>
+>[] = channel5.presence.others;
+export const channel5PresenceOff = channel5.presence.on(() => undefined);
+export const channel5Dispose = (): void => {
+  channel5.dispose();
+};
 
-export interface Channel6Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel6>;
-  readonly created: InferServerEvent<typeof api.channels.channel6, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel6, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel6, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel6, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel6, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel6, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel6, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel6, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel6, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel6, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel6)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel6)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel6)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel6)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel6)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel6)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel6>;
-}
+const channel6Params: InferChannelParams<typeof api.channels.channel6> = { roomId: "room-6" };
+const channel6 = client.channels.channel6(channel6Params);
+export const channel6Status: ChannelStatus = channel6.status;
+export const channel6Created = channel6.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel6, "created"> = event;
+  void value;
+});
+export const channel6Updated = channel6.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel6, "updated"> = event;
+  void value;
+});
+export const channel6Deleted = channel6.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel6, "deleted"> = event;
+  void value;
+});
+export const channel6Typing = channel6.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel6, "typing"> = event;
+  void value;
+});
+export const channel6Send: Promise<void> = channel6.send(
+  { text: "message-6", nonce: 6 },
+  { ack: true },
+);
+channel6.edit({ id: "item-6", text: "edited-6", nonce: 6 });
+channel6.remove({ id: "item-6", nonce: 6 });
+export const channel6SendError: InferClientEventErrors<typeof api.channels.channel6, "send"> = {
+  code: "MUTED",
+  data: { until: 6 },
+};
+export const channel6EditError: InferClientEventErrors<typeof api.channels.channel6, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 6 },
+};
+export const channel6RemoveError: InferClientEventErrors<typeof api.channels.channel6, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-6" },
+};
+export const channel6Load: Promise<
+  InferOutput<(typeof api.channels.channel6)["procedures"]["load"]>
+> = channel6.load({ cursor: 6, channel: 6 });
+export const channel6LoadError: InferErrors<(typeof api.channels.channel6)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-6" },
+  };
+export const channel6Moderate: Promise<
+  InferOutput<(typeof api.channels.channel6)["procedures"]["moderate"]>
+> = channel6.moderate({ userId: "user-6", channel: 6 });
+export const channel6ModerateError: InferErrors<
+  (typeof api.channels.channel6)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-6" },
+};
+channel6.presence.update({ typing: true, channel: 6 });
+export const channel6Presence: InferPresence<typeof api.channels.channel6> | undefined =
+  channel6.presence.self;
+export const channel6Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel6>
+>[] = channel6.presence.others;
+export const channel6PresenceOff = channel6.presence.on(() => undefined);
+export const channel6Dispose = (): void => {
+  channel6.dispose();
+};
 
-export interface Channel7Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel7>;
-  readonly created: InferServerEvent<typeof api.channels.channel7, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel7, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel7, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel7, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel7, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel7, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel7, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel7, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel7, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel7, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel7)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel7)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel7)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel7)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel7)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel7)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel7>;
-}
+const channel7Params: InferChannelParams<typeof api.channels.channel7> = { roomId: "room-7" };
+const channel7 = client.channels.channel7(channel7Params);
+export const channel7Status: ChannelStatus = channel7.status;
+export const channel7Created = channel7.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel7, "created"> = event;
+  void value;
+});
+export const channel7Updated = channel7.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel7, "updated"> = event;
+  void value;
+});
+export const channel7Deleted = channel7.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel7, "deleted"> = event;
+  void value;
+});
+export const channel7Typing = channel7.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel7, "typing"> = event;
+  void value;
+});
+export const channel7Send: Promise<void> = channel7.send(
+  { text: "message-7", nonce: 7 },
+  { ack: true },
+);
+channel7.edit({ id: "item-7", text: "edited-7", nonce: 7 });
+channel7.remove({ id: "item-7", nonce: 7 });
+export const channel7SendError: InferClientEventErrors<typeof api.channels.channel7, "send"> = {
+  code: "MUTED",
+  data: { until: 7 },
+};
+export const channel7EditError: InferClientEventErrors<typeof api.channels.channel7, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 7 },
+};
+export const channel7RemoveError: InferClientEventErrors<typeof api.channels.channel7, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-7" },
+};
+export const channel7Load: Promise<
+  InferOutput<(typeof api.channels.channel7)["procedures"]["load"]>
+> = channel7.load({ cursor: 7, channel: 7 });
+export const channel7LoadError: InferErrors<(typeof api.channels.channel7)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-7" },
+  };
+export const channel7Moderate: Promise<
+  InferOutput<(typeof api.channels.channel7)["procedures"]["moderate"]>
+> = channel7.moderate({ userId: "user-7", channel: 7 });
+export const channel7ModerateError: InferErrors<
+  (typeof api.channels.channel7)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-7" },
+};
+channel7.presence.update({ typing: true, channel: 7 });
+export const channel7Presence: InferPresence<typeof api.channels.channel7> | undefined =
+  channel7.presence.self;
+export const channel7Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel7>
+>[] = channel7.presence.others;
+export const channel7PresenceOff = channel7.presence.on(() => undefined);
+export const channel7Dispose = (): void => {
+  channel7.dispose();
+};
 
-export interface Channel8Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel8>;
-  readonly created: InferServerEvent<typeof api.channels.channel8, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel8, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel8, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel8, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel8, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel8, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel8, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel8, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel8, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel8, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel8)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel8)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel8)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel8)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel8)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel8)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel8>;
-}
+const channel8Params: InferChannelParams<typeof api.channels.channel8> = { roomId: "room-8" };
+const channel8 = client.channels.channel8(channel8Params);
+export const channel8Status: ChannelStatus = channel8.status;
+export const channel8Created = channel8.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel8, "created"> = event;
+  void value;
+});
+export const channel8Updated = channel8.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel8, "updated"> = event;
+  void value;
+});
+export const channel8Deleted = channel8.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel8, "deleted"> = event;
+  void value;
+});
+export const channel8Typing = channel8.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel8, "typing"> = event;
+  void value;
+});
+export const channel8Send: Promise<void> = channel8.send(
+  { text: "message-8", nonce: 8 },
+  { ack: true },
+);
+channel8.edit({ id: "item-8", text: "edited-8", nonce: 8 });
+channel8.remove({ id: "item-8", nonce: 8 });
+export const channel8SendError: InferClientEventErrors<typeof api.channels.channel8, "send"> = {
+  code: "MUTED",
+  data: { until: 8 },
+};
+export const channel8EditError: InferClientEventErrors<typeof api.channels.channel8, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 8 },
+};
+export const channel8RemoveError: InferClientEventErrors<typeof api.channels.channel8, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-8" },
+};
+export const channel8Load: Promise<
+  InferOutput<(typeof api.channels.channel8)["procedures"]["load"]>
+> = channel8.load({ cursor: 8, channel: 8 });
+export const channel8LoadError: InferErrors<(typeof api.channels.channel8)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-8" },
+  };
+export const channel8Moderate: Promise<
+  InferOutput<(typeof api.channels.channel8)["procedures"]["moderate"]>
+> = channel8.moderate({ userId: "user-8", channel: 8 });
+export const channel8ModerateError: InferErrors<
+  (typeof api.channels.channel8)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-8" },
+};
+channel8.presence.update({ typing: true, channel: 8 });
+export const channel8Presence: InferPresence<typeof api.channels.channel8> | undefined =
+  channel8.presence.self;
+export const channel8Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel8>
+>[] = channel8.presence.others;
+export const channel8PresenceOff = channel8.presence.on(() => undefined);
+export const channel8Dispose = (): void => {
+  channel8.dispose();
+};
 
-export interface Channel9Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel9>;
-  readonly created: InferServerEvent<typeof api.channels.channel9, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel9, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel9, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel9, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel9, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel9, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel9, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel9, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel9, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel9, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel9)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel9)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel9)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel9)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel9)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel9)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel9>;
-}
+const channel9Params: InferChannelParams<typeof api.channels.channel9> = { roomId: "room-9" };
+const channel9 = client.channels.channel9(channel9Params);
+export const channel9Status: ChannelStatus = channel9.status;
+export const channel9Created = channel9.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel9, "created"> = event;
+  void value;
+});
+export const channel9Updated = channel9.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel9, "updated"> = event;
+  void value;
+});
+export const channel9Deleted = channel9.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel9, "deleted"> = event;
+  void value;
+});
+export const channel9Typing = channel9.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel9, "typing"> = event;
+  void value;
+});
+export const channel9Send: Promise<void> = channel9.send(
+  { text: "message-9", nonce: 9 },
+  { ack: true },
+);
+channel9.edit({ id: "item-9", text: "edited-9", nonce: 9 });
+channel9.remove({ id: "item-9", nonce: 9 });
+export const channel9SendError: InferClientEventErrors<typeof api.channels.channel9, "send"> = {
+  code: "MUTED",
+  data: { until: 9 },
+};
+export const channel9EditError: InferClientEventErrors<typeof api.channels.channel9, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 9 },
+};
+export const channel9RemoveError: InferClientEventErrors<typeof api.channels.channel9, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-9" },
+};
+export const channel9Load: Promise<
+  InferOutput<(typeof api.channels.channel9)["procedures"]["load"]>
+> = channel9.load({ cursor: 9, channel: 9 });
+export const channel9LoadError: InferErrors<(typeof api.channels.channel9)["procedures"]["load"]> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-9" },
+  };
+export const channel9Moderate: Promise<
+  InferOutput<(typeof api.channels.channel9)["procedures"]["moderate"]>
+> = channel9.moderate({ userId: "user-9", channel: 9 });
+export const channel9ModerateError: InferErrors<
+  (typeof api.channels.channel9)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-9" },
+};
+channel9.presence.update({ typing: true, channel: 9 });
+export const channel9Presence: InferPresence<typeof api.channels.channel9> | undefined =
+  channel9.presence.self;
+export const channel9Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel9>
+>[] = channel9.presence.others;
+export const channel9PresenceOff = channel9.presence.on(() => undefined);
+export const channel9Dispose = (): void => {
+  channel9.dispose();
+};
 
-export interface Channel10Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel10>;
-  readonly created: InferServerEvent<typeof api.channels.channel10, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel10, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel10, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel10, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel10, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel10, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel10, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel10, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel10, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel10, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel10)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel10)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel10)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel10)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel10)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel10)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel10>;
-}
+const channel10Params: InferChannelParams<typeof api.channels.channel10> = { roomId: "room-10" };
+const channel10 = client.channels.channel10(channel10Params);
+export const channel10Status: ChannelStatus = channel10.status;
+export const channel10Created = channel10.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel10, "created"> = event;
+  void value;
+});
+export const channel10Updated = channel10.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel10, "updated"> = event;
+  void value;
+});
+export const channel10Deleted = channel10.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel10, "deleted"> = event;
+  void value;
+});
+export const channel10Typing = channel10.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel10, "typing"> = event;
+  void value;
+});
+export const channel10Send: Promise<void> = channel10.send(
+  { text: "message-10", nonce: 10 },
+  { ack: true },
+);
+channel10.edit({ id: "item-10", text: "edited-10", nonce: 10 });
+channel10.remove({ id: "item-10", nonce: 10 });
+export const channel10SendError: InferClientEventErrors<typeof api.channels.channel10, "send"> = {
+  code: "MUTED",
+  data: { until: 10 },
+};
+export const channel10EditError: InferClientEventErrors<typeof api.channels.channel10, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 10 },
+};
+export const channel10RemoveError: InferClientEventErrors<typeof api.channels.channel10, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-10" },
+  };
+export const channel10Load: Promise<
+  InferOutput<(typeof api.channels.channel10)["procedures"]["load"]>
+> = channel10.load({ cursor: 10, channel: 10 });
+export const channel10LoadError: InferErrors<
+  (typeof api.channels.channel10)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-10" },
+};
+export const channel10Moderate: Promise<
+  InferOutput<(typeof api.channels.channel10)["procedures"]["moderate"]>
+> = channel10.moderate({ userId: "user-10", channel: 10 });
+export const channel10ModerateError: InferErrors<
+  (typeof api.channels.channel10)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-10" },
+};
+channel10.presence.update({ typing: true, channel: 10 });
+export const channel10Presence: InferPresence<typeof api.channels.channel10> | undefined =
+  channel10.presence.self;
+export const channel10Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel10>
+>[] = channel10.presence.others;
+export const channel10PresenceOff = channel10.presence.on(() => undefined);
+export const channel10Dispose = (): void => {
+  channel10.dispose();
+};
 
-export interface Channel11Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel11>;
-  readonly created: InferServerEvent<typeof api.channels.channel11, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel11, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel11, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel11, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel11, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel11, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel11, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel11, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel11, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel11, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel11)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel11)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel11)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel11)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel11)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel11)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel11>;
-}
+const channel11Params: InferChannelParams<typeof api.channels.channel11> = { roomId: "room-11" };
+const channel11 = client.channels.channel11(channel11Params);
+export const channel11Status: ChannelStatus = channel11.status;
+export const channel11Created = channel11.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel11, "created"> = event;
+  void value;
+});
+export const channel11Updated = channel11.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel11, "updated"> = event;
+  void value;
+});
+export const channel11Deleted = channel11.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel11, "deleted"> = event;
+  void value;
+});
+export const channel11Typing = channel11.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel11, "typing"> = event;
+  void value;
+});
+export const channel11Send: Promise<void> = channel11.send(
+  { text: "message-11", nonce: 11 },
+  { ack: true },
+);
+channel11.edit({ id: "item-11", text: "edited-11", nonce: 11 });
+channel11.remove({ id: "item-11", nonce: 11 });
+export const channel11SendError: InferClientEventErrors<typeof api.channels.channel11, "send"> = {
+  code: "MUTED",
+  data: { until: 11 },
+};
+export const channel11EditError: InferClientEventErrors<typeof api.channels.channel11, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 11 },
+};
+export const channel11RemoveError: InferClientEventErrors<typeof api.channels.channel11, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-11" },
+  };
+export const channel11Load: Promise<
+  InferOutput<(typeof api.channels.channel11)["procedures"]["load"]>
+> = channel11.load({ cursor: 11, channel: 11 });
+export const channel11LoadError: InferErrors<
+  (typeof api.channels.channel11)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-11" },
+};
+export const channel11Moderate: Promise<
+  InferOutput<(typeof api.channels.channel11)["procedures"]["moderate"]>
+> = channel11.moderate({ userId: "user-11", channel: 11 });
+export const channel11ModerateError: InferErrors<
+  (typeof api.channels.channel11)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-11" },
+};
+channel11.presence.update({ typing: true, channel: 11 });
+export const channel11Presence: InferPresence<typeof api.channels.channel11> | undefined =
+  channel11.presence.self;
+export const channel11Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel11>
+>[] = channel11.presence.others;
+export const channel11PresenceOff = channel11.presence.on(() => undefined);
+export const channel11Dispose = (): void => {
+  channel11.dispose();
+};
 
-export interface Channel12Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel12>;
-  readonly created: InferServerEvent<typeof api.channels.channel12, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel12, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel12, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel12, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel12, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel12, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel12, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel12, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel12, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel12, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel12)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel12)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel12)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel12)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel12)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel12)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel12>;
-}
+const channel12Params: InferChannelParams<typeof api.channels.channel12> = { roomId: "room-12" };
+const channel12 = client.channels.channel12(channel12Params);
+export const channel12Status: ChannelStatus = channel12.status;
+export const channel12Created = channel12.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel12, "created"> = event;
+  void value;
+});
+export const channel12Updated = channel12.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel12, "updated"> = event;
+  void value;
+});
+export const channel12Deleted = channel12.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel12, "deleted"> = event;
+  void value;
+});
+export const channel12Typing = channel12.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel12, "typing"> = event;
+  void value;
+});
+export const channel12Send: Promise<void> = channel12.send(
+  { text: "message-12", nonce: 12 },
+  { ack: true },
+);
+channel12.edit({ id: "item-12", text: "edited-12", nonce: 12 });
+channel12.remove({ id: "item-12", nonce: 12 });
+export const channel12SendError: InferClientEventErrors<typeof api.channels.channel12, "send"> = {
+  code: "MUTED",
+  data: { until: 12 },
+};
+export const channel12EditError: InferClientEventErrors<typeof api.channels.channel12, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 12 },
+};
+export const channel12RemoveError: InferClientEventErrors<typeof api.channels.channel12, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-12" },
+  };
+export const channel12Load: Promise<
+  InferOutput<(typeof api.channels.channel12)["procedures"]["load"]>
+> = channel12.load({ cursor: 12, channel: 12 });
+export const channel12LoadError: InferErrors<
+  (typeof api.channels.channel12)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-12" },
+};
+export const channel12Moderate: Promise<
+  InferOutput<(typeof api.channels.channel12)["procedures"]["moderate"]>
+> = channel12.moderate({ userId: "user-12", channel: 12 });
+export const channel12ModerateError: InferErrors<
+  (typeof api.channels.channel12)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-12" },
+};
+channel12.presence.update({ typing: true, channel: 12 });
+export const channel12Presence: InferPresence<typeof api.channels.channel12> | undefined =
+  channel12.presence.self;
+export const channel12Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel12>
+>[] = channel12.presence.others;
+export const channel12PresenceOff = channel12.presence.on(() => undefined);
+export const channel12Dispose = (): void => {
+  channel12.dispose();
+};
 
-export interface Channel13Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel13>;
-  readonly created: InferServerEvent<typeof api.channels.channel13, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel13, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel13, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel13, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel13, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel13, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel13, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel13, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel13, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel13, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel13)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel13)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel13)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel13)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel13)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel13)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel13>;
-}
+const channel13Params: InferChannelParams<typeof api.channels.channel13> = { roomId: "room-13" };
+const channel13 = client.channels.channel13(channel13Params);
+export const channel13Status: ChannelStatus = channel13.status;
+export const channel13Created = channel13.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel13, "created"> = event;
+  void value;
+});
+export const channel13Updated = channel13.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel13, "updated"> = event;
+  void value;
+});
+export const channel13Deleted = channel13.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel13, "deleted"> = event;
+  void value;
+});
+export const channel13Typing = channel13.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel13, "typing"> = event;
+  void value;
+});
+export const channel13Send: Promise<void> = channel13.send(
+  { text: "message-13", nonce: 13 },
+  { ack: true },
+);
+channel13.edit({ id: "item-13", text: "edited-13", nonce: 13 });
+channel13.remove({ id: "item-13", nonce: 13 });
+export const channel13SendError: InferClientEventErrors<typeof api.channels.channel13, "send"> = {
+  code: "MUTED",
+  data: { until: 13 },
+};
+export const channel13EditError: InferClientEventErrors<typeof api.channels.channel13, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 13 },
+};
+export const channel13RemoveError: InferClientEventErrors<typeof api.channels.channel13, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-13" },
+  };
+export const channel13Load: Promise<
+  InferOutput<(typeof api.channels.channel13)["procedures"]["load"]>
+> = channel13.load({ cursor: 13, channel: 13 });
+export const channel13LoadError: InferErrors<
+  (typeof api.channels.channel13)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-13" },
+};
+export const channel13Moderate: Promise<
+  InferOutput<(typeof api.channels.channel13)["procedures"]["moderate"]>
+> = channel13.moderate({ userId: "user-13", channel: 13 });
+export const channel13ModerateError: InferErrors<
+  (typeof api.channels.channel13)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-13" },
+};
+channel13.presence.update({ typing: true, channel: 13 });
+export const channel13Presence: InferPresence<typeof api.channels.channel13> | undefined =
+  channel13.presence.self;
+export const channel13Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel13>
+>[] = channel13.presence.others;
+export const channel13PresenceOff = channel13.presence.on(() => undefined);
+export const channel13Dispose = (): void => {
+  channel13.dispose();
+};
 
-export interface Channel14Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel14>;
-  readonly created: InferServerEvent<typeof api.channels.channel14, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel14, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel14, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel14, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel14, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel14, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel14, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel14, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel14, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel14, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel14)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel14)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel14)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel14)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel14)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel14)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel14>;
-}
+const channel14Params: InferChannelParams<typeof api.channels.channel14> = { roomId: "room-14" };
+const channel14 = client.channels.channel14(channel14Params);
+export const channel14Status: ChannelStatus = channel14.status;
+export const channel14Created = channel14.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel14, "created"> = event;
+  void value;
+});
+export const channel14Updated = channel14.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel14, "updated"> = event;
+  void value;
+});
+export const channel14Deleted = channel14.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel14, "deleted"> = event;
+  void value;
+});
+export const channel14Typing = channel14.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel14, "typing"> = event;
+  void value;
+});
+export const channel14Send: Promise<void> = channel14.send(
+  { text: "message-14", nonce: 14 },
+  { ack: true },
+);
+channel14.edit({ id: "item-14", text: "edited-14", nonce: 14 });
+channel14.remove({ id: "item-14", nonce: 14 });
+export const channel14SendError: InferClientEventErrors<typeof api.channels.channel14, "send"> = {
+  code: "MUTED",
+  data: { until: 14 },
+};
+export const channel14EditError: InferClientEventErrors<typeof api.channels.channel14, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 14 },
+};
+export const channel14RemoveError: InferClientEventErrors<typeof api.channels.channel14, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-14" },
+  };
+export const channel14Load: Promise<
+  InferOutput<(typeof api.channels.channel14)["procedures"]["load"]>
+> = channel14.load({ cursor: 14, channel: 14 });
+export const channel14LoadError: InferErrors<
+  (typeof api.channels.channel14)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-14" },
+};
+export const channel14Moderate: Promise<
+  InferOutput<(typeof api.channels.channel14)["procedures"]["moderate"]>
+> = channel14.moderate({ userId: "user-14", channel: 14 });
+export const channel14ModerateError: InferErrors<
+  (typeof api.channels.channel14)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-14" },
+};
+channel14.presence.update({ typing: true, channel: 14 });
+export const channel14Presence: InferPresence<typeof api.channels.channel14> | undefined =
+  channel14.presence.self;
+export const channel14Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel14>
+>[] = channel14.presence.others;
+export const channel14PresenceOff = channel14.presence.on(() => undefined);
+export const channel14Dispose = (): void => {
+  channel14.dispose();
+};
 
-export interface Channel15Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel15>;
-  readonly created: InferServerEvent<typeof api.channels.channel15, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel15, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel15, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel15, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel15, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel15, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel15, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel15, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel15, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel15, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel15)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel15)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel15)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel15)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel15)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel15)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel15>;
-}
+const channel15Params: InferChannelParams<typeof api.channels.channel15> = { roomId: "room-15" };
+const channel15 = client.channels.channel15(channel15Params);
+export const channel15Status: ChannelStatus = channel15.status;
+export const channel15Created = channel15.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel15, "created"> = event;
+  void value;
+});
+export const channel15Updated = channel15.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel15, "updated"> = event;
+  void value;
+});
+export const channel15Deleted = channel15.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel15, "deleted"> = event;
+  void value;
+});
+export const channel15Typing = channel15.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel15, "typing"> = event;
+  void value;
+});
+export const channel15Send: Promise<void> = channel15.send(
+  { text: "message-15", nonce: 15 },
+  { ack: true },
+);
+channel15.edit({ id: "item-15", text: "edited-15", nonce: 15 });
+channel15.remove({ id: "item-15", nonce: 15 });
+export const channel15SendError: InferClientEventErrors<typeof api.channels.channel15, "send"> = {
+  code: "MUTED",
+  data: { until: 15 },
+};
+export const channel15EditError: InferClientEventErrors<typeof api.channels.channel15, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 15 },
+};
+export const channel15RemoveError: InferClientEventErrors<typeof api.channels.channel15, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-15" },
+  };
+export const channel15Load: Promise<
+  InferOutput<(typeof api.channels.channel15)["procedures"]["load"]>
+> = channel15.load({ cursor: 15, channel: 15 });
+export const channel15LoadError: InferErrors<
+  (typeof api.channels.channel15)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-15" },
+};
+export const channel15Moderate: Promise<
+  InferOutput<(typeof api.channels.channel15)["procedures"]["moderate"]>
+> = channel15.moderate({ userId: "user-15", channel: 15 });
+export const channel15ModerateError: InferErrors<
+  (typeof api.channels.channel15)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-15" },
+};
+channel15.presence.update({ typing: true, channel: 15 });
+export const channel15Presence: InferPresence<typeof api.channels.channel15> | undefined =
+  channel15.presence.self;
+export const channel15Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel15>
+>[] = channel15.presence.others;
+export const channel15PresenceOff = channel15.presence.on(() => undefined);
+export const channel15Dispose = (): void => {
+  channel15.dispose();
+};
 
-export interface Channel16Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel16>;
-  readonly created: InferServerEvent<typeof api.channels.channel16, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel16, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel16, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel16, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel16, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel16, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel16, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel16, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel16, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel16, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel16)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel16)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel16)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel16)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel16)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel16)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel16>;
-}
+const channel16Params: InferChannelParams<typeof api.channels.channel16> = { roomId: "room-16" };
+const channel16 = client.channels.channel16(channel16Params);
+export const channel16Status: ChannelStatus = channel16.status;
+export const channel16Created = channel16.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel16, "created"> = event;
+  void value;
+});
+export const channel16Updated = channel16.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel16, "updated"> = event;
+  void value;
+});
+export const channel16Deleted = channel16.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel16, "deleted"> = event;
+  void value;
+});
+export const channel16Typing = channel16.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel16, "typing"> = event;
+  void value;
+});
+export const channel16Send: Promise<void> = channel16.send(
+  { text: "message-16", nonce: 16 },
+  { ack: true },
+);
+channel16.edit({ id: "item-16", text: "edited-16", nonce: 16 });
+channel16.remove({ id: "item-16", nonce: 16 });
+export const channel16SendError: InferClientEventErrors<typeof api.channels.channel16, "send"> = {
+  code: "MUTED",
+  data: { until: 16 },
+};
+export const channel16EditError: InferClientEventErrors<typeof api.channels.channel16, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 16 },
+};
+export const channel16RemoveError: InferClientEventErrors<typeof api.channels.channel16, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-16" },
+  };
+export const channel16Load: Promise<
+  InferOutput<(typeof api.channels.channel16)["procedures"]["load"]>
+> = channel16.load({ cursor: 16, channel: 16 });
+export const channel16LoadError: InferErrors<
+  (typeof api.channels.channel16)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-16" },
+};
+export const channel16Moderate: Promise<
+  InferOutput<(typeof api.channels.channel16)["procedures"]["moderate"]>
+> = channel16.moderate({ userId: "user-16", channel: 16 });
+export const channel16ModerateError: InferErrors<
+  (typeof api.channels.channel16)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-16" },
+};
+channel16.presence.update({ typing: true, channel: 16 });
+export const channel16Presence: InferPresence<typeof api.channels.channel16> | undefined =
+  channel16.presence.self;
+export const channel16Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel16>
+>[] = channel16.presence.others;
+export const channel16PresenceOff = channel16.presence.on(() => undefined);
+export const channel16Dispose = (): void => {
+  channel16.dispose();
+};
 
-export interface Channel17Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel17>;
-  readonly created: InferServerEvent<typeof api.channels.channel17, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel17, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel17, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel17, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel17, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel17, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel17, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel17, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel17, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel17, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel17)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel17)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel17)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel17)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel17)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel17)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel17>;
-}
+const channel17Params: InferChannelParams<typeof api.channels.channel17> = { roomId: "room-17" };
+const channel17 = client.channels.channel17(channel17Params);
+export const channel17Status: ChannelStatus = channel17.status;
+export const channel17Created = channel17.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel17, "created"> = event;
+  void value;
+});
+export const channel17Updated = channel17.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel17, "updated"> = event;
+  void value;
+});
+export const channel17Deleted = channel17.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel17, "deleted"> = event;
+  void value;
+});
+export const channel17Typing = channel17.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel17, "typing"> = event;
+  void value;
+});
+export const channel17Send: Promise<void> = channel17.send(
+  { text: "message-17", nonce: 17 },
+  { ack: true },
+);
+channel17.edit({ id: "item-17", text: "edited-17", nonce: 17 });
+channel17.remove({ id: "item-17", nonce: 17 });
+export const channel17SendError: InferClientEventErrors<typeof api.channels.channel17, "send"> = {
+  code: "MUTED",
+  data: { until: 17 },
+};
+export const channel17EditError: InferClientEventErrors<typeof api.channels.channel17, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 17 },
+};
+export const channel17RemoveError: InferClientEventErrors<typeof api.channels.channel17, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-17" },
+  };
+export const channel17Load: Promise<
+  InferOutput<(typeof api.channels.channel17)["procedures"]["load"]>
+> = channel17.load({ cursor: 17, channel: 17 });
+export const channel17LoadError: InferErrors<
+  (typeof api.channels.channel17)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-17" },
+};
+export const channel17Moderate: Promise<
+  InferOutput<(typeof api.channels.channel17)["procedures"]["moderate"]>
+> = channel17.moderate({ userId: "user-17", channel: 17 });
+export const channel17ModerateError: InferErrors<
+  (typeof api.channels.channel17)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-17" },
+};
+channel17.presence.update({ typing: true, channel: 17 });
+export const channel17Presence: InferPresence<typeof api.channels.channel17> | undefined =
+  channel17.presence.self;
+export const channel17Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel17>
+>[] = channel17.presence.others;
+export const channel17PresenceOff = channel17.presence.on(() => undefined);
+export const channel17Dispose = (): void => {
+  channel17.dispose();
+};
 
-export interface Channel18Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel18>;
-  readonly created: InferServerEvent<typeof api.channels.channel18, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel18, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel18, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel18, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel18, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel18, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel18, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel18, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel18, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel18, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel18)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel18)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel18)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel18)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel18)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel18)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel18>;
-}
+const channel18Params: InferChannelParams<typeof api.channels.channel18> = { roomId: "room-18" };
+const channel18 = client.channels.channel18(channel18Params);
+export const channel18Status: ChannelStatus = channel18.status;
+export const channel18Created = channel18.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel18, "created"> = event;
+  void value;
+});
+export const channel18Updated = channel18.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel18, "updated"> = event;
+  void value;
+});
+export const channel18Deleted = channel18.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel18, "deleted"> = event;
+  void value;
+});
+export const channel18Typing = channel18.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel18, "typing"> = event;
+  void value;
+});
+export const channel18Send: Promise<void> = channel18.send(
+  { text: "message-18", nonce: 18 },
+  { ack: true },
+);
+channel18.edit({ id: "item-18", text: "edited-18", nonce: 18 });
+channel18.remove({ id: "item-18", nonce: 18 });
+export const channel18SendError: InferClientEventErrors<typeof api.channels.channel18, "send"> = {
+  code: "MUTED",
+  data: { until: 18 },
+};
+export const channel18EditError: InferClientEventErrors<typeof api.channels.channel18, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 18 },
+};
+export const channel18RemoveError: InferClientEventErrors<typeof api.channels.channel18, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-18" },
+  };
+export const channel18Load: Promise<
+  InferOutput<(typeof api.channels.channel18)["procedures"]["load"]>
+> = channel18.load({ cursor: 18, channel: 18 });
+export const channel18LoadError: InferErrors<
+  (typeof api.channels.channel18)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-18" },
+};
+export const channel18Moderate: Promise<
+  InferOutput<(typeof api.channels.channel18)["procedures"]["moderate"]>
+> = channel18.moderate({ userId: "user-18", channel: 18 });
+export const channel18ModerateError: InferErrors<
+  (typeof api.channels.channel18)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-18" },
+};
+channel18.presence.update({ typing: true, channel: 18 });
+export const channel18Presence: InferPresence<typeof api.channels.channel18> | undefined =
+  channel18.presence.self;
+export const channel18Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel18>
+>[] = channel18.presence.others;
+export const channel18PresenceOff = channel18.presence.on(() => undefined);
+export const channel18Dispose = (): void => {
+  channel18.dispose();
+};
 
-export interface Channel19Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel19>;
-  readonly created: InferServerEvent<typeof api.channels.channel19, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel19, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel19, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel19, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel19, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel19, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel19, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel19, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel19, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel19, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel19)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel19)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel19)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel19)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel19)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel19)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel19>;
-}
+const channel19Params: InferChannelParams<typeof api.channels.channel19> = { roomId: "room-19" };
+const channel19 = client.channels.channel19(channel19Params);
+export const channel19Status: ChannelStatus = channel19.status;
+export const channel19Created = channel19.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel19, "created"> = event;
+  void value;
+});
+export const channel19Updated = channel19.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel19, "updated"> = event;
+  void value;
+});
+export const channel19Deleted = channel19.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel19, "deleted"> = event;
+  void value;
+});
+export const channel19Typing = channel19.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel19, "typing"> = event;
+  void value;
+});
+export const channel19Send: Promise<void> = channel19.send(
+  { text: "message-19", nonce: 19 },
+  { ack: true },
+);
+channel19.edit({ id: "item-19", text: "edited-19", nonce: 19 });
+channel19.remove({ id: "item-19", nonce: 19 });
+export const channel19SendError: InferClientEventErrors<typeof api.channels.channel19, "send"> = {
+  code: "MUTED",
+  data: { until: 19 },
+};
+export const channel19EditError: InferClientEventErrors<typeof api.channels.channel19, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 19 },
+};
+export const channel19RemoveError: InferClientEventErrors<typeof api.channels.channel19, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-19" },
+  };
+export const channel19Load: Promise<
+  InferOutput<(typeof api.channels.channel19)["procedures"]["load"]>
+> = channel19.load({ cursor: 19, channel: 19 });
+export const channel19LoadError: InferErrors<
+  (typeof api.channels.channel19)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-19" },
+};
+export const channel19Moderate: Promise<
+  InferOutput<(typeof api.channels.channel19)["procedures"]["moderate"]>
+> = channel19.moderate({ userId: "user-19", channel: 19 });
+export const channel19ModerateError: InferErrors<
+  (typeof api.channels.channel19)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-19" },
+};
+channel19.presence.update({ typing: true, channel: 19 });
+export const channel19Presence: InferPresence<typeof api.channels.channel19> | undefined =
+  channel19.presence.self;
+export const channel19Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel19>
+>[] = channel19.presence.others;
+export const channel19PresenceOff = channel19.presence.on(() => undefined);
+export const channel19Dispose = (): void => {
+  channel19.dispose();
+};
 
-export interface Channel20Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel20>;
-  readonly created: InferServerEvent<typeof api.channels.channel20, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel20, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel20, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel20, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel20, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel20, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel20, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel20, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel20, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel20, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel20)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel20)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel20)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel20)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel20)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel20)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel20>;
-}
+const channel20Params: InferChannelParams<typeof api.channels.channel20> = { roomId: "room-20" };
+const channel20 = client.channels.channel20(channel20Params);
+export const channel20Status: ChannelStatus = channel20.status;
+export const channel20Created = channel20.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel20, "created"> = event;
+  void value;
+});
+export const channel20Updated = channel20.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel20, "updated"> = event;
+  void value;
+});
+export const channel20Deleted = channel20.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel20, "deleted"> = event;
+  void value;
+});
+export const channel20Typing = channel20.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel20, "typing"> = event;
+  void value;
+});
+export const channel20Send: Promise<void> = channel20.send(
+  { text: "message-20", nonce: 20 },
+  { ack: true },
+);
+channel20.edit({ id: "item-20", text: "edited-20", nonce: 20 });
+channel20.remove({ id: "item-20", nonce: 20 });
+export const channel20SendError: InferClientEventErrors<typeof api.channels.channel20, "send"> = {
+  code: "MUTED",
+  data: { until: 20 },
+};
+export const channel20EditError: InferClientEventErrors<typeof api.channels.channel20, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 20 },
+};
+export const channel20RemoveError: InferClientEventErrors<typeof api.channels.channel20, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-20" },
+  };
+export const channel20Load: Promise<
+  InferOutput<(typeof api.channels.channel20)["procedures"]["load"]>
+> = channel20.load({ cursor: 20, channel: 20 });
+export const channel20LoadError: InferErrors<
+  (typeof api.channels.channel20)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-20" },
+};
+export const channel20Moderate: Promise<
+  InferOutput<(typeof api.channels.channel20)["procedures"]["moderate"]>
+> = channel20.moderate({ userId: "user-20", channel: 20 });
+export const channel20ModerateError: InferErrors<
+  (typeof api.channels.channel20)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-20" },
+};
+channel20.presence.update({ typing: true, channel: 20 });
+export const channel20Presence: InferPresence<typeof api.channels.channel20> | undefined =
+  channel20.presence.self;
+export const channel20Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel20>
+>[] = channel20.presence.others;
+export const channel20PresenceOff = channel20.presence.on(() => undefined);
+export const channel20Dispose = (): void => {
+  channel20.dispose();
+};
 
-export interface Channel21Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel21>;
-  readonly created: InferServerEvent<typeof api.channels.channel21, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel21, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel21, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel21, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel21, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel21, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel21, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel21, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel21, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel21, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel21)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel21)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel21)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel21)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel21)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel21)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel21>;
-}
+const channel21Params: InferChannelParams<typeof api.channels.channel21> = { roomId: "room-21" };
+const channel21 = client.channels.channel21(channel21Params);
+export const channel21Status: ChannelStatus = channel21.status;
+export const channel21Created = channel21.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel21, "created"> = event;
+  void value;
+});
+export const channel21Updated = channel21.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel21, "updated"> = event;
+  void value;
+});
+export const channel21Deleted = channel21.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel21, "deleted"> = event;
+  void value;
+});
+export const channel21Typing = channel21.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel21, "typing"> = event;
+  void value;
+});
+export const channel21Send: Promise<void> = channel21.send(
+  { text: "message-21", nonce: 21 },
+  { ack: true },
+);
+channel21.edit({ id: "item-21", text: "edited-21", nonce: 21 });
+channel21.remove({ id: "item-21", nonce: 21 });
+export const channel21SendError: InferClientEventErrors<typeof api.channels.channel21, "send"> = {
+  code: "MUTED",
+  data: { until: 21 },
+};
+export const channel21EditError: InferClientEventErrors<typeof api.channels.channel21, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 21 },
+};
+export const channel21RemoveError: InferClientEventErrors<typeof api.channels.channel21, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-21" },
+  };
+export const channel21Load: Promise<
+  InferOutput<(typeof api.channels.channel21)["procedures"]["load"]>
+> = channel21.load({ cursor: 21, channel: 21 });
+export const channel21LoadError: InferErrors<
+  (typeof api.channels.channel21)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-21" },
+};
+export const channel21Moderate: Promise<
+  InferOutput<(typeof api.channels.channel21)["procedures"]["moderate"]>
+> = channel21.moderate({ userId: "user-21", channel: 21 });
+export const channel21ModerateError: InferErrors<
+  (typeof api.channels.channel21)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-21" },
+};
+channel21.presence.update({ typing: true, channel: 21 });
+export const channel21Presence: InferPresence<typeof api.channels.channel21> | undefined =
+  channel21.presence.self;
+export const channel21Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel21>
+>[] = channel21.presence.others;
+export const channel21PresenceOff = channel21.presence.on(() => undefined);
+export const channel21Dispose = (): void => {
+  channel21.dispose();
+};
 
-export interface Channel22Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel22>;
-  readonly created: InferServerEvent<typeof api.channels.channel22, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel22, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel22, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel22, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel22, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel22, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel22, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel22, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel22, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel22, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel22)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel22)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel22)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel22)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel22)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel22)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel22>;
-}
+const channel22Params: InferChannelParams<typeof api.channels.channel22> = { roomId: "room-22" };
+const channel22 = client.channels.channel22(channel22Params);
+export const channel22Status: ChannelStatus = channel22.status;
+export const channel22Created = channel22.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel22, "created"> = event;
+  void value;
+});
+export const channel22Updated = channel22.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel22, "updated"> = event;
+  void value;
+});
+export const channel22Deleted = channel22.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel22, "deleted"> = event;
+  void value;
+});
+export const channel22Typing = channel22.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel22, "typing"> = event;
+  void value;
+});
+export const channel22Send: Promise<void> = channel22.send(
+  { text: "message-22", nonce: 22 },
+  { ack: true },
+);
+channel22.edit({ id: "item-22", text: "edited-22", nonce: 22 });
+channel22.remove({ id: "item-22", nonce: 22 });
+export const channel22SendError: InferClientEventErrors<typeof api.channels.channel22, "send"> = {
+  code: "MUTED",
+  data: { until: 22 },
+};
+export const channel22EditError: InferClientEventErrors<typeof api.channels.channel22, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 22 },
+};
+export const channel22RemoveError: InferClientEventErrors<typeof api.channels.channel22, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-22" },
+  };
+export const channel22Load: Promise<
+  InferOutput<(typeof api.channels.channel22)["procedures"]["load"]>
+> = channel22.load({ cursor: 22, channel: 22 });
+export const channel22LoadError: InferErrors<
+  (typeof api.channels.channel22)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-22" },
+};
+export const channel22Moderate: Promise<
+  InferOutput<(typeof api.channels.channel22)["procedures"]["moderate"]>
+> = channel22.moderate({ userId: "user-22", channel: 22 });
+export const channel22ModerateError: InferErrors<
+  (typeof api.channels.channel22)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-22" },
+};
+channel22.presence.update({ typing: true, channel: 22 });
+export const channel22Presence: InferPresence<typeof api.channels.channel22> | undefined =
+  channel22.presence.self;
+export const channel22Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel22>
+>[] = channel22.presence.others;
+export const channel22PresenceOff = channel22.presence.on(() => undefined);
+export const channel22Dispose = (): void => {
+  channel22.dispose();
+};
 
-export interface Channel23Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel23>;
-  readonly created: InferServerEvent<typeof api.channels.channel23, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel23, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel23, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel23, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel23, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel23, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel23, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel23, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel23, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel23, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel23)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel23)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel23)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel23)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel23)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel23)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel23>;
-}
+const channel23Params: InferChannelParams<typeof api.channels.channel23> = { roomId: "room-23" };
+const channel23 = client.channels.channel23(channel23Params);
+export const channel23Status: ChannelStatus = channel23.status;
+export const channel23Created = channel23.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel23, "created"> = event;
+  void value;
+});
+export const channel23Updated = channel23.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel23, "updated"> = event;
+  void value;
+});
+export const channel23Deleted = channel23.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel23, "deleted"> = event;
+  void value;
+});
+export const channel23Typing = channel23.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel23, "typing"> = event;
+  void value;
+});
+export const channel23Send: Promise<void> = channel23.send(
+  { text: "message-23", nonce: 23 },
+  { ack: true },
+);
+channel23.edit({ id: "item-23", text: "edited-23", nonce: 23 });
+channel23.remove({ id: "item-23", nonce: 23 });
+export const channel23SendError: InferClientEventErrors<typeof api.channels.channel23, "send"> = {
+  code: "MUTED",
+  data: { until: 23 },
+};
+export const channel23EditError: InferClientEventErrors<typeof api.channels.channel23, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 23 },
+};
+export const channel23RemoveError: InferClientEventErrors<typeof api.channels.channel23, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-23" },
+  };
+export const channel23Load: Promise<
+  InferOutput<(typeof api.channels.channel23)["procedures"]["load"]>
+> = channel23.load({ cursor: 23, channel: 23 });
+export const channel23LoadError: InferErrors<
+  (typeof api.channels.channel23)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-23" },
+};
+export const channel23Moderate: Promise<
+  InferOutput<(typeof api.channels.channel23)["procedures"]["moderate"]>
+> = channel23.moderate({ userId: "user-23", channel: 23 });
+export const channel23ModerateError: InferErrors<
+  (typeof api.channels.channel23)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-23" },
+};
+channel23.presence.update({ typing: true, channel: 23 });
+export const channel23Presence: InferPresence<typeof api.channels.channel23> | undefined =
+  channel23.presence.self;
+export const channel23Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel23>
+>[] = channel23.presence.others;
+export const channel23PresenceOff = channel23.presence.on(() => undefined);
+export const channel23Dispose = (): void => {
+  channel23.dispose();
+};
 
-export interface Channel24Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel24>;
-  readonly created: InferServerEvent<typeof api.channels.channel24, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel24, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel24, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel24, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel24, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel24, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel24, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel24, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel24, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel24, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel24)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel24)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel24)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel24)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel24)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel24)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel24>;
-}
+const channel24Params: InferChannelParams<typeof api.channels.channel24> = { roomId: "room-24" };
+const channel24 = client.channels.channel24(channel24Params);
+export const channel24Status: ChannelStatus = channel24.status;
+export const channel24Created = channel24.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel24, "created"> = event;
+  void value;
+});
+export const channel24Updated = channel24.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel24, "updated"> = event;
+  void value;
+});
+export const channel24Deleted = channel24.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel24, "deleted"> = event;
+  void value;
+});
+export const channel24Typing = channel24.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel24, "typing"> = event;
+  void value;
+});
+export const channel24Send: Promise<void> = channel24.send(
+  { text: "message-24", nonce: 24 },
+  { ack: true },
+);
+channel24.edit({ id: "item-24", text: "edited-24", nonce: 24 });
+channel24.remove({ id: "item-24", nonce: 24 });
+export const channel24SendError: InferClientEventErrors<typeof api.channels.channel24, "send"> = {
+  code: "MUTED",
+  data: { until: 24 },
+};
+export const channel24EditError: InferClientEventErrors<typeof api.channels.channel24, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 24 },
+};
+export const channel24RemoveError: InferClientEventErrors<typeof api.channels.channel24, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-24" },
+  };
+export const channel24Load: Promise<
+  InferOutput<(typeof api.channels.channel24)["procedures"]["load"]>
+> = channel24.load({ cursor: 24, channel: 24 });
+export const channel24LoadError: InferErrors<
+  (typeof api.channels.channel24)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-24" },
+};
+export const channel24Moderate: Promise<
+  InferOutput<(typeof api.channels.channel24)["procedures"]["moderate"]>
+> = channel24.moderate({ userId: "user-24", channel: 24 });
+export const channel24ModerateError: InferErrors<
+  (typeof api.channels.channel24)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-24" },
+};
+channel24.presence.update({ typing: true, channel: 24 });
+export const channel24Presence: InferPresence<typeof api.channels.channel24> | undefined =
+  channel24.presence.self;
+export const channel24Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel24>
+>[] = channel24.presence.others;
+export const channel24PresenceOff = channel24.presence.on(() => undefined);
+export const channel24Dispose = (): void => {
+  channel24.dispose();
+};
 
-export interface Channel25Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel25>;
-  readonly created: InferServerEvent<typeof api.channels.channel25, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel25, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel25, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel25, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel25, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel25, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel25, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel25, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel25, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel25, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel25)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel25)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel25)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel25)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel25)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel25)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel25>;
-}
+const channel25Params: InferChannelParams<typeof api.channels.channel25> = { roomId: "room-25" };
+const channel25 = client.channels.channel25(channel25Params);
+export const channel25Status: ChannelStatus = channel25.status;
+export const channel25Created = channel25.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel25, "created"> = event;
+  void value;
+});
+export const channel25Updated = channel25.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel25, "updated"> = event;
+  void value;
+});
+export const channel25Deleted = channel25.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel25, "deleted"> = event;
+  void value;
+});
+export const channel25Typing = channel25.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel25, "typing"> = event;
+  void value;
+});
+export const channel25Send: Promise<void> = channel25.send(
+  { text: "message-25", nonce: 25 },
+  { ack: true },
+);
+channel25.edit({ id: "item-25", text: "edited-25", nonce: 25 });
+channel25.remove({ id: "item-25", nonce: 25 });
+export const channel25SendError: InferClientEventErrors<typeof api.channels.channel25, "send"> = {
+  code: "MUTED",
+  data: { until: 25 },
+};
+export const channel25EditError: InferClientEventErrors<typeof api.channels.channel25, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 25 },
+};
+export const channel25RemoveError: InferClientEventErrors<typeof api.channels.channel25, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-25" },
+  };
+export const channel25Load: Promise<
+  InferOutput<(typeof api.channels.channel25)["procedures"]["load"]>
+> = channel25.load({ cursor: 25, channel: 25 });
+export const channel25LoadError: InferErrors<
+  (typeof api.channels.channel25)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-25" },
+};
+export const channel25Moderate: Promise<
+  InferOutput<(typeof api.channels.channel25)["procedures"]["moderate"]>
+> = channel25.moderate({ userId: "user-25", channel: 25 });
+export const channel25ModerateError: InferErrors<
+  (typeof api.channels.channel25)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-25" },
+};
+channel25.presence.update({ typing: true, channel: 25 });
+export const channel25Presence: InferPresence<typeof api.channels.channel25> | undefined =
+  channel25.presence.self;
+export const channel25Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel25>
+>[] = channel25.presence.others;
+export const channel25PresenceOff = channel25.presence.on(() => undefined);
+export const channel25Dispose = (): void => {
+  channel25.dispose();
+};
 
-export interface Channel26Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel26>;
-  readonly created: InferServerEvent<typeof api.channels.channel26, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel26, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel26, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel26, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel26, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel26, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel26, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel26, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel26, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel26, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel26)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel26)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel26)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel26)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel26)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel26)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel26>;
-}
+const channel26Params: InferChannelParams<typeof api.channels.channel26> = { roomId: "room-26" };
+const channel26 = client.channels.channel26(channel26Params);
+export const channel26Status: ChannelStatus = channel26.status;
+export const channel26Created = channel26.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel26, "created"> = event;
+  void value;
+});
+export const channel26Updated = channel26.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel26, "updated"> = event;
+  void value;
+});
+export const channel26Deleted = channel26.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel26, "deleted"> = event;
+  void value;
+});
+export const channel26Typing = channel26.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel26, "typing"> = event;
+  void value;
+});
+export const channel26Send: Promise<void> = channel26.send(
+  { text: "message-26", nonce: 26 },
+  { ack: true },
+);
+channel26.edit({ id: "item-26", text: "edited-26", nonce: 26 });
+channel26.remove({ id: "item-26", nonce: 26 });
+export const channel26SendError: InferClientEventErrors<typeof api.channels.channel26, "send"> = {
+  code: "MUTED",
+  data: { until: 26 },
+};
+export const channel26EditError: InferClientEventErrors<typeof api.channels.channel26, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 26 },
+};
+export const channel26RemoveError: InferClientEventErrors<typeof api.channels.channel26, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-26" },
+  };
+export const channel26Load: Promise<
+  InferOutput<(typeof api.channels.channel26)["procedures"]["load"]>
+> = channel26.load({ cursor: 26, channel: 26 });
+export const channel26LoadError: InferErrors<
+  (typeof api.channels.channel26)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-26" },
+};
+export const channel26Moderate: Promise<
+  InferOutput<(typeof api.channels.channel26)["procedures"]["moderate"]>
+> = channel26.moderate({ userId: "user-26", channel: 26 });
+export const channel26ModerateError: InferErrors<
+  (typeof api.channels.channel26)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-26" },
+};
+channel26.presence.update({ typing: true, channel: 26 });
+export const channel26Presence: InferPresence<typeof api.channels.channel26> | undefined =
+  channel26.presence.self;
+export const channel26Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel26>
+>[] = channel26.presence.others;
+export const channel26PresenceOff = channel26.presence.on(() => undefined);
+export const channel26Dispose = (): void => {
+  channel26.dispose();
+};
 
-export interface Channel27Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel27>;
-  readonly created: InferServerEvent<typeof api.channels.channel27, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel27, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel27, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel27, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel27, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel27, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel27, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel27, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel27, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel27, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel27)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel27)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel27)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel27)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel27)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel27)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel27>;
-}
+const channel27Params: InferChannelParams<typeof api.channels.channel27> = { roomId: "room-27" };
+const channel27 = client.channels.channel27(channel27Params);
+export const channel27Status: ChannelStatus = channel27.status;
+export const channel27Created = channel27.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel27, "created"> = event;
+  void value;
+});
+export const channel27Updated = channel27.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel27, "updated"> = event;
+  void value;
+});
+export const channel27Deleted = channel27.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel27, "deleted"> = event;
+  void value;
+});
+export const channel27Typing = channel27.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel27, "typing"> = event;
+  void value;
+});
+export const channel27Send: Promise<void> = channel27.send(
+  { text: "message-27", nonce: 27 },
+  { ack: true },
+);
+channel27.edit({ id: "item-27", text: "edited-27", nonce: 27 });
+channel27.remove({ id: "item-27", nonce: 27 });
+export const channel27SendError: InferClientEventErrors<typeof api.channels.channel27, "send"> = {
+  code: "MUTED",
+  data: { until: 27 },
+};
+export const channel27EditError: InferClientEventErrors<typeof api.channels.channel27, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 27 },
+};
+export const channel27RemoveError: InferClientEventErrors<typeof api.channels.channel27, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-27" },
+  };
+export const channel27Load: Promise<
+  InferOutput<(typeof api.channels.channel27)["procedures"]["load"]>
+> = channel27.load({ cursor: 27, channel: 27 });
+export const channel27LoadError: InferErrors<
+  (typeof api.channels.channel27)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-27" },
+};
+export const channel27Moderate: Promise<
+  InferOutput<(typeof api.channels.channel27)["procedures"]["moderate"]>
+> = channel27.moderate({ userId: "user-27", channel: 27 });
+export const channel27ModerateError: InferErrors<
+  (typeof api.channels.channel27)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-27" },
+};
+channel27.presence.update({ typing: true, channel: 27 });
+export const channel27Presence: InferPresence<typeof api.channels.channel27> | undefined =
+  channel27.presence.self;
+export const channel27Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel27>
+>[] = channel27.presence.others;
+export const channel27PresenceOff = channel27.presence.on(() => undefined);
+export const channel27Dispose = (): void => {
+  channel27.dispose();
+};
 
-export interface Channel28Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel28>;
-  readonly created: InferServerEvent<typeof api.channels.channel28, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel28, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel28, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel28, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel28, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel28, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel28, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel28, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel28, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel28, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel28)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel28)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel28)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel28)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel28)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel28)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel28>;
-}
+const channel28Params: InferChannelParams<typeof api.channels.channel28> = { roomId: "room-28" };
+const channel28 = client.channels.channel28(channel28Params);
+export const channel28Status: ChannelStatus = channel28.status;
+export const channel28Created = channel28.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel28, "created"> = event;
+  void value;
+});
+export const channel28Updated = channel28.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel28, "updated"> = event;
+  void value;
+});
+export const channel28Deleted = channel28.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel28, "deleted"> = event;
+  void value;
+});
+export const channel28Typing = channel28.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel28, "typing"> = event;
+  void value;
+});
+export const channel28Send: Promise<void> = channel28.send(
+  { text: "message-28", nonce: 28 },
+  { ack: true },
+);
+channel28.edit({ id: "item-28", text: "edited-28", nonce: 28 });
+channel28.remove({ id: "item-28", nonce: 28 });
+export const channel28SendError: InferClientEventErrors<typeof api.channels.channel28, "send"> = {
+  code: "MUTED",
+  data: { until: 28 },
+};
+export const channel28EditError: InferClientEventErrors<typeof api.channels.channel28, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 28 },
+};
+export const channel28RemoveError: InferClientEventErrors<typeof api.channels.channel28, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-28" },
+  };
+export const channel28Load: Promise<
+  InferOutput<(typeof api.channels.channel28)["procedures"]["load"]>
+> = channel28.load({ cursor: 28, channel: 28 });
+export const channel28LoadError: InferErrors<
+  (typeof api.channels.channel28)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-28" },
+};
+export const channel28Moderate: Promise<
+  InferOutput<(typeof api.channels.channel28)["procedures"]["moderate"]>
+> = channel28.moderate({ userId: "user-28", channel: 28 });
+export const channel28ModerateError: InferErrors<
+  (typeof api.channels.channel28)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-28" },
+};
+channel28.presence.update({ typing: true, channel: 28 });
+export const channel28Presence: InferPresence<typeof api.channels.channel28> | undefined =
+  channel28.presence.self;
+export const channel28Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel28>
+>[] = channel28.presence.others;
+export const channel28PresenceOff = channel28.presence.on(() => undefined);
+export const channel28Dispose = (): void => {
+  channel28.dispose();
+};
 
-export interface Channel29Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel29>;
-  readonly created: InferServerEvent<typeof api.channels.channel29, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel29, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel29, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel29, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel29, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel29, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel29, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel29, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel29, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel29, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel29)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel29)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel29)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel29)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel29)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel29)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel29>;
-}
+const channel29Params: InferChannelParams<typeof api.channels.channel29> = { roomId: "room-29" };
+const channel29 = client.channels.channel29(channel29Params);
+export const channel29Status: ChannelStatus = channel29.status;
+export const channel29Created = channel29.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel29, "created"> = event;
+  void value;
+});
+export const channel29Updated = channel29.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel29, "updated"> = event;
+  void value;
+});
+export const channel29Deleted = channel29.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel29, "deleted"> = event;
+  void value;
+});
+export const channel29Typing = channel29.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel29, "typing"> = event;
+  void value;
+});
+export const channel29Send: Promise<void> = channel29.send(
+  { text: "message-29", nonce: 29 },
+  { ack: true },
+);
+channel29.edit({ id: "item-29", text: "edited-29", nonce: 29 });
+channel29.remove({ id: "item-29", nonce: 29 });
+export const channel29SendError: InferClientEventErrors<typeof api.channels.channel29, "send"> = {
+  code: "MUTED",
+  data: { until: 29 },
+};
+export const channel29EditError: InferClientEventErrors<typeof api.channels.channel29, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 29 },
+};
+export const channel29RemoveError: InferClientEventErrors<typeof api.channels.channel29, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-29" },
+  };
+export const channel29Load: Promise<
+  InferOutput<(typeof api.channels.channel29)["procedures"]["load"]>
+> = channel29.load({ cursor: 29, channel: 29 });
+export const channel29LoadError: InferErrors<
+  (typeof api.channels.channel29)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-29" },
+};
+export const channel29Moderate: Promise<
+  InferOutput<(typeof api.channels.channel29)["procedures"]["moderate"]>
+> = channel29.moderate({ userId: "user-29", channel: 29 });
+export const channel29ModerateError: InferErrors<
+  (typeof api.channels.channel29)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-29" },
+};
+channel29.presence.update({ typing: true, channel: 29 });
+export const channel29Presence: InferPresence<typeof api.channels.channel29> | undefined =
+  channel29.presence.self;
+export const channel29Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel29>
+>[] = channel29.presence.others;
+export const channel29PresenceOff = channel29.presence.on(() => undefined);
+export const channel29Dispose = (): void => {
+  channel29.dispose();
+};
 
-export interface Channel30Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel30>;
-  readonly created: InferServerEvent<typeof api.channels.channel30, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel30, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel30, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel30, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel30, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel30, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel30, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel30, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel30, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel30, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel30)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel30)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel30)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel30)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel30)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel30)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel30>;
-}
+const channel30Params: InferChannelParams<typeof api.channels.channel30> = { roomId: "room-30" };
+const channel30 = client.channels.channel30(channel30Params);
+export const channel30Status: ChannelStatus = channel30.status;
+export const channel30Created = channel30.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel30, "created"> = event;
+  void value;
+});
+export const channel30Updated = channel30.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel30, "updated"> = event;
+  void value;
+});
+export const channel30Deleted = channel30.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel30, "deleted"> = event;
+  void value;
+});
+export const channel30Typing = channel30.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel30, "typing"> = event;
+  void value;
+});
+export const channel30Send: Promise<void> = channel30.send(
+  { text: "message-30", nonce: 30 },
+  { ack: true },
+);
+channel30.edit({ id: "item-30", text: "edited-30", nonce: 30 });
+channel30.remove({ id: "item-30", nonce: 30 });
+export const channel30SendError: InferClientEventErrors<typeof api.channels.channel30, "send"> = {
+  code: "MUTED",
+  data: { until: 30 },
+};
+export const channel30EditError: InferClientEventErrors<typeof api.channels.channel30, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 30 },
+};
+export const channel30RemoveError: InferClientEventErrors<typeof api.channels.channel30, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-30" },
+  };
+export const channel30Load: Promise<
+  InferOutput<(typeof api.channels.channel30)["procedures"]["load"]>
+> = channel30.load({ cursor: 30, channel: 30 });
+export const channel30LoadError: InferErrors<
+  (typeof api.channels.channel30)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-30" },
+};
+export const channel30Moderate: Promise<
+  InferOutput<(typeof api.channels.channel30)["procedures"]["moderate"]>
+> = channel30.moderate({ userId: "user-30", channel: 30 });
+export const channel30ModerateError: InferErrors<
+  (typeof api.channels.channel30)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-30" },
+};
+channel30.presence.update({ typing: true, channel: 30 });
+export const channel30Presence: InferPresence<typeof api.channels.channel30> | undefined =
+  channel30.presence.self;
+export const channel30Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel30>
+>[] = channel30.presence.others;
+export const channel30PresenceOff = channel30.presence.on(() => undefined);
+export const channel30Dispose = (): void => {
+  channel30.dispose();
+};
 
-export interface Channel31Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel31>;
-  readonly created: InferServerEvent<typeof api.channels.channel31, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel31, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel31, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel31, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel31, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel31, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel31, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel31, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel31, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel31, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel31)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel31)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel31)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel31)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel31)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel31)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel31>;
-}
+const channel31Params: InferChannelParams<typeof api.channels.channel31> = { roomId: "room-31" };
+const channel31 = client.channels.channel31(channel31Params);
+export const channel31Status: ChannelStatus = channel31.status;
+export const channel31Created = channel31.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel31, "created"> = event;
+  void value;
+});
+export const channel31Updated = channel31.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel31, "updated"> = event;
+  void value;
+});
+export const channel31Deleted = channel31.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel31, "deleted"> = event;
+  void value;
+});
+export const channel31Typing = channel31.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel31, "typing"> = event;
+  void value;
+});
+export const channel31Send: Promise<void> = channel31.send(
+  { text: "message-31", nonce: 31 },
+  { ack: true },
+);
+channel31.edit({ id: "item-31", text: "edited-31", nonce: 31 });
+channel31.remove({ id: "item-31", nonce: 31 });
+export const channel31SendError: InferClientEventErrors<typeof api.channels.channel31, "send"> = {
+  code: "MUTED",
+  data: { until: 31 },
+};
+export const channel31EditError: InferClientEventErrors<typeof api.channels.channel31, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 31 },
+};
+export const channel31RemoveError: InferClientEventErrors<typeof api.channels.channel31, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-31" },
+  };
+export const channel31Load: Promise<
+  InferOutput<(typeof api.channels.channel31)["procedures"]["load"]>
+> = channel31.load({ cursor: 31, channel: 31 });
+export const channel31LoadError: InferErrors<
+  (typeof api.channels.channel31)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-31" },
+};
+export const channel31Moderate: Promise<
+  InferOutput<(typeof api.channels.channel31)["procedures"]["moderate"]>
+> = channel31.moderate({ userId: "user-31", channel: 31 });
+export const channel31ModerateError: InferErrors<
+  (typeof api.channels.channel31)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-31" },
+};
+channel31.presence.update({ typing: true, channel: 31 });
+export const channel31Presence: InferPresence<typeof api.channels.channel31> | undefined =
+  channel31.presence.self;
+export const channel31Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel31>
+>[] = channel31.presence.others;
+export const channel31PresenceOff = channel31.presence.on(() => undefined);
+export const channel31Dispose = (): void => {
+  channel31.dispose();
+};
 
-export interface Channel32Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel32>;
-  readonly created: InferServerEvent<typeof api.channels.channel32, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel32, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel32, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel32, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel32, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel32, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel32, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel32, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel32, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel32, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel32)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel32)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel32)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel32)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel32)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel32)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel32>;
-}
+const channel32Params: InferChannelParams<typeof api.channels.channel32> = { roomId: "room-32" };
+const channel32 = client.channels.channel32(channel32Params);
+export const channel32Status: ChannelStatus = channel32.status;
+export const channel32Created = channel32.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel32, "created"> = event;
+  void value;
+});
+export const channel32Updated = channel32.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel32, "updated"> = event;
+  void value;
+});
+export const channel32Deleted = channel32.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel32, "deleted"> = event;
+  void value;
+});
+export const channel32Typing = channel32.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel32, "typing"> = event;
+  void value;
+});
+export const channel32Send: Promise<void> = channel32.send(
+  { text: "message-32", nonce: 32 },
+  { ack: true },
+);
+channel32.edit({ id: "item-32", text: "edited-32", nonce: 32 });
+channel32.remove({ id: "item-32", nonce: 32 });
+export const channel32SendError: InferClientEventErrors<typeof api.channels.channel32, "send"> = {
+  code: "MUTED",
+  data: { until: 32 },
+};
+export const channel32EditError: InferClientEventErrors<typeof api.channels.channel32, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 32 },
+};
+export const channel32RemoveError: InferClientEventErrors<typeof api.channels.channel32, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-32" },
+  };
+export const channel32Load: Promise<
+  InferOutput<(typeof api.channels.channel32)["procedures"]["load"]>
+> = channel32.load({ cursor: 32, channel: 32 });
+export const channel32LoadError: InferErrors<
+  (typeof api.channels.channel32)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-32" },
+};
+export const channel32Moderate: Promise<
+  InferOutput<(typeof api.channels.channel32)["procedures"]["moderate"]>
+> = channel32.moderate({ userId: "user-32", channel: 32 });
+export const channel32ModerateError: InferErrors<
+  (typeof api.channels.channel32)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-32" },
+};
+channel32.presence.update({ typing: true, channel: 32 });
+export const channel32Presence: InferPresence<typeof api.channels.channel32> | undefined =
+  channel32.presence.self;
+export const channel32Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel32>
+>[] = channel32.presence.others;
+export const channel32PresenceOff = channel32.presence.on(() => undefined);
+export const channel32Dispose = (): void => {
+  channel32.dispose();
+};
 
-export interface Channel33Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel33>;
-  readonly created: InferServerEvent<typeof api.channels.channel33, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel33, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel33, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel33, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel33, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel33, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel33, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel33, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel33, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel33, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel33)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel33)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel33)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel33)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel33)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel33)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel33>;
-}
+const channel33Params: InferChannelParams<typeof api.channels.channel33> = { roomId: "room-33" };
+const channel33 = client.channels.channel33(channel33Params);
+export const channel33Status: ChannelStatus = channel33.status;
+export const channel33Created = channel33.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel33, "created"> = event;
+  void value;
+});
+export const channel33Updated = channel33.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel33, "updated"> = event;
+  void value;
+});
+export const channel33Deleted = channel33.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel33, "deleted"> = event;
+  void value;
+});
+export const channel33Typing = channel33.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel33, "typing"> = event;
+  void value;
+});
+export const channel33Send: Promise<void> = channel33.send(
+  { text: "message-33", nonce: 33 },
+  { ack: true },
+);
+channel33.edit({ id: "item-33", text: "edited-33", nonce: 33 });
+channel33.remove({ id: "item-33", nonce: 33 });
+export const channel33SendError: InferClientEventErrors<typeof api.channels.channel33, "send"> = {
+  code: "MUTED",
+  data: { until: 33 },
+};
+export const channel33EditError: InferClientEventErrors<typeof api.channels.channel33, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 33 },
+};
+export const channel33RemoveError: InferClientEventErrors<typeof api.channels.channel33, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-33" },
+  };
+export const channel33Load: Promise<
+  InferOutput<(typeof api.channels.channel33)["procedures"]["load"]>
+> = channel33.load({ cursor: 33, channel: 33 });
+export const channel33LoadError: InferErrors<
+  (typeof api.channels.channel33)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-33" },
+};
+export const channel33Moderate: Promise<
+  InferOutput<(typeof api.channels.channel33)["procedures"]["moderate"]>
+> = channel33.moderate({ userId: "user-33", channel: 33 });
+export const channel33ModerateError: InferErrors<
+  (typeof api.channels.channel33)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-33" },
+};
+channel33.presence.update({ typing: true, channel: 33 });
+export const channel33Presence: InferPresence<typeof api.channels.channel33> | undefined =
+  channel33.presence.self;
+export const channel33Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel33>
+>[] = channel33.presence.others;
+export const channel33PresenceOff = channel33.presence.on(() => undefined);
+export const channel33Dispose = (): void => {
+  channel33.dispose();
+};
 
-export interface Channel34Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel34>;
-  readonly created: InferServerEvent<typeof api.channels.channel34, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel34, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel34, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel34, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel34, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel34, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel34, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel34, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel34, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel34, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel34)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel34)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel34)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel34)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel34)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel34)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel34>;
-}
+const channel34Params: InferChannelParams<typeof api.channels.channel34> = { roomId: "room-34" };
+const channel34 = client.channels.channel34(channel34Params);
+export const channel34Status: ChannelStatus = channel34.status;
+export const channel34Created = channel34.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel34, "created"> = event;
+  void value;
+});
+export const channel34Updated = channel34.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel34, "updated"> = event;
+  void value;
+});
+export const channel34Deleted = channel34.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel34, "deleted"> = event;
+  void value;
+});
+export const channel34Typing = channel34.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel34, "typing"> = event;
+  void value;
+});
+export const channel34Send: Promise<void> = channel34.send(
+  { text: "message-34", nonce: 34 },
+  { ack: true },
+);
+channel34.edit({ id: "item-34", text: "edited-34", nonce: 34 });
+channel34.remove({ id: "item-34", nonce: 34 });
+export const channel34SendError: InferClientEventErrors<typeof api.channels.channel34, "send"> = {
+  code: "MUTED",
+  data: { until: 34 },
+};
+export const channel34EditError: InferClientEventErrors<typeof api.channels.channel34, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 34 },
+};
+export const channel34RemoveError: InferClientEventErrors<typeof api.channels.channel34, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-34" },
+  };
+export const channel34Load: Promise<
+  InferOutput<(typeof api.channels.channel34)["procedures"]["load"]>
+> = channel34.load({ cursor: 34, channel: 34 });
+export const channel34LoadError: InferErrors<
+  (typeof api.channels.channel34)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-34" },
+};
+export const channel34Moderate: Promise<
+  InferOutput<(typeof api.channels.channel34)["procedures"]["moderate"]>
+> = channel34.moderate({ userId: "user-34", channel: 34 });
+export const channel34ModerateError: InferErrors<
+  (typeof api.channels.channel34)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-34" },
+};
+channel34.presence.update({ typing: true, channel: 34 });
+export const channel34Presence: InferPresence<typeof api.channels.channel34> | undefined =
+  channel34.presence.self;
+export const channel34Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel34>
+>[] = channel34.presence.others;
+export const channel34PresenceOff = channel34.presence.on(() => undefined);
+export const channel34Dispose = (): void => {
+  channel34.dispose();
+};
 
-export interface Channel35Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel35>;
-  readonly created: InferServerEvent<typeof api.channels.channel35, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel35, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel35, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel35, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel35, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel35, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel35, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel35, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel35, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel35, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel35)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel35)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel35)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel35)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel35)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel35)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel35>;
-}
+const channel35Params: InferChannelParams<typeof api.channels.channel35> = { roomId: "room-35" };
+const channel35 = client.channels.channel35(channel35Params);
+export const channel35Status: ChannelStatus = channel35.status;
+export const channel35Created = channel35.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel35, "created"> = event;
+  void value;
+});
+export const channel35Updated = channel35.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel35, "updated"> = event;
+  void value;
+});
+export const channel35Deleted = channel35.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel35, "deleted"> = event;
+  void value;
+});
+export const channel35Typing = channel35.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel35, "typing"> = event;
+  void value;
+});
+export const channel35Send: Promise<void> = channel35.send(
+  { text: "message-35", nonce: 35 },
+  { ack: true },
+);
+channel35.edit({ id: "item-35", text: "edited-35", nonce: 35 });
+channel35.remove({ id: "item-35", nonce: 35 });
+export const channel35SendError: InferClientEventErrors<typeof api.channels.channel35, "send"> = {
+  code: "MUTED",
+  data: { until: 35 },
+};
+export const channel35EditError: InferClientEventErrors<typeof api.channels.channel35, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 35 },
+};
+export const channel35RemoveError: InferClientEventErrors<typeof api.channels.channel35, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-35" },
+  };
+export const channel35Load: Promise<
+  InferOutput<(typeof api.channels.channel35)["procedures"]["load"]>
+> = channel35.load({ cursor: 35, channel: 35 });
+export const channel35LoadError: InferErrors<
+  (typeof api.channels.channel35)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-35" },
+};
+export const channel35Moderate: Promise<
+  InferOutput<(typeof api.channels.channel35)["procedures"]["moderate"]>
+> = channel35.moderate({ userId: "user-35", channel: 35 });
+export const channel35ModerateError: InferErrors<
+  (typeof api.channels.channel35)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-35" },
+};
+channel35.presence.update({ typing: true, channel: 35 });
+export const channel35Presence: InferPresence<typeof api.channels.channel35> | undefined =
+  channel35.presence.self;
+export const channel35Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel35>
+>[] = channel35.presence.others;
+export const channel35PresenceOff = channel35.presence.on(() => undefined);
+export const channel35Dispose = (): void => {
+  channel35.dispose();
+};
 
-export interface Channel36Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel36>;
-  readonly created: InferServerEvent<typeof api.channels.channel36, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel36, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel36, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel36, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel36, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel36, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel36, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel36, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel36, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel36, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel36)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel36)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel36)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel36)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel36)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel36)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel36>;
-}
+const channel36Params: InferChannelParams<typeof api.channels.channel36> = { roomId: "room-36" };
+const channel36 = client.channels.channel36(channel36Params);
+export const channel36Status: ChannelStatus = channel36.status;
+export const channel36Created = channel36.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel36, "created"> = event;
+  void value;
+});
+export const channel36Updated = channel36.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel36, "updated"> = event;
+  void value;
+});
+export const channel36Deleted = channel36.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel36, "deleted"> = event;
+  void value;
+});
+export const channel36Typing = channel36.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel36, "typing"> = event;
+  void value;
+});
+export const channel36Send: Promise<void> = channel36.send(
+  { text: "message-36", nonce: 36 },
+  { ack: true },
+);
+channel36.edit({ id: "item-36", text: "edited-36", nonce: 36 });
+channel36.remove({ id: "item-36", nonce: 36 });
+export const channel36SendError: InferClientEventErrors<typeof api.channels.channel36, "send"> = {
+  code: "MUTED",
+  data: { until: 36 },
+};
+export const channel36EditError: InferClientEventErrors<typeof api.channels.channel36, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 36 },
+};
+export const channel36RemoveError: InferClientEventErrors<typeof api.channels.channel36, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-36" },
+  };
+export const channel36Load: Promise<
+  InferOutput<(typeof api.channels.channel36)["procedures"]["load"]>
+> = channel36.load({ cursor: 36, channel: 36 });
+export const channel36LoadError: InferErrors<
+  (typeof api.channels.channel36)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-36" },
+};
+export const channel36Moderate: Promise<
+  InferOutput<(typeof api.channels.channel36)["procedures"]["moderate"]>
+> = channel36.moderate({ userId: "user-36", channel: 36 });
+export const channel36ModerateError: InferErrors<
+  (typeof api.channels.channel36)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-36" },
+};
+channel36.presence.update({ typing: true, channel: 36 });
+export const channel36Presence: InferPresence<typeof api.channels.channel36> | undefined =
+  channel36.presence.self;
+export const channel36Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel36>
+>[] = channel36.presence.others;
+export const channel36PresenceOff = channel36.presence.on(() => undefined);
+export const channel36Dispose = (): void => {
+  channel36.dispose();
+};
 
-export interface Channel37Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel37>;
-  readonly created: InferServerEvent<typeof api.channels.channel37, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel37, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel37, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel37, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel37, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel37, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel37, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel37, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel37, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel37, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel37)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel37)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel37)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel37)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel37)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel37)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel37>;
-}
+const channel37Params: InferChannelParams<typeof api.channels.channel37> = { roomId: "room-37" };
+const channel37 = client.channels.channel37(channel37Params);
+export const channel37Status: ChannelStatus = channel37.status;
+export const channel37Created = channel37.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel37, "created"> = event;
+  void value;
+});
+export const channel37Updated = channel37.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel37, "updated"> = event;
+  void value;
+});
+export const channel37Deleted = channel37.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel37, "deleted"> = event;
+  void value;
+});
+export const channel37Typing = channel37.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel37, "typing"> = event;
+  void value;
+});
+export const channel37Send: Promise<void> = channel37.send(
+  { text: "message-37", nonce: 37 },
+  { ack: true },
+);
+channel37.edit({ id: "item-37", text: "edited-37", nonce: 37 });
+channel37.remove({ id: "item-37", nonce: 37 });
+export const channel37SendError: InferClientEventErrors<typeof api.channels.channel37, "send"> = {
+  code: "MUTED",
+  data: { until: 37 },
+};
+export const channel37EditError: InferClientEventErrors<typeof api.channels.channel37, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 37 },
+};
+export const channel37RemoveError: InferClientEventErrors<typeof api.channels.channel37, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-37" },
+  };
+export const channel37Load: Promise<
+  InferOutput<(typeof api.channels.channel37)["procedures"]["load"]>
+> = channel37.load({ cursor: 37, channel: 37 });
+export const channel37LoadError: InferErrors<
+  (typeof api.channels.channel37)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-37" },
+};
+export const channel37Moderate: Promise<
+  InferOutput<(typeof api.channels.channel37)["procedures"]["moderate"]>
+> = channel37.moderate({ userId: "user-37", channel: 37 });
+export const channel37ModerateError: InferErrors<
+  (typeof api.channels.channel37)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-37" },
+};
+channel37.presence.update({ typing: true, channel: 37 });
+export const channel37Presence: InferPresence<typeof api.channels.channel37> | undefined =
+  channel37.presence.self;
+export const channel37Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel37>
+>[] = channel37.presence.others;
+export const channel37PresenceOff = channel37.presence.on(() => undefined);
+export const channel37Dispose = (): void => {
+  channel37.dispose();
+};
 
-export interface Channel38Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel38>;
-  readonly created: InferServerEvent<typeof api.channels.channel38, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel38, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel38, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel38, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel38, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel38, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel38, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel38, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel38, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel38, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel38)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel38)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel38)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel38)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel38)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel38)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel38>;
-}
+const channel38Params: InferChannelParams<typeof api.channels.channel38> = { roomId: "room-38" };
+const channel38 = client.channels.channel38(channel38Params);
+export const channel38Status: ChannelStatus = channel38.status;
+export const channel38Created = channel38.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel38, "created"> = event;
+  void value;
+});
+export const channel38Updated = channel38.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel38, "updated"> = event;
+  void value;
+});
+export const channel38Deleted = channel38.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel38, "deleted"> = event;
+  void value;
+});
+export const channel38Typing = channel38.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel38, "typing"> = event;
+  void value;
+});
+export const channel38Send: Promise<void> = channel38.send(
+  { text: "message-38", nonce: 38 },
+  { ack: true },
+);
+channel38.edit({ id: "item-38", text: "edited-38", nonce: 38 });
+channel38.remove({ id: "item-38", nonce: 38 });
+export const channel38SendError: InferClientEventErrors<typeof api.channels.channel38, "send"> = {
+  code: "MUTED",
+  data: { until: 38 },
+};
+export const channel38EditError: InferClientEventErrors<typeof api.channels.channel38, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 38 },
+};
+export const channel38RemoveError: InferClientEventErrors<typeof api.channels.channel38, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-38" },
+  };
+export const channel38Load: Promise<
+  InferOutput<(typeof api.channels.channel38)["procedures"]["load"]>
+> = channel38.load({ cursor: 38, channel: 38 });
+export const channel38LoadError: InferErrors<
+  (typeof api.channels.channel38)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-38" },
+};
+export const channel38Moderate: Promise<
+  InferOutput<(typeof api.channels.channel38)["procedures"]["moderate"]>
+> = channel38.moderate({ userId: "user-38", channel: 38 });
+export const channel38ModerateError: InferErrors<
+  (typeof api.channels.channel38)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-38" },
+};
+channel38.presence.update({ typing: true, channel: 38 });
+export const channel38Presence: InferPresence<typeof api.channels.channel38> | undefined =
+  channel38.presence.self;
+export const channel38Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel38>
+>[] = channel38.presence.others;
+export const channel38PresenceOff = channel38.presence.on(() => undefined);
+export const channel38Dispose = (): void => {
+  channel38.dispose();
+};
 
-export interface Channel39Inference {
-  readonly params: InferChannelParams<typeof api.channels.channel39>;
-  readonly created: InferServerEvent<typeof api.channels.channel39, "created">;
-  readonly updated: InferServerEvent<typeof api.channels.channel39, "updated">;
-  readonly deleted: InferServerEvent<typeof api.channels.channel39, "deleted">;
-  readonly typing: InferServerEvent<typeof api.channels.channel39, "typing">;
-  readonly sendInput: InferClientEventInput<typeof api.channels.channel39, "send">;
-  readonly sendError: InferClientEventErrors<typeof api.channels.channel39, "send">;
-  readonly editInput: InferClientEventInput<typeof api.channels.channel39, "edit">;
-  readonly editError: InferClientEventErrors<typeof api.channels.channel39, "edit">;
-  readonly removeInput: InferClientEventInput<typeof api.channels.channel39, "remove">;
-  readonly removeError: InferClientEventErrors<typeof api.channels.channel39, "remove">;
-  readonly loadInput: InferInput<(typeof api.channels.channel39)["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<(typeof api.channels.channel39)["procedures"]["load"]>;
-  readonly loadError: InferErrors<(typeof api.channels.channel39)["procedures"]["load"]>;
-  readonly moderateInput: InferInput<(typeof api.channels.channel39)["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<(typeof api.channels.channel39)["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<(typeof api.channels.channel39)["procedures"]["moderate"]>;
-  readonly presence: InferPresence<typeof api.channels.channel39>;
-}
+const channel39Params: InferChannelParams<typeof api.channels.channel39> = { roomId: "room-39" };
+const channel39 = client.channels.channel39(channel39Params);
+export const channel39Status: ChannelStatus = channel39.status;
+export const channel39Created = channel39.on("created", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel39, "created"> = event;
+  void value;
+});
+export const channel39Updated = channel39.on("updated", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel39, "updated"> = event;
+  void value;
+});
+export const channel39Deleted = channel39.on("deleted", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel39, "deleted"> = event;
+  void value;
+});
+export const channel39Typing = channel39.on("typing", (event) => {
+  const value: InferServerEvent<typeof api.channels.channel39, "typing"> = event;
+  void value;
+});
+export const channel39Send: Promise<void> = channel39.send(
+  { text: "message-39", nonce: 39 },
+  { ack: true },
+);
+channel39.edit({ id: "item-39", text: "edited-39", nonce: 39 });
+channel39.remove({ id: "item-39", nonce: 39 });
+export const channel39SendError: InferClientEventErrors<typeof api.channels.channel39, "send"> = {
+  code: "MUTED",
+  data: { until: 39 },
+};
+export const channel39EditError: InferClientEventErrors<typeof api.channels.channel39, "edit"> = {
+  code: "CONFLICT",
+  data: { version: 39 },
+};
+export const channel39RemoveError: InferClientEventErrors<typeof api.channels.channel39, "remove"> =
+  {
+    code: "FORBIDDEN",
+    data: { reason: "channel-39" },
+  };
+export const channel39Load: Promise<
+  InferOutput<(typeof api.channels.channel39)["procedures"]["load"]>
+> = channel39.load({ cursor: 39, channel: 39 });
+export const channel39LoadError: InferErrors<
+  (typeof api.channels.channel39)["procedures"]["load"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-39" },
+};
+export const channel39Moderate: Promise<
+  InferOutput<(typeof api.channels.channel39)["procedures"]["moderate"]>
+> = channel39.moderate({ userId: "user-39", channel: 39 });
+export const channel39ModerateError: InferErrors<
+  (typeof api.channels.channel39)["procedures"]["moderate"]
+> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-39" },
+};
+channel39.presence.update({ typing: true, channel: 39 });
+export const channel39Presence: InferPresence<typeof api.channels.channel39> | undefined =
+  channel39.presence.self;
+export const channel39Others: readonly PresenceMember<
+  InferPresence<typeof api.channels.channel39>
+>[] = channel39.presence.others;
+export const channel39PresenceOff = channel39.presence.on(() => undefined);
+export const channel39Dispose = (): void => {
+  channel39.dispose();
+};

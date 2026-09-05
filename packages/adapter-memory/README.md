@@ -29,5 +29,13 @@ The context factory runs once per call. Requests and results round-trip through
 the same JSON codecs as HTTP, including omitted void inputs and outputs. Declared
 errors are preserved; the server runtime sanitizes undeclared errors.
 
-M2 adds the deterministic memory Host, manual clock, storage, sockets, and
-hibernation simulation. Those host behaviors are not available in M1.
+`createMemoryHost(channel, implementation, options)` runs the durable channel
+engine against structured-clone storage, a manual clock, and browser-compatible
+in-memory sockets. `host.flush()` drains socket and background work,
+`host.advanceTime(ms)` runs due alarms, and `host.hibernate()` constructs fresh
+engine handlers over the same storage, alarm, attachments, and live sockets.
+
+Pass one `ManualClock` and `MemoryHostRegistry` to several hosts when a test needs
+deterministic cross-host timers and peer calls. `MemoryStorage` is also exported
+for focused storage tests; its transactions serialize callers and commit only
+when the callback succeeds.

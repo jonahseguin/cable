@@ -21,15 +21,22 @@ const numberSchema = z.number();
 const transformedSchema = z.string().regex(/^\d+$/).transform(Number);
 
 describe("contract DSL", () => {
-  it("preserves the root object and brands it without adding an enumerable key", () => {
-    const definition = { greeting: c.query({ input: stringSchema, output: stringSchema }) };
+  it("preserves and freezes the branded tree without adding enumerable keys", () => {
+    const definition = {
+      nested: { greeting: c.query({ input: stringSchema, output: stringSchema }) },
+    };
     const contract = c.contract(definition);
 
     expect(contract).toBe(definition);
-    expect(Object.keys(contract)).toEqual(["greeting"]);
-    expect(Object.keys(contract.greeting)).toEqual(["errors", "input", "kind", "output"]);
+    expect(Object.keys(contract)).toEqual(["nested"]);
+    expect(Object.keys(contract.nested.greeting)).toEqual(["errors", "input", "kind", "output"]);
+    expect(Object.isFrozen(contract)).toBe(true);
+    expect(Object.isFrozen(contract.nested)).toBe(true);
+    expect(
+      Reflect.set(contract, "late", c.query({ input: stringSchema, output: stringSchema })),
+    ).toBe(false);
     expect(isContract(contract)).toBe(true);
-    expect(isProcedureContract(contract.greeting)).toBe(true);
+    expect(isProcedureContract(contract.nested.greeting)).toBe(true);
   });
 
   it("rejects structural lookalikes that were not built by the DSL", () => {
@@ -47,6 +54,22 @@ describe("contract DSL", () => {
         lookalike,
       }),
     ).toThrow("is not a cable node");
+  });
+
+  it("rejects branch accessors without evaluating them", () => {
+    let reads = 0;
+    const definition = Object.defineProperty({}, "unstable", {
+      enumerable: true,
+      get() {
+        reads += 1;
+        return c.query({ input: stringSchema, output: stringSchema });
+      },
+    });
+
+    expect(() => c.contract(definition)).toThrow(
+      "Contract property 'unstable' must be a data property",
+    );
+    expect(reads).toBe(0);
   });
 
   it("normalizes channel events and validates generated pattern params", async () => {
@@ -76,6 +99,15 @@ describe("contract DSL", () => {
     });
     expect("issues" in invalidResult).toBe(true);
   });
+
+  it.each(["then", "__proto__", "prototype", "constructor"])(
+    "rejects the reserved channel parameter %s",
+    (name) => {
+      expect(() => c.channel(`chat.{${name}}`, { client: {}, server: {} })).toThrow(
+        `Channel parameter '${name}' is reserved`,
+      );
+    },
+  );
 
   it("rejects malformed procedure, event, history, and pattern definitions", () => {
     expect(() =>
@@ -109,6 +141,62 @@ describe("contract DSL", () => {
         server: {},
       }),
     ).toThrow("must implement Standard Schema v1");
+  });
+
+  it("rejects channel members that collide with the handle API", () => {
+    expect(() =>
+      c.channel("chat", {
+        client: { onStatus: stringSchema },
+        server: {},
+      }),
+    ).toThrow("Channel client event name 'onStatus' is reserved");
+    expect(() =>
+      c.channel("chat", {
+        client: {},
+        procedures: {
+          history: c.query({ input: stringSchema, output: stringSchema }),
+        },
+        server: {},
+      }),
+    ).toThrow("Channel procedure name 'history' is reserved");
+    expect(() =>
+      c.channel("chat", {
+        client: {},
+        server: { reset: stringSchema },
+      }),
+    ).toThrow("Channel server event name 'reset' is reserved");
+    expect(() =>
+      c.channel("chat", {
+        client: { send: stringSchema },
+        procedures: { send: c.mutation({ input: stringSchema, output: stringSchema }) },
+        server: {},
+      }),
+    ).toThrow("cannot be both a client event and a procedure");
+  });
+
+  it("rejects overlapping channel patterns in one contract", () => {
+    expect(() =>
+      c.contract({
+        admin: c.channel("chat.admin", { client: {}, server: {} }),
+        room: c.channel("chat.{roomId}", { client: {}, server: {} }),
+      }),
+    ).toThrow("'chat.{roomId}' at 'room' overlaps 'chat.admin' at 'admin'");
+
+    expect(() =>
+      c.contract({
+        first: c.channel("chat.{roomId}", { client: {}, server: {} }),
+        nested: {
+          second: c.channel("chat.{slug}", { client: {}, server: {} }),
+        },
+      }),
+    ).toThrow("'chat.{slug}' at 'nested.second' overlaps 'chat.{roomId}' at 'first'");
+
+    expect(() =>
+      c.contract({
+        admin: c.channel("chat.admin", { client: {}, server: {} }),
+        room: c.channel("chat.room", { client: {}, server: {} }),
+      }),
+    ).not.toThrow();
   });
 
   it("rejects non-node leaves and contract cycles", () => {

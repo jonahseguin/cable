@@ -44,3 +44,67 @@ sanitized `INTERNAL` failure.
 for GET are also available at `GET /_cable/rpc/<path>?input=<json>` and apply
 their cache policy only to successful responses. The handler limits POST bodies
 to 1 MiB and batches to 100 calls by default; both limits are configurable.
+
+## Durable channels
+
+`createEngine` turns one channel contract and its handlers into the callbacks a
+Host adapter invokes. The engine keeps sequence numbers, replay events,
+presence, grants, and timers in Host storage. Rebuilding the handlers after
+hibernation does not reset channel state.
+
+```ts
+import { c } from "@cable/contract";
+import { createEngine, type ChannelImplementation, type GrantSecret, type Host } from "@cable/core";
+import { z } from "zod";
+
+const room = c.channel("rooms.{roomId}", {
+  client: {
+    send: z.object({ text: z.string().min(1) }),
+  },
+  procedures: {},
+  server: {
+    message: z.object({ text: z.string() }),
+  },
+});
+
+interface Identity {
+  readonly userId: string;
+}
+
+const implementation: ChannelImplementation<typeof room, Identity> = {
+  authorize(context) {
+    if (!context.grants.includes("room:read")) {
+      throw new CableError("FORBIDDEN");
+    }
+  },
+  onClient: {
+    async send(context, input) {
+      await context.emit("message", input);
+    },
+  },
+  procedures: {},
+};
+
+export function roomHandlers(host: Host, grantSecret: GrantSecret) {
+  return createEngine(room, implementation, host, {
+    grantSecret,
+  });
+}
+```
+
+The example leaves Host construction to an adapter. The portable engine uses
+web APIs and has no Node or Bun runtime dependency. Adapters must preserve
+attachments and storage across hibernation, serialize transactions, and route
+every callback to the current handler instance.
+
+The first structured client frame must be `hello`; literal ping is allowed while
+the handshake is pending. The engine sends presence and retained events in
+bounded welcome chunks before it marks the connection ready. Logged events
+advance one durable sequence; targeted events join replay only when
+`emitTo(..., { log: true })` is set. The built-in `history.load` procedure pages
+visible retained events in ascending sequence order.
+
+Timer handlers run from the Host's single durable alarm. A failed timer remains
+scheduled for retry. Server events and presence values are encoded and checked
+against both live-frame and welcome-chunk limits before the engine commits them,
+so an oversized value cannot make future handshakes fail.

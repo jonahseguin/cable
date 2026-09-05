@@ -4,8 +4,8 @@ Contract-first, type-safe procedures and durable WebSocket channels for actor
 runtimes. Cloudflare Durable Objects first; Rivet follows after the portable
 engine and conformance suite are stable.
 
-**Status: M1 implementation is in progress.** The packages remain private while
-the contract and procedure APIs are built and tested. [The design](docs/DESIGN.md)
+**Status: contracts and procedures are implemented; channels are in progress.**
+The packages remain private while the portable channel engine is built and tested. [The design](docs/DESIGN.md)
 describes the intended library; [the implementation plan](docs/PLAN.md) defines
 the work and gates.
 
