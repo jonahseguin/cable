@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "orpc-cloudflare-playground",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "not_found_handling": "single-page-application" },
+  "observability": {
+    "enabled": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PUBLISHER_DON",
+        "class_name": "PublisherDO"
+      },
+      {
+        "name": "CHAT_ROOM_DON",
+        "class_name": "ChatRoomDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "add-PublisherDO",
+      "new_sqlite_classes": ["PublisherDO"]
+    },
+    {
+      "tag": "add-ChatRoomDO",
+      "new_sqlite_classes": ["ChatRoomDO"]
+    }
+  ]
+}

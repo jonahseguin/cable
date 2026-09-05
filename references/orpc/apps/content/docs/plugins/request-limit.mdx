@@ -1,0 +1,37 @@
+---
+title: "Request Limit Plugin"
+description: "Restrict the size of incoming request bodies with RequestLimitHandlerPlugin to protect your server from oversized payloads."
+sidebar:
+  label: "Request Limit"
+---
+
+## Setup
+
+Use `RequestLimitHandlerPlugin` to limit the size of incoming request bodies.
+
+```ts
+import { RequestLimitHandlerPlugin } from '@orpc/server/plugins'
+
+const handler = new RPCHandler(router, {
+  plugins: [
+    new RequestLimitHandlerPlugin({
+      /**
+       * The maximum allowed request body size in bytes.
+       */
+      maxBodySize: 1024 * 1024, // 1MB
+    }),
+  ],
+})
+```
+
+:::info
+The `handler` can be any supported oRPC handler, such as [RPCHandler](/docs/rpc/handler), [OpenAPIHandler](/docs/openapi/handler), or a custom one.
+:::
+
+:::info
+When used with [Request Compression](/docs/plugins/request-compression), `maxBodySize` applies to the **decompressed** payload size, not the compressed wire size.
+:::
+
+## Learn More
+
+For implementation details, see the [source code](https://github.com/middleapi/orpc/blob/main/packages/server/src/plugins/request-limit.ts).

@@ -1,0 +1,170 @@
+import type { Promisable, Value } from '@orpc/shared'
+import type { StandardHeaders } from '@standardserver/core'
+import type { StandardHandlerOptions, StandardHandlerPlugin, StandardHandlerRoutingInterceptor, StandardHandlerRoutingInterceptorOptions } from '../adapters/standard'
+import type { Context } from '../context'
+import { toArray, value } from '@orpc/shared'
+import { flattenStandardHeader } from '@standardserver/core'
+
+export interface CORSHandlerPluginOptions<T extends Context> {
+  /**
+   * Configures the `Access-Control-Allow-Origin` header.
+   * Can be a string, an array of allowed origins, or a function (optionally async) that returns the allowed origin(s).
+   *
+   * @default '*'
+   */
+  origin?: Value<Promisable<string | readonly string[] | null | undefined>, [origin: string | undefined, options: StandardHandlerRoutingInterceptorOptions<T>]>
+
+  /**
+   * Configures the `Timing-Allow-Origin` header.
+   * Can be a string, an array of allowed origins, or a function (optionally async) that returns the allowed origin(s).
+   */
+  timingOrigin?: Value<Promisable<string | readonly string[] | null | undefined>, [origin: string | undefined, options: StandardHandlerRoutingInterceptorOptions<T>]>
+
+  /**
+   * Configures the `Access-Control-Allow-Methods` header for preflight requests.
+   *
+   * @default ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH', 'QUERY']
+   */
+  allowMethods?: readonly string[]
+
+  /**
+   * Configures the `Access-Control-Allow-Headers` header for preflight requests.
+   * Falls back to the request's `Access-Control-Request-Headers` if not set.
+   */
+  allowHeaders?: readonly string[]
+
+  /**
+   * Configures the `Access-Control-Max-Age` header (in seconds) for preflight requests.
+   */
+  maxAge?: number
+
+  /**
+   * Configures the `Access-Control-Allow-Credentials` header.
+   */
+  credentials?: boolean
+
+  /**
+   * Configures the `Access-Control-Expose-Headers` header.
+   */
+  exposeHeaders?: readonly string[]
+}
+
+/**
+ * Configures the [CORS Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
+ * for your API, including preflight requests.
+ *
+ * @see {@link https://orpc.dev/docs/plugins/cors | CORS Handler Plugin}
+ */
+export class CORSHandlerPlugin<T extends Context> implements StandardHandlerPlugin<T> {
+  private readonly options: CORSHandlerPluginOptions<T>
+
+  name = '~cors'
+
+  /**
+   * - Do not create spans for CORS preflight requests.
+   * - Run CORS interceptors before batch interceptors so headers are applied to
+   *  the actual response rather than sub-responses.
+   */
+  after = ['~opentelemetry', '~batch']
+
+  constructor(options: CORSHandlerPluginOptions<T> = {}) {
+    const defaults: CORSHandlerPluginOptions<T> = {
+      origin: '*',
+      allowMethods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH', 'QUERY'],
+    }
+
+    this.options = {
+      ...defaults,
+      ...options,
+    }
+  }
+
+  init(options: StandardHandlerOptions<T>): StandardHandlerOptions<T> {
+    const corsHeadersInterceptor: StandardHandlerRoutingInterceptor<T> = async (interceptorOptions) => {
+      const result = await interceptorOptions.next()
+
+      if (!result.matched) {
+        return result
+      }
+
+      const resHeaders = { ...result.response.headers }
+
+      const origin = flattenStandardHeader(interceptorOptions.request.headers.origin)
+
+      const allowedOrigins = toArray(await value(this.options.origin, origin, interceptorOptions))
+
+      if (allowedOrigins.includes('*')) {
+        resHeaders['access-control-allow-origin'] = '*'
+      }
+      else {
+        if (origin !== undefined && allowedOrigins.includes(origin)) {
+          resHeaders['access-control-allow-origin'] = origin
+        }
+
+        const existingVary = flattenStandardHeader(resHeaders.vary)
+        if (!existingVary?.split(',').some(v => v.trim().toLowerCase() === 'origin')) {
+          resHeaders.vary = existingVary ? `${existingVary}, Origin` : 'Origin'
+        }
+      }
+
+      const allowedTimingOrigins = toArray(await value(this.options.timingOrigin, origin, interceptorOptions))
+
+      if (allowedTimingOrigins.includes('*')) {
+        resHeaders['timing-allow-origin'] = '*'
+      }
+      else if (origin !== undefined && allowedTimingOrigins.includes(origin)) {
+        resHeaders['timing-allow-origin'] = origin
+      }
+
+      if (this.options.credentials) {
+        resHeaders['access-control-allow-credentials'] = 'true'
+      }
+
+      if (this.options.exposeHeaders?.length) {
+        resHeaders['access-control-expose-headers'] = flattenStandardHeader(this.options.exposeHeaders)
+      }
+
+      return { ...result, response: { ...result.response, headers: resHeaders } }
+    }
+
+    const preflightInterceptor: StandardHandlerRoutingInterceptor<T> = async (interceptorOptions) => {
+      if (interceptorOptions.request.method === 'OPTIONS') {
+        const resHeaders: StandardHeaders = {}
+
+        if (this.options.maxAge !== undefined) {
+          resHeaders['access-control-max-age'] = this.options.maxAge.toString()
+        }
+
+        if (this.options.allowMethods?.length) {
+          resHeaders['access-control-allow-methods'] = flattenStandardHeader(this.options.allowMethods)
+        }
+
+        const allowHeaders = this.options.allowHeaders ?? interceptorOptions.request.headers['access-control-request-headers']
+
+        if (typeof allowHeaders === 'string' || allowHeaders?.length) {
+          resHeaders['access-control-allow-headers'] = flattenStandardHeader(allowHeaders)
+        }
+
+        return {
+          matched: true,
+          response: {
+            status: 204,
+            headers: resHeaders,
+            body: undefined,
+          },
+        }
+      }
+
+      return interceptorOptions.next()
+    }
+
+    return {
+      ...options,
+      routingInterceptors: [
+        corsHeadersInterceptor,
+        preflightInterceptor,
+        ...toArray(options.routingInterceptors),
+      ],
+    }
+  }
+}
