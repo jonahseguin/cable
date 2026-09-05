@@ -3,7 +3,6 @@
 .env.*
 !.env.example
 .fallow/cache/
-.pnpm-store/
 coverage/
 dist/
 node_modules/

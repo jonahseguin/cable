@@ -5,5 +5,11 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["oxfmt.config.ts", "oxlint.config.ts", "scripts/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "oxfmt.config.ts",
+    "oxlint.config.ts",
+    "packages/**/test/**/*.ts",
+    "scripts/**/*.ts",
+    "vitest.config.ts"
+  ]
 }

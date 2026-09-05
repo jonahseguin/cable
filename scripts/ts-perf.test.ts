@@ -1,6 +1,32 @@
 import { expect, it } from "vitest";
 
-import { parseDiagnostics, withinBudget } from "./ts-perf.js";
+import { clientProgramLeaks, parseDiagnostics, withinBudget } from "./ts-perf.js";
+
+it("rejects implementation source in the client type program", () => {
+  const root = "/workspace/cable";
+  expect(
+    clientProgramLeaks(
+      [
+        "/workspace/cable/fixtures/big-contract/client.ts",
+        "/workspace/cable/fixtures/big-contract/backend.ts",
+        "/workspace/cable/packages/core/src/implement.ts",
+      ].join("\n"),
+      root,
+    ),
+  ).toEqual([
+    "/workspace/cable/fixtures/big-contract/backend.ts",
+    "/workspace/cable/packages/core/src/",
+  ]);
+  expect(
+    clientProgramLeaks(
+      [
+        "/workspace/cable/fixtures/big-contract/client.ts",
+        "/workspace/cable/packages/core/dist/index.d.mts",
+      ].join("\n"),
+      root,
+    ),
+  ).toEqual([]);
+});
 
 it("reads compiler diagnostics and rejects missing measurements", () => {
   expect(parseDiagnostics("Instantiations:  12345\nCheck time:  0.32s\n")).toEqual({

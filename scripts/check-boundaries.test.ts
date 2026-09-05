@@ -128,18 +128,26 @@ describe("manifest package boundaries", () => {
     ]);
   });
 
-  it("rejects runtime dependencies from the zero-runtime contract package", () => {
-    const errors = manifestViolations(
-      "contract",
-      JSON.stringify({
-        name: "@cable/contract",
-        dependencies: { "@standard-schema/spec": "1.0.0" },
-      }),
-      root,
-    );
+  it("permits only the declaration dependency from the zero-runtime contract package", () => {
+    expect(
+      manifestViolations(
+        "contract",
+        JSON.stringify({
+          name: "@cable/contract",
+          dependencies: { "@standard-schema/spec": "1.1.0" },
+        }),
+        root,
+      ),
+    ).toEqual([]);
 
-    expect(errors).toEqual([
-      "contract/package.json: @standard-schema/spec: contract permits only type-only @standard-schema/spec imports",
+    expect(
+      manifestViolations(
+        "contract",
+        JSON.stringify({ name: "@cable/contract", dependencies: { zod: "4.5.4" } }),
+        root,
+      ),
+    ).toEqual([
+      "contract/package.json: zod: contract permits only type-only @standard-schema/spec imports",
     ]);
   });
 

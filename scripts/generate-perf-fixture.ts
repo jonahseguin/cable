@@ -1,9 +1,12 @@
+import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
-// M0 fixes the workload; M1 renders it through the actual contract and client APIs.
+const procedureCount = 200;
+const channelCount = 40;
 const workload = {
-  status: "scaffold",
-  procedures: Array.from({ length: 200 }, (_, index) => ({
+  status: "active",
+  procedures: Array.from({ length: procedureCount }, (_, index) => ({
     path: [
       `group${Math.floor(index / 40)}`,
       `section${Math.floor(index / 10) % 4}`,
@@ -14,7 +17,7 @@ const workload = {
     output: "object",
     errors: ["FORBIDDEN", "RATE_LIMITED"],
   })),
-  channels: Array.from({ length: 40 }, (_, index) => ({
+  channels: Array.from({ length: channelCount }, (_, index) => ({
     pattern: `channel${index}.{roomId}`,
     serverEvents: ["created", "updated", "deleted", "typing"],
     clientEvents: ["send", "edit", "remove"],
@@ -22,7 +25,260 @@ const workload = {
     presence: true,
   })),
 };
+
+function indent(source: string, spaces: number): string {
+  const prefix = " ".repeat(spaces);
+  return source
+    .split("\n")
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
+}
+
+function inlineArray(items: readonly string[]): string {
+  return `[${items.map((item) => JSON.stringify(item)).join(", ")}]`;
+}
+
+function procedure(index: number): string {
+  const kind = index % 2 === 0 ? "query" : "mutation";
+  return `procedure${index}: c.${kind}({
+  input: z.object({ id: z.string(), cursor: z.number().int().optional(), marker: z.literal(${index}) }),
+  output: z.object({ id: z.string(), accepted: z.boolean(), marker: z.literal(${index}) }),
+  errors: {
+    FORBIDDEN: forbiddenError,
+    RATE_LIMITED: rateLimitedError,
+  },
+})`;
+}
+
+function procedureTree(): string {
+  const groups: string[] = [];
+  for (let group = 0; group < 5; group += 1) {
+    const sections: string[] = [];
+    for (let section = 0; section < 4; section += 1) {
+      const procedures: string[] = [];
+      const first = group * 40 + section * 10;
+      for (let offset = 0; offset < 10; offset += 1) {
+        procedures.push(`${indent(procedure(first + offset), 4)},`);
+      }
+      sections.push(`  section${section}: {\n${procedures.join("\n")}\n  },`);
+    }
+    groups.push(`group${group}: {\n${sections.join("\n")}\n},`);
+  }
+  return groups.join("\n");
+}
+
+function channel(index: number): string {
+  return `channel${index}: c.channel("channel${index}.{roomId}", {
+  server: {
+    created: z.object({ channel: z.literal(${index}), id: z.string() }),
+    updated: z.object({ channel: z.literal(${index}), version: z.number().int() }),
+    deleted: z.object({ channel: z.literal(${index}), id: z.string() }),
+    typing: z.object({ channel: z.literal(${index}), userId: z.string() }),
+  },
+  client: {
+    send: {
+      input: z.object({ text: z.string(), nonce: z.literal(${index}) }),
+      errors: { MUTED: mutedError },
+    },
+    edit: {
+      input: z.object({ id: z.string(), text: z.string(), nonce: z.literal(${index}) }),
+      errors: { CONFLICT: conflictError },
+    },
+    remove: {
+      input: z.object({ id: z.string(), nonce: z.literal(${index}) }),
+      errors: { FORBIDDEN: channelForbiddenError },
+    },
+  },
+  procedures: {
+    load: c.query({
+      input: z.object({ cursor: z.number().int().optional(), channel: z.literal(${index}) }),
+      output: z.object({ items: z.array(z.string()), channel: z.literal(${index}) }),
+      errors: { FORBIDDEN: channelForbiddenError },
+    }),
+    moderate: c.mutation({
+      input: z.object({ userId: z.string(), channel: z.literal(${index}) }),
+      output: z.object({ removed: z.boolean(), channel: z.literal(${index}) }),
+      errors: { FORBIDDEN: channelForbiddenError },
+    }),
+  },
+  presence: z.object({ typing: z.boolean(), channel: z.literal(${index}) }),
+})`;
+}
+
+function contractSource(): string {
+  const channels = Array.from(
+    { length: channelCount },
+    (_, index) => `${indent(channel(index), 2)},`,
+  ).join("\n");
+  return `import { c } from "@cable/contract";
+import { z } from "zod";
+
+const forbiddenError = z.object({ resource: z.string() });
+const rateLimitedError = z.object({ retryAfter: z.number().positive() });
+const mutedError = z.object({ until: z.number() });
+const conflictError = z.object({ version: z.number().int() });
+const channelForbiddenError = z.object({ reason: z.string() });
+
+export const api = c.contract({
+${indent(procedureTree(), 2)}
+  channels: {
+${channels}
+  },
+});
+
+export type Api = typeof api;
+`;
+}
+
+function procedureExercise(index: number): string {
+  const path = `api.group${Math.floor(index / 40)}.section${Math.floor(index / 10) % 4}.procedure${index}`;
+  const clientPath = `client.group${Math.floor(index / 40)}.section${Math.floor(index / 10) % 4}.procedure${index}`;
+  const operation = index % 2 === 0 ? "query" : "mutate";
+  return `const input${index}: InferInput<typeof ${path}> = {
+  id: "item-${index}",
+  cursor: ${index},
+  marker: ${index},
+};
+const call${index}: Promise<InferOutput<typeof ${path}>> = ${clientPath}.${operation}(input${index});
+const error${index}: InferErrors<typeof ${path}> = {
+  code: "${index % 2 === 0 ? "FORBIDDEN" : "RATE_LIMITED"}",
+  data: ${index % 2 === 0 ? `{ resource: "procedure${index}" }` : `{ retryAfter: ${index + 1} }`},
+};`;
+}
+
+function channelInference(index: number): string {
+  const path = `typeof api.channels.channel${index}`;
+  return `export interface Channel${index}Inference {
+  readonly params: InferChannelParams<${path}>;
+  readonly created: InferServerEvent<${path}, "created">;
+  readonly updated: InferServerEvent<${path}, "updated">;
+  readonly deleted: InferServerEvent<${path}, "deleted">;
+  readonly typing: InferServerEvent<${path}, "typing">;
+  readonly sendInput: InferClientEventInput<${path}, "send">;
+  readonly sendError: InferClientEventErrors<${path}, "send">;
+  readonly editInput: InferClientEventInput<${path}, "edit">;
+  readonly editError: InferClientEventErrors<${path}, "edit">;
+  readonly removeInput: InferClientEventInput<${path}, "remove">;
+  readonly removeError: InferClientEventErrors<${path}, "remove">;
+  readonly loadInput: InferInput<${path}["procedures"]["load"]>;
+  readonly loadOutput: InferOutput<${path}["procedures"]["load"]>;
+  readonly loadError: InferErrors<${path}["procedures"]["load"]>;
+  readonly moderateInput: InferInput<${path}["procedures"]["moderate"]>;
+  readonly moderateOutput: InferOutput<${path}["procedures"]["moderate"]>;
+  readonly moderateError: InferErrors<${path}["procedures"]["moderate"]>;
+  readonly presence: InferPresence<${path}>;
+}`;
+}
+
+function workloadSource(): string {
+  const procedures = workload.procedures
+    .map(
+      (item) => `    {
+      "path": ${inlineArray(item.path)},
+      "kind": "${item.kind}",
+      "input": "${item.input}",
+      "output": "${item.output}",
+      "errors": ${inlineArray(item.errors)}
+    }`,
+    )
+    .join(",\n");
+  const channels = workload.channels
+    .map(
+      (item) => `    {
+      "pattern": "${item.pattern}",
+      "serverEvents": ${inlineArray(item.serverEvents)},
+      "clientEvents": ${inlineArray(item.clientEvents)},
+      "procedures": ${inlineArray(item.procedures)},
+      "presence": ${String(item.presence)}
+    }`,
+    )
+    .join(",\n");
+  return `{
+  "status": "${workload.status}",
+  "procedures": [
+${procedures}
+  ],
+  "channels": [
+${channels}
+  ]
+}
+`;
+}
+
+function clientSource(): string {
+  const exercises = Array.from({ length: procedureCount }, (_, index) =>
+    procedureExercise(index),
+  ).join("\n\n");
+  const inputs = Array.from({ length: procedureCount }, (_, index) => `input${index}`).join(", ");
+  const calls = Array.from({ length: procedureCount }, (_, index) => `call${index}`).join(", ");
+  const errors = Array.from({ length: procedureCount }, (_, index) => `error${index}`).join(", ");
+  const channels = Array.from({ length: channelCount }, (_, index) => channelInference(index)).join(
+    "\n\n",
+  );
+  return `import type {
+  InferChannelParams,
+  InferClientEventErrors,
+  InferClientEventInput,
+  InferErrors,
+  InferInput,
+  InferOutput,
+  InferPresence,
+  InferServerEvent,
+} from "@cable/contract";
+import { createClient } from "@cable/client";
+import type { Link } from "@cable/client";
+
+import type { Api, api } from "./contract.js";
+
+const memoryLink: Link = () => async (call) => ({ id: call.id, ok: true, data: undefined });
+const client = createClient<Api>({ links: [memoryLink] });
+
+${exercises}
+
+export const procedureInputs = [${inputs}] as const;
+export const procedureCalls = [${calls}] as const;
+export const procedureErrors = [${errors}] as const;
+
+${channels}
+`;
+}
+
+function backendSource(): string {
+  return `import type { Api } from "./contract.js";
+
+export interface BackendOnlyContext {
+  readonly secret: string;
+}
+
+export type BackendContract = Api;
+`;
+}
+
 const directory = new URL("../fixtures/big-contract/", import.meta.url);
 await mkdir(directory, { recursive: true });
-await writeFile(new URL("workload.json", directory), `${JSON.stringify(workload, null, 2)}\n`);
-console.log("Generated 200 procedure / 40 channel workload. API rendering begins in M1.");
+await Promise.all([
+  writeFile(new URL("workload.json", directory), workloadSource()),
+  writeFile(new URL("contract.ts", directory), contractSource()),
+  writeFile(new URL("client.ts", directory), clientSource()),
+  writeFile(new URL("backend.ts", directory), backendSource()),
+]);
+
+const fixturePath = fileURLToPath(directory);
+const format = spawnSync(
+  "bun",
+  [
+    "x",
+    "--no-install",
+    "oxfmt",
+    "--disable-nested-config",
+    "--write",
+    `${fixturePath}contract.ts`,
+    `${fixturePath}client.ts`,
+    `${fixturePath}backend.ts`,
+  ],
+  { encoding: "utf8" },
+);
+if (format.error) throw format.error;
+if (format.status !== 0) throw new Error(format.stderr || "Could not format performance fixture.");
+
+console.log("Generated real 200-procedure / 40-channel contract and client workload.");

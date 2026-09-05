@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "types": []
+  },
+  "include": ["client.ts", "contract.ts"],
+  "exclude": ["backend.ts", "dist", "node_modules", "../../references"]
+}

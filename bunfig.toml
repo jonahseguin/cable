@@ -1,0 +1,4 @@
+[install]
+auto = "disable"
+exact = true
+linker = "isolated"

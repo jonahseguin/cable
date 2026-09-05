@@ -10,6 +10,21 @@ export interface Diagnostics {
   checkSeconds: number;
 }
 
+/** Return client-program files that cross into implementation-only source. */
+export function clientProgramLeaks(output: string, root: string): string[] {
+  const normalizedRoot = root.replaceAll("\\", "/").replace(/\/$/u, "");
+  const forbidden = [
+    `${normalizedRoot}/fixtures/big-contract/backend.ts`,
+    `${normalizedRoot}/packages/core/src/`,
+    `${normalizedRoot}/packages/adapter-memory/src/`,
+  ];
+  const files = output
+    .split(/\r?\n/u)
+    .map((file) => file.replaceAll("\\", "/"))
+    .filter((file) => file.length > 0);
+  return forbidden.filter((path) => files.some((file) => file === path || file.startsWith(path)));
+}
+
 /** Parse tsc's own diagnostics, rejecting incomplete or unexpected compiler output. */
 export function parseDiagnostics(output: string): Diagnostics {
   const instantiations = /^Instantiations:\s+(\d+)\s*$/mu.exec(output)?.[1];
@@ -39,10 +54,40 @@ async function main(): Promise<void> {
     return;
   }
   if (baseline.status !== "active") throw new Error("Unknown performance baseline status.");
-  const result = spawnSync(
-    "pnpm",
+  const fileList = spawnSync(
+    "bun",
     [
-      "exec",
+      "x",
+      "--no-install",
+      "tsc",
+      "--noEmit",
+      "--incremental",
+      "false",
+      "--listFilesOnly",
+      "-p",
+      "fixtures/big-contract/tsconfig.json",
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+  if (fileList.error) throw fileList.error;
+  if (fileList.status !== 0) {
+    process.stdout.write(fileList.stdout);
+    process.stderr.write(fileList.stderr);
+    process.exitCode = fileList.status ?? 1;
+    return;
+  }
+  const leaks = clientProgramLeaks(fileList.stdout, root);
+  if (leaks.length > 0) {
+    console.error(`Client type program includes implementation-only files:\n${leaks.join("\n")}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log("Client type program excludes backend, core source, and memory-adapter source.");
+  const result = spawnSync(
+    "bun",
+    [
+      "x",
+      "--no-install",
       "tsc",
       "--noEmit",
       "--incremental",

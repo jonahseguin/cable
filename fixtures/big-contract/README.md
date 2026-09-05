@@ -1,20 +1,17 @@
 # Contract performance fixture
 
-M0 fixes the workload in `workload.json` with `pnpm generate:perf`. It does not
-measure cable's type performance yet: the contract and client APIs do not exist.
-`pnpm ts-perf` reports this explicitly. `pnpm ts-perf --require-baseline` fails
-until a real fixture is activated.
+Run `bun run generate:perf` to regenerate the fixed workload. The generated
+contract contains 200 procedures nested three levels deep and 40 channels. Each
+channel declares four server events, three client events, two host procedures,
+and presence. `client.ts` calls every global procedure through the real typed
+client and evaluates input, output, and error inference for every node.
 
-At M1, extend the generator to render this workload through the actual exported
-contract DSL and typed client. Include input/output/error inference and exercise
-every procedure, channel event, host procedure, and presence operation. Preserve
-200 global procedures nested three levels deep and 40 channels, each with four
-server events, three client events, two procedures, and presence.
+M1 measures channel contract inference because the channel client starts in M2.
+When M2 adds that client, extend this fixture to exercise its event, presence,
+and host-procedure operations without reducing the existing workload.
 
-Add a fixture tsconfig and its schema dependency, record runner/compiler/version
-and measured baseline in `baseline.json`, set `status` to `active`, and require
-`--require-baseline` in CI. The runner uses a fresh, nonincremental `tsc` process
-and fails on compiler errors or missing diagnostics. Passing requires fewer than
-500,000 instantiations and less than 2.5 seconds check time. Do not replace the
-real client fixture with structural type aliases or relax the budget to make a
-regression pass.
+`bun run ts-perf --require-baseline` starts fresh TypeScript processes. One checks
+the client program's file list and rejects the fixture's backend module or package
+implementation source. The other reports compiler diagnostics and enforces fewer
+than 500,000 instantiations and less than 2.5 seconds of check time. The first M1
+measurement is recorded in `baseline.json`; the fixed limits remain the CI gate.
