@@ -1,0 +1,46 @@
+{
+  "name": "cable",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A contract-first, type-safe API layer for procedures and durable channels.",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --recursive --if-present build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:boundaries && pnpm build && pnpm test && pnpm fallow && pnpm ts-perf",
+    "check:boundaries": "tsx scripts/check-boundaries.ts",
+    "changeset": "changeset",
+    "dead-code": "fallow dead-code --type-aware --type-aware-require complete --format json --quiet --explain",
+    "duplicates": "fallow dupes --fail-on-issues --format json --quiet --explain",
+    "fallow": "pnpm dead-code && pnpm duplicates && pnpm health",
+    "format": "oxfmt --disable-nested-config --write . '!references/**' '!docs/DESIGN.md'",
+    "format:check": "oxfmt --disable-nested-config --check . '!references/**' '!docs/DESIGN.md'",
+    "generate:perf": "tsx scripts/generate-perf-fixture.ts",
+    "health": "fallow health --complexity --fail-on-issues --format json --quiet --explain",
+    "lint": "oxlint --disable-nested-config --deny-warnings --report-unused-disable-directives .",
+    "lint:fix": "oxlint --disable-nested-config --fix --deny-warnings --report-unused-disable-directives .",
+    "setup:hooks": "git config core.hooksPath .githooks",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "ts-perf": "tsx scripts/ts-perf.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --recursive --if-present typecheck"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.2",
+    "@oxlint/plugins": "1.81.0",
+    "@types/node": "22.20.1",
+    "fallow": "3.22.0",
+    "oxfmt": "0.66.0",
+    "oxlint": "1.81.0",
+    "oxlint-tsgolint": "7.0.2001",
+    "tsdown": "0.23.0",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=22.18.0",
+    "pnpm": ">=10.0.0 <11"
+  },
+  "packageManager": "pnpm@10.34.5"
+}

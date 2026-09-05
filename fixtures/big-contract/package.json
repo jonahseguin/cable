@@ -1,0 +1,7 @@
+{
+  "name": "@cable/fixture-big-contract",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic workload for the M1 contract and client performance budget.",
+  "type": "module"
+}

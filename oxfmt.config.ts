@@ -1,0 +1,38 @@
+import { defineConfig } from "oxfmt";
+
+export default defineConfig({
+  arrowParens: "always",
+  bracketSameLine: false,
+  bracketSpacing: true,
+  endOfLine: "lf",
+  ignorePatterns: [
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".cursor/**",
+    ".fallow/**",
+    ".pnpm-store/**",
+    "coverage/**",
+    "dist/**",
+    "docs/DESIGN.md",
+    "fixtures/big-contract/workload.json",
+    "references/**",
+    "tools/oxlint/anti-slop/**",
+    "**/dist/**",
+  ],
+  jsxSingleQuote: false,
+  printWidth: 100,
+  proseWrap: "preserve",
+  quoteProps: "as-needed",
+  semi: true,
+  singleQuote: false,
+  sortImports: {
+    ignoreCase: true,
+    newlinesBetween: true,
+    order: "asc",
+  },
+  sortPackageJson: true,
+  tabWidth: 2,
+  trailingComma: "all",
+  useTabs: false,
+});

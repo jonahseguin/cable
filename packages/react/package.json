@@ -1,0 +1,21 @@
+{
+  "name": "@cable/react",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React channel hooks and native TanStack Query options proxies.",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit"
+  }
+}

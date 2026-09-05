@@ -1,0 +1,21 @@
+{
+  "name": "@cable/adapter-memory",
+  "version": "0.0.0",
+  "private": true,
+  "description": "In-process transport and deterministic hosts with simulated hibernation.",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit"
+  }
+}

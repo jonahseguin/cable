@@ -1,0 +1,1687 @@
+{
+  "status": "scaffold",
+  "procedures": [
+    {
+      "path": ["group0", "section0", "procedure0"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure1"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure2"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure3"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure4"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure5"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure6"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure7"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure8"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section0", "procedure9"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure10"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure11"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure12"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure13"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure14"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure15"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure16"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure17"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure18"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section1", "procedure19"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure20"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure21"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure22"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure23"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure24"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure25"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure26"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure27"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure28"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section2", "procedure29"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure30"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure31"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure32"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure33"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure34"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure35"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure36"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure37"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure38"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group0", "section3", "procedure39"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure40"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure41"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure42"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure43"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure44"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure45"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure46"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure47"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure48"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section0", "procedure49"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure50"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure51"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure52"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure53"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure54"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure55"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure56"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure57"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure58"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section1", "procedure59"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure60"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure61"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure62"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure63"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure64"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure65"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure66"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure67"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure68"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section2", "procedure69"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure70"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure71"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure72"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure73"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure74"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure75"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure76"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure77"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure78"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group1", "section3", "procedure79"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure80"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure81"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure82"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure83"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure84"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure85"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure86"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure87"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure88"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section0", "procedure89"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure90"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure91"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure92"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure93"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure94"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure95"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure96"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure97"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure98"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section1", "procedure99"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure100"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure101"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure102"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure103"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure104"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure105"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure106"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure107"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure108"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section2", "procedure109"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure110"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure111"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure112"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure113"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure114"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure115"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure116"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure117"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure118"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group2", "section3", "procedure119"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure120"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure121"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure122"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure123"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure124"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure125"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure126"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure127"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure128"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section0", "procedure129"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure130"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure131"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure132"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure133"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure134"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure135"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure136"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure137"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure138"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section1", "procedure139"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure140"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure141"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure142"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure143"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure144"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure145"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure146"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure147"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure148"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section2", "procedure149"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure150"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure151"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure152"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure153"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure154"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure155"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure156"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure157"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure158"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group3", "section3", "procedure159"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure160"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure161"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure162"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure163"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure164"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure165"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure166"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure167"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure168"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section0", "procedure169"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure170"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure171"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure172"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure173"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure174"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure175"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure176"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure177"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure178"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section1", "procedure179"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure180"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure181"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure182"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure183"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure184"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure185"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure186"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure187"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure188"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section2", "procedure189"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure190"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure191"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure192"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure193"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure194"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure195"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure196"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure197"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure198"],
+      "kind": "query",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    },
+    {
+      "path": ["group4", "section3", "procedure199"],
+      "kind": "mutation",
+      "input": "object",
+      "output": "object",
+      "errors": ["FORBIDDEN", "RATE_LIMITED"]
+    }
+  ],
+  "channels": [
+    {
+      "pattern": "channel0.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel1.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel2.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel3.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel4.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel5.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel6.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel7.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel8.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel9.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel10.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel11.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel12.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel13.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel14.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel15.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel16.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel17.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel18.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel19.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel20.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel21.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel22.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel23.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel24.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel25.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel26.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel27.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel28.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel29.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel30.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel31.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel32.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel33.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel34.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel35.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel36.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel37.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel38.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    },
+    {
+      "pattern": "channel39.{roomId}",
+      "serverEvents": ["created", "updated", "deleted", "typing"],
+      "clientEvents": ["send", "edit", "remove"],
+      "procedures": ["load", "moderate"],
+      "presence": true
+    }
+  ]
+}
