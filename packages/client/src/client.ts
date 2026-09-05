@@ -4,6 +4,8 @@ import type {
   InferOutput,
   AnyProcedureContract,
   AnyContract,
+  AnyChannelContract,
+  InferSchemaInput,
   ContractNode,
   ContractTree,
   QueryTransport,
@@ -12,6 +14,8 @@ import { CableError } from "@cable/core";
 import type { RpcCall, RpcSuccess } from "@cable/core";
 
 import { batchLink } from "./batch-link.js";
+import { ChannelPool } from "./channel-pool.js";
+import type { ChannelHandle, SocketOptions } from "./channel-types.js";
 import type { Link, NextLink } from "./link.js";
 
 /** Raw schema inputs accepted by a client operation; void inputs may be omitted. */
@@ -23,11 +27,18 @@ export type ProcedureClient<Node extends AnyProcedureContract> = Node["kind"] ex
   ? { readonly query: (...args: ProcedureArguments<Node>) => Promise<InferOutput<Node>> }
   : { readonly mutate: (...args: ProcedureArguments<Node>) => Promise<InferOutput<Node>> };
 
-/** A client proxy only contains procedures, never server implementations or contexts. */
+/** A callable channel family with schema-typed parameters. */
+export type ChannelFactory<Channel extends AnyChannelContract> = (
+  params: InferSchemaInput<Channel["params"]>,
+) => ChannelHandle<Channel>;
+
+/** A contract-shaped client containing procedure operations and channel factories. */
 export type Client<Tree> = {
-  readonly [
-    Key in keyof Tree & string as Tree[Key] extends { readonly kind: "channel" } ? never : Key
-  ]: Tree[Key] extends AnyProcedureContract ? ProcedureClient<Tree[Key]> : Client<Tree[Key]>;
+  readonly [Key in keyof Tree & string]: Tree[Key] extends AnyChannelContract
+    ? ChannelFactory<Tree[Key]>
+    : Tree[Key] extends AnyProcedureContract
+      ? ProcedureClient<Tree[Key]>
+      : Client<Tree[Key]>;
 };
 
 /** Authentication is evaluated for each HTTP batch so refreshed credentials take effect. */
@@ -40,6 +51,7 @@ export interface ClientOptions<Tree extends AnyContract = AnyContract> {
   /** Supply the shared contract to honor runtime transport metadata such as GET. */
   readonly contract?: Tree;
   readonly url?: string;
+  readonly ws?: SocketOptions;
   readonly links?: readonly Link[];
   readonly fetch?: typeof globalThis.fetch;
   readonly headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
@@ -62,14 +74,28 @@ function isBranch(node: ContractTree | ContractNode): node is ContractTree {
   return !isProcedureContract(node) && !isChannelContract(node);
 }
 
-function findTransport(contract: ContractTree, path: string): QueryTransport | undefined {
+function clientContract(value: AnyContract | undefined): ContractTree | undefined {
+  if (value === undefined) return undefined;
+  if (!isContract(value)) throw new TypeError("Client metadata must come from c.contract().");
+  return value;
+}
+
+function findNode(
+  contract: ContractTree,
+  path: readonly string[],
+): ContractTree | ContractNode | undefined {
   let node: ContractTree | ContractNode = contract;
-  for (const segment of path.split(".")) {
+  for (const segment of path) {
     if (!isBranch(node)) return undefined;
     const child: ContractNode | ContractTree | undefined = node[segment];
     if (child === undefined) return undefined;
     node = child;
   }
+  return node;
+}
+
+function findTransport(contract: ContractTree, path: string): QueryTransport | undefined {
+  const node = findNode(contract, path.split("."));
   return isProcedureContract(node) && node.kind === "query" ? node.transport : undefined;
 }
 
@@ -86,14 +112,11 @@ const unavailable: NextLink = () =>
     new CableError("UNAVAILABLE", { message: "No transport link handled the request." }),
   );
 
-type ProxyCall = (input?: RpcCall["input"]) => Promise<RpcSuccess["data"]>;
+type ProxyCall = (input?: RpcCall["input"]) => RpcSuccess["data"];
 
 /** Create a lazy, contract-shaped client. No request is made until an operation is called. */
 export function createClient<Tree extends AnyContract>(options: ClientOptions<Tree>): Client<Tree> {
-  const contract = options.contract;
-  if (contract !== undefined && !isContract(contract)) {
-    throw new TypeError("Client metadata must come from c.contract().");
-  }
+  const contract = clientContract(options.contract);
   let nextId = 0;
   const context = {
     url: options.url ?? "/_cable",
@@ -116,36 +139,44 @@ export function createClient<Tree extends AnyContract>(options: ClientOptions<Tr
     unavailable,
   );
 
+  const channels = new ChannelPool(context, options.ws ?? {}, options.auth?.token);
+
+  async function executeProcedure(
+    path: readonly string[],
+    input: RpcCall["input"],
+  ): Promise<RpcSuccess["data"]> {
+    const call: RpcCall = { id: String(++nextId), path: path.join("."), input };
+    try {
+      const result = await execute(call);
+      if (result.id !== call.id)
+        throw new CableError("PARSE_ERROR", {
+          message: "RPC response ID does not match its request.",
+        });
+      if (!result.ok) throw new CableError(result.error.code, result.error);
+      return result.data;
+    } catch (cause) {
+      const error = cause instanceof CableError ? cause : new CableError("UNAVAILABLE", { cause });
+      reportError(options, error, call);
+      throw error;
+    }
+  }
+
   function proxy(path: readonly string[]): ProxyCall {
-    return new Proxy(async () => undefined, {
+    return new Proxy(() => undefined, {
       get(_target, key) {
         if (!isStringKey(key) || key === "then") return undefined;
         return proxy([...path, key]);
       },
-      async apply(_target, _receiver, args: RpcCall["input"][]) {
+      apply(_target, _receiver, args: RpcCall["input"][]) {
+        const node = contract === undefined ? undefined : findNode(contract, path);
+        if (isChannelContract(node)) return channels.open(node, args[0]);
         const operation = path.at(-1);
         if (operation !== "query" && operation !== "mutate") {
-          throw new TypeError("Call a procedure's query or mutate operation.");
+          throw new TypeError(
+            "Call query or mutate; channel factories require runtime contract metadata.",
+          );
         }
-        const call: RpcCall = {
-          id: String(++nextId),
-          path: path.slice(0, -1).join("."),
-          input: args[0],
-        };
-        try {
-          const result = await execute(call);
-          if (result.id !== call.id)
-            throw new CableError("PARSE_ERROR", {
-              message: "RPC response ID does not match its request.",
-            });
-          if (!result.ok) throw new CableError(result.error.code, result.error);
-          return result.data;
-        } catch (cause) {
-          const error =
-            cause instanceof CableError ? cause : new CableError("UNAVAILABLE", { cause });
-          reportError(options, error, call);
-          throw error;
-        }
+        return executeProcedure(path.slice(0, -1), args[0]);
       },
     });
   }

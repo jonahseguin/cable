@@ -1,13 +1,13 @@
 {
   "status": "active",
-  "milestone": "M1",
+  "milestone": "M2",
   "measurement": {
     "date": "2026-09-05",
     "runner": "Darwin arm64, Node 24.16.0",
     "bun": "1.4.0",
     "typescript": "5.9.3",
-    "instantiations": 261723,
-    "checkSeconds": 0.4
+    "instantiations": 310351,
+    "checkSeconds": 0.46
   },
   "workload": {
     "procedures": 200,

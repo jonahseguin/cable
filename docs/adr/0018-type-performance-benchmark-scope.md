@@ -20,3 +20,6 @@ On the M1 fixture, declaration checking accounted for 146,422 instantiations and
 with it, compared with 267,114 instantiations and 0.52 seconds without it. The
 fixture retains all 200 procedures and 40 channels, and the limits remain fewer
 than 500,000 instantiations and 2.5 seconds of uncompensated compiler check time.
+The M2 fixture adds real client handles for all 40 channels, including every event
+listener, client event, host procedure, and presence view. That workload records
+310,351 instantiations and 0.46 seconds on the same reference machine.

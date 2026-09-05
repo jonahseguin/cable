@@ -160,6 +160,14 @@ function permitsWorkspaceDependency(owner: string, dependency: string): boolean 
   return allowedWorkspaceDependencies[owner].some((allowed) => allowed === dependency);
 }
 
+function permitsTestDependency(owner: string, file: string, dependency: string): boolean {
+  return (
+    dependency === "conformance" &&
+    file.endsWith(".test.ts") &&
+    ["adapter-memory", "adapter-node", "cloudflare", "rivet"].includes(owner)
+  );
+}
+
 function platformOwner(specifier: string): string | undefined {
   if (
     nodeBuiltins.has(specifier) ||
@@ -245,7 +253,11 @@ export function violation(
   const dependency = workspaceDependency(specifier);
   if (dependency === computedModule)
     return "cross-package imports must use the declared public entry point";
-  if (dependency !== undefined && !permitsWorkspaceDependency(owner, dependency)) {
+  if (
+    dependency !== undefined &&
+    !permitsWorkspaceDependency(owner, dependency) &&
+    !permitsTestDependency(owner, file, dependency)
+  ) {
     return `unsupported package dependency: ${specifier}`;
   }
   return undefined;

@@ -146,28 +146,67 @@ const error${index}: InferErrors<typeof ${path}> = {
 };`;
 }
 
-function channelInference(index: number): string {
+function channelExercise(index: number): string {
   const path = `typeof api.channels.channel${index}`;
-  return `export interface Channel${index}Inference {
-  readonly params: InferChannelParams<${path}>;
-  readonly created: InferServerEvent<${path}, "created">;
-  readonly updated: InferServerEvent<${path}, "updated">;
-  readonly deleted: InferServerEvent<${path}, "deleted">;
-  readonly typing: InferServerEvent<${path}, "typing">;
-  readonly sendInput: InferClientEventInput<${path}, "send">;
-  readonly sendError: InferClientEventErrors<${path}, "send">;
-  readonly editInput: InferClientEventInput<${path}, "edit">;
-  readonly editError: InferClientEventErrors<${path}, "edit">;
-  readonly removeInput: InferClientEventInput<${path}, "remove">;
-  readonly removeError: InferClientEventErrors<${path}, "remove">;
-  readonly loadInput: InferInput<${path}["procedures"]["load"]>;
-  readonly loadOutput: InferOutput<${path}["procedures"]["load"]>;
-  readonly loadError: InferErrors<${path}["procedures"]["load"]>;
-  readonly moderateInput: InferInput<${path}["procedures"]["moderate"]>;
-  readonly moderateOutput: InferOutput<${path}["procedures"]["moderate"]>;
-  readonly moderateError: InferErrors<${path}["procedures"]["moderate"]>;
-  readonly presence: InferPresence<${path}>;
-}`;
+  return `const channel${index}Params: InferChannelParams<${path}> = { roomId: "room-${index}" };
+const channel${index} = client.channels.channel${index}(channel${index}Params);
+export const channel${index}Status: ChannelStatus = channel${index}.status;
+export const channel${index}Created = channel${index}.on("created", (event) => {
+  const value: InferServerEvent<${path}, "created"> = event;
+  void value;
+});
+export const channel${index}Updated = channel${index}.on("updated", (event) => {
+  const value: InferServerEvent<${path}, "updated"> = event;
+  void value;
+});
+export const channel${index}Deleted = channel${index}.on("deleted", (event) => {
+  const value: InferServerEvent<${path}, "deleted"> = event;
+  void value;
+});
+export const channel${index}Typing = channel${index}.on("typing", (event) => {
+  const value: InferServerEvent<${path}, "typing"> = event;
+  void value;
+});
+export const channel${index}Send: Promise<void> = channel${index}.send(
+  { text: "message-${index}", nonce: ${index} },
+  { ack: true },
+);
+channel${index}.edit({ id: "item-${index}", text: "edited-${index}", nonce: ${index} });
+channel${index}.remove({ id: "item-${index}", nonce: ${index} });
+export const channel${index}SendError: InferClientEventErrors<${path}, "send"> = {
+  code: "MUTED",
+  data: { until: ${index} },
+};
+export const channel${index}EditError: InferClientEventErrors<${path}, "edit"> = {
+  code: "CONFLICT",
+  data: { version: ${index} },
+};
+export const channel${index}RemoveError: InferClientEventErrors<${path}, "remove"> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-${index}" },
+};
+export const channel${index}Load: Promise<InferOutput<${path}["procedures"]["load"]>> =
+  channel${index}.load({ cursor: ${index}, channel: ${index} });
+export const channel${index}LoadError: InferErrors<${path}["procedures"]["load"]> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-${index}" },
+};
+export const channel${index}Moderate: Promise<InferOutput<${path}["procedures"]["moderate"]>> =
+  channel${index}.moderate({ userId: "user-${index}", channel: ${index} });
+export const channel${index}ModerateError: InferErrors<${path}["procedures"]["moderate"]> = {
+  code: "FORBIDDEN",
+  data: { reason: "channel-${index}" },
+};
+channel${index}.presence.update({ typing: true, channel: ${index} });
+export const channel${index}Presence: InferPresence<${path}> | undefined =
+  channel${index}.presence.self;
+export const channel${index}Others: readonly PresenceMember<InferPresence<${path}>>[] =
+  channel${index}.presence.others;
+export const channel${index}PresenceOff = channel${index}.presence.on(() => undefined);
+export const channel${index}Dispose = (): void => {
+  channel${index}.dispose();
+};
+`;
 }
 
 function workloadSource(): string {
@@ -212,13 +251,12 @@ function clientSource(): string {
   const inputs = Array.from({ length: procedureCount }, (_, index) => `input${index}`).join(", ");
   const calls = Array.from({ length: procedureCount }, (_, index) => `call${index}`).join(", ");
   const errors = Array.from({ length: procedureCount }, (_, index) => `error${index}`).join(", ");
-  const channels = Array.from({ length: channelCount }, (_, index) => channelInference(index)).join(
+  const channels = Array.from({ length: channelCount }, (_, index) => channelExercise(index)).join(
     "\n\n",
   );
   return `import type {
   InferChannelParams,
   InferClientEventErrors,
-  InferClientEventInput,
   InferErrors,
   InferInput,
   InferOutput,
@@ -226,12 +264,12 @@ function clientSource(): string {
   InferServerEvent,
 } from "@cable/contract";
 import { createClient } from "@cable/client";
-import type { Link } from "@cable/client";
+import type { ChannelStatus, Link, PresenceMember } from "@cable/client";
 
-import type { Api, api } from "./contract.js";
+import { api, type Api } from "./contract.js";
 
 const memoryLink: Link = () => async (call) => ({ id: call.id, ok: true, data: undefined });
-const client = createClient<Api>({ links: [memoryLink] });
+const client = createClient<Api>({ contract: api, links: [memoryLink] });
 
 ${exercises}
 

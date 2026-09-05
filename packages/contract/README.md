@@ -43,11 +43,21 @@ type ListInput = InferInput<typeof api.posts.list>;
 type MessageEvent = InferServerEvent<typeof api.chat, "message">;
 ```
 
-`c.contract` keeps the original nested object and adds a non-enumerable brand.
-Procedure and channel nodes expose their schemas as ordinary readonly fields so
-the core runtime can validate each boundary once. Inference helpers accept one
-node at a time and do not walk the whole contract.
+`c.contract` keeps the original nested object, adds a non-enumerable brand, and
+freezes the contract's branch objects after validation. Procedure and channel
+nodes expose their schemas as ordinary readonly fields so the core runtime can
+validate each boundary once. Inference helpers accept one node at a time and do
+not walk the whole contract.
 
 Contract keys cannot contain `.` or `/`. The names `then`, `__proto__`,
 `prototype`, and `constructor` are reserved because contract trees back typed
 proxies and server-side callers.
+
+Channel patterns in one contract cannot overlap. For example, `chat.{roomId}`
+conflicts with both `chat.admin` and `chat.{slug}`. Parameter names also reserve
+`then`, `__proto__`, `prototype`, and `constructor` so decoded parameter maps
+have unambiguous data properties. Channel client events and procedures must use
+distinct names. They cannot use `on`, `onStatus`,
+`onError`, `status`, `dispose`, `presence`, `history`, or `then`, which belong to
+the client handle. The three object prototype names above are reserved here as
+well. Server event name `reset` belongs to the resume lifecycle.

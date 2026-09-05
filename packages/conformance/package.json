@@ -17,5 +17,17 @@
   "scripts": {
     "build": "tsdown src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cable/contract": "workspace:*",
+    "@cable/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11",
+    "zod": "4.5.4"
+  },
+  "peerDependencies": {
+    "vitest": "4.1.11",
+    "zod": "4.5.4"
   }
 }

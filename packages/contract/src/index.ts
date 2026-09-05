@@ -4,6 +4,19 @@ const contractBrand: unique symbol = Symbol("cable.contract");
 const contractNodeBrand: unique symbol = Symbol("cable.contract-node");
 const emptyErrors: EmptyErrorMap = Object.freeze({});
 const emptyProcedures: EmptyProcedureMap = Object.freeze({});
+const reservedChannelMembers = new Set([
+  "__proto__",
+  "constructor",
+  "dispose",
+  "history",
+  "on",
+  "onError",
+  "onStatus",
+  "presence",
+  "prototype",
+  "status",
+  "then",
+]);
 
 /** A Standard Schema v1 validator accepted by cable. */
 export type AnyStandardSchema = StandardSchemaV1<unknown, unknown>;
@@ -465,16 +478,30 @@ export function isContract(value: unknown): value is AnyContract & ContractTree 
 
 function contract<const TTree extends ContractTree>(definition: TTree): Contract<TTree> {
   assertDefinitionRecord(definition, "Contract root");
-  assertContractTree(definition, new WeakSet(), []);
+  assertContractTree(definition, new WeakSet(), [], []);
   Object.defineProperty(definition, contractBrand, {
     configurable: false,
     enumerable: false,
     value: true,
     writable: false,
   });
+  freezeContractBranches(definition, new WeakSet());
   // SAFETY: The complete tree was checked above and the hidden brand was just installed.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The unique property now exists on this object.
   return definition as Contract<TTree>;
+}
+
+function freezeContractBranches(tree: UnparsedRecord, visited: WeakSet<object>): void {
+  if (visited.has(tree)) {
+    return;
+  }
+  visited.add(tree);
+  for (const value of Object.values(tree)) {
+    if (isPlainRecord(value) && !isProcedureContract(value) && !isChannelContract(value)) {
+      freezeContractBranches(value, visited);
+    }
+  }
+  Object.freeze(tree);
 }
 
 function query<
@@ -570,6 +597,15 @@ function channel(pattern: string, definition: ChannelDefinition): AnyChannelCont
   const client = normalizeClientEvents(definition.client);
   const procedures = definition.procedures ?? emptyProcedures;
   assertProcedureMap(procedures, "Channel procedures");
+  assertChannelMemberNames(definition.server, "server event", new Set(["reset"]));
+  assertChannelMemberNames(client, "client event", reservedChannelMembers);
+  assertChannelMemberNames(procedures, "procedure", reservedChannelMembers);
+  const duplicateMember = Object.keys(client).find((name) => Object.hasOwn(procedures, name));
+  if (duplicateMember !== undefined) {
+    throw new TypeError(
+      `Channel member '${duplicateMember}' cannot be both a client event and a procedure`,
+    );
+  }
   if (definition.presence !== undefined) {
     assertSchema(definition.presence, "Channel presence");
   }
@@ -769,6 +805,9 @@ function parsePattern(pattern: string): readonly string[] {
     if (name === undefined) {
       throw new TypeError(`Invalid parameter segment '${segment}' in channel pattern`);
     }
+    if (name === "then" || name === "__proto__" || name === "prototype" || name === "constructor") {
+      throw new TypeError(`Channel parameter '${name}' is reserved`);
+    }
     if (seen.has(name)) {
       throw new TypeError(`Duplicate parameter '${name}' in channel pattern`);
     }
@@ -812,22 +851,89 @@ function assertContractTree(
   tree: UnparsedRecord,
   ancestors: WeakSet<object>,
   path: readonly string[],
+  channels: ChannelTreeEntry[],
 ): void {
   if (ancestors.has(tree)) {
     throw new TypeError(`Contract contains a cycle at '${path.join(".") || "<root>"}'`);
   }
   ancestors.add(tree);
-  for (const [name, value] of Object.entries(tree)) {
+  for (const name of Object.keys(tree)) {
+    const descriptor = Object.getOwnPropertyDescriptor(tree, name);
+    if (descriptor === undefined || !("value" in descriptor)) {
+      throw new TypeError(
+        `Contract property '${[...path, name].join(".")}' must be a data property`,
+      );
+    }
+    const value: unknown = descriptor.value;
     assertContractKey(name, path);
-    if (isProcedureContract(value) || isChannelContract(value)) {
+    if (isProcedureContract(value)) {
+      continue;
+    }
+    if (isChannelContract(value)) {
+      assertChannelPatternUnique(value.pattern, [...path, name], channels);
+      channels.push({ path: [...path, name], pattern: value.pattern });
       continue;
     }
     if (!isPlainRecord(value)) {
       throw new TypeError(`Contract leaf '${[...path, name].join(".")}' is not a cable node`);
     }
-    assertContractTree(value, ancestors, [...path, name]);
+    assertContractTree(value, ancestors, [...path, name], channels);
   }
   ancestors.delete(tree);
+}
+
+interface ChannelTreeEntry {
+  readonly path: readonly string[];
+  readonly pattern: string;
+}
+
+function assertChannelPatternUnique(
+  pattern: string,
+  path: readonly string[],
+  channels: readonly ChannelTreeEntry[],
+): void {
+  const conflict = channels.find((candidate) => channelPatternsOverlap(candidate.pattern, pattern));
+  if (conflict !== undefined) {
+    throw new TypeError(
+      `Channel pattern '${pattern}' at '${path.join(".")}' overlaps '${conflict.pattern}' at '${conflict.path.join(".")}'`,
+    );
+  }
+}
+
+function channelPatternsOverlap(left: string, right: string): boolean {
+  const leftSegments = left.split(".");
+  const rightSegments = right.split(".");
+  if (leftSegments.length !== rightSegments.length) {
+    return false;
+  }
+  return leftSegments.every((leftSegment, index) => {
+    const rightSegment = rightSegments[index];
+    if (rightSegment === undefined) {
+      return false;
+    }
+    return (
+      isParameterSegment(leftSegment) ||
+      isParameterSegment(rightSegment) ||
+      leftSegment === rightSegment
+    );
+  });
+}
+
+function isParameterSegment(segment: string): boolean {
+  return /^\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(segment);
+}
+
+type ChannelMembers = ClientEventMap | ProcedureMap | ServerEventMap;
+
+function assertChannelMemberNames(
+  members: ChannelMembers,
+  kind: string,
+  reserved: ReadonlySet<string>,
+): void {
+  const invalid = Object.keys(members).find((name) => reserved.has(name));
+  if (invalid !== undefined) {
+    throw new TypeError(`Channel ${kind} name '${invalid}' is reserved`);
+  }
 }
 
 function assertContractKey(name: string, path: readonly string[]): void {
