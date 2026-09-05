@@ -1,0 +1,25 @@
+[package]
+name = "rivet-version-management"
+publish = false
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+futures-util.workspace = true
+gas.workspace = true
+indoc.workspace = true
+rivet-build-meta.workspace = true
+rivet-config.workspace = true
+rivet-pools.workspace = true
+rivet-runtime.workspace = true
+semver.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+universaldb.workspace = true
+
+[dev-dependencies]
+rivet-test-deps-docker.workspace = true
+uuid.workspace = true

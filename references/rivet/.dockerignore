@@ -1,0 +1,69 @@
+# MARK: Docker-specific
+.git/
+.gitignore
+.gitattributes
+.dockerignore
+**/Dockerfile*
+**/docker-compose*.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Documentation
+*.md
+!README.md
+docs/
+LICENSE*
+
+# Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# MARK: Copied from .gitignore
+**/.DS_Store
+
+# Env
+.env*.local
+
+# Rust
+**/target
+
+# JavaScript
+**/*.log*
+**/.cache/
+**/.next/
+**/.turbo
+**/.yarn
+**/dist/
+**/node_modules/
+**/target
+
+# Frontend
+!frontend/dist/
+!frontend/packages/icons/dist/
+
+# RivetKit packages (need pre-built dist for screenshot generation)
+!rivetkit-typescript/packages/*/dist/
+!engine/sdks/typescript/*/dist/
+!shared/typescript/*/dist/
+
+
+# Container runner examples: e2e local state + Unity editor artifacts. The Unity Linux
+# server build stays included: Dockerfile.unity copies Builds/ServerLinux/ into the image.
+container-runner/examples/e2e-test/.bin/
+container-runner/examples/e2e-test/.host-data/
+container-runner/examples/e2e-test/.host-logs/
+container-runner/examples/e2e-test/.rivet-data/
+container-runner/examples/unity-demo/Library/
+container-runner/examples/unity-demo/Temp/
+container-runner/examples/unity-demo/Obj/
+container-runner/examples/unity-demo/Logs/
+container-runner/examples/unity-demo/UserSettings/
+container-runner/examples/unity-demo/Builds/DemoMac/
+container-runner/examples/unity-demo/Builds/ServerMac/

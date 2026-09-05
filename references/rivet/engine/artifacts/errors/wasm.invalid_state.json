@@ -1,0 +1,5 @@
+{
+  "code": "invalid_state",
+  "group": "wasm",
+  "message": "Invalid wasm state"
+}

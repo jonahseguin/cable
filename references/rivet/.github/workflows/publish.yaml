@@ -1,0 +1,725 @@
+# =============================================================================
+# Publish
+# =============================================================================
+#
+# Single workflow for preview publish AND release cuts. Both triggers are
+# manual (workflow_dispatch). The build, npm publish, R2 upload, and Docker
+# manifest steps run identically for both modes. Only the npm dist-tag,
+# release-specific retagging, git tag, and GitHub release differ.
+#
+# Triggers and mapping:
+#   workflow_dispatch (no version)   → trigger=branch  npm_tag=<sanitized branch>  build_mode=debug
+#   workflow_dispatch (with version) → trigger=release npm_tag=latest              build_mode=release
+#                                       (npm_tag becomes `rc` if version contains `-rc.`, or
+#                                        `next` if `latest=false`)
+#
+# Selective preview builds: the `targets` input (all | rivetkit | container-runner
+# | engine | cli) narrows a preview to one target family so unrelated builds are
+# skipped. The `context` job resolves it into `build_targets` / `build_wasm` /
+# `build_docker` outputs that gate the matrix and jobs. Skipped npm families have
+# their inbound dependency (rivetkit-family → @rivetkit/engine-cli) repinned to the
+# latest published version so previews still install. Releases always build every
+# target; a partial `targets` on a release is rejected.
+#
+# See ~/.agents/specs/publish-flow-unification.md for the design.
+# ============================================================================
+
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 2.5.0 or 2.5.0-rc.1). Leave empty for preview publish on the dispatched branch."
+        required: false
+        type: string
+      latest:
+        description: "Tag as @latest (release only)"
+        required: true
+        type: boolean
+        default: true
+      targets:
+        description: "Preview only: which targets to build/publish. Releases always build everything."
+        required: false
+        type: choice
+        default: all
+        options:
+          - all
+          - rivetkit
+          - container-runner
+          - engine
+          - cli
+      preview_name:
+        description: "Preview only: custom name for the version label + npm dist-tag (default: sanitized branch). Ignored on release."
+        required: false
+        type: string
+
+env:
+  # Depot project ID (rivet-dev/rivet-engine).
+  DEPOT_PROJECT_ID: 1rcpv5rn8n
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # context — resolve PublishContext once, pin as job outputs
+  # ---------------------------------------------------------------------------
+  context:
+    name: "Context"
+    runs-on: ubuntu-24.04
+    outputs:
+      trigger: ${{ steps.ctx.outputs.trigger }}
+      version: ${{ steps.ctx.outputs.version }}
+      npm_tag: ${{ steps.ctx.outputs.npm_tag }}
+      sha: ${{ steps.ctx.outputs.sha }}
+      latest: ${{ steps.ctx.outputs.latest }}
+      targets: ${{ steps.ctx.outputs.targets }}
+      build_targets: ${{ steps.ctx.outputs.build_targets }}
+      build_wasm: ${{ steps.ctx.outputs.build_wasm }}
+      build_docker: ${{ steps.ctx.outputs.build_docker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install publish scripts
+        run: pnpm install --frozen-lockfile --filter=publish
+      - id: ctx
+        name: Resolve publish context
+        run: pnpm --filter=publish exec tsx src/ci/bin.ts context-output
+
+  # ---------------------------------------------------------------------------
+  # build — matrix of native/engine artifacts
+  # ---------------------------------------------------------------------------
+  build:
+    needs: [context]
+    name: "Build ${{ matrix.name }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # rivetkit-napi addon: 7 platforms (gnu + musl Linux, darwin,
+          # windows-msvc is produced via cargo-xwin in the base image).
+          - name: rivetkit-napi (linux-x64-gnu)
+            build_target: rivetkit-napi
+            docker: docker/build/linux-x64-gnu.Dockerfile
+            artifact: rivetkit-napi.linux-x64-gnu.node
+            upload_prefix: native
+            platform: linux-x64-gnu
+            release_only: false
+          - name: rivetkit-napi (linux-x64-musl)
+            build_target: rivetkit-napi
+            docker: docker/build/linux-x64-musl.Dockerfile
+            artifact: rivetkit-napi.linux-x64-musl.node
+            upload_prefix: native
+            platform: linux-x64-musl
+            release_only: false
+          - name: rivetkit-napi (linux-arm64-gnu)
+            build_target: rivetkit-napi
+            docker: docker/build/linux-arm64-gnu.Dockerfile
+            artifact: rivetkit-napi.linux-arm64-gnu.node
+            upload_prefix: native
+            platform: linux-arm64-gnu
+            release_only: false
+          - name: rivetkit-napi (linux-arm64-musl)
+            build_target: rivetkit-napi
+            docker: docker/build/linux-arm64-musl.Dockerfile
+            artifact: rivetkit-napi.linux-arm64-musl.node
+            upload_prefix: native
+            platform: linux-arm64-musl
+            release_only: false
+          - name: rivetkit-napi (darwin-x64)
+            build_target: rivetkit-napi
+            docker: docker/build/darwin-x64.Dockerfile
+            artifact: rivetkit-napi.darwin-x64.node
+            upload_prefix: native
+            platform: darwin-x64
+            release_only: false
+          - name: rivetkit-napi (darwin-arm64)
+            build_target: rivetkit-napi
+            docker: docker/build/darwin-arm64.Dockerfile
+            artifact: rivetkit-napi.darwin-arm64.node
+            upload_prefix: native
+            platform: darwin-arm64
+            release_only: false
+          # engine binary: 4 platforms for preview (musl, darwin), 5 for release
+          # (adds windows-x64). Windows is gated via release_only and skipped
+          # at the step level on preview triggers.
+          - name: engine (linux-x64-musl)
+            build_target: engine
+            docker: docker/build/linux-x64-musl.Dockerfile
+            artifact: rivet-engine-x86_64-unknown-linux-musl
+            upload_prefix: engine
+            platform: linux-x64-musl
+            release_only: false
+          - name: engine (linux-arm64-musl)
+            build_target: engine
+            docker: docker/build/linux-arm64-musl.Dockerfile
+            artifact: rivet-engine-aarch64-unknown-linux-musl
+            upload_prefix: engine
+            platform: linux-arm64-musl
+            release_only: false
+          - name: engine (darwin-x64)
+            build_target: engine
+            docker: docker/build/darwin-x64.Dockerfile
+            artifact: rivet-engine-x86_64-apple-darwin
+            upload_prefix: engine
+            platform: darwin-x64
+            release_only: false
+          - name: engine (darwin-arm64)
+            build_target: engine
+            docker: docker/build/darwin-arm64.Dockerfile
+            artifact: rivet-engine-aarch64-apple-darwin
+            upload_prefix: engine
+            platform: darwin-arm64
+            release_only: false
+          # Windows engine binary. Slow (~13 min due to MinGW ld). Only built
+          # on release triggers so preview publishes stay fast.
+          - name: engine (windows-x64)
+            build_target: engine
+            docker: docker/build/windows-x64.Dockerfile
+            artifact: rivet-engine-x86_64-pc-windows-gnu.exe
+            upload_prefix: engine
+            platform: windows-x64
+            release_only: true
+          # Container runner binary: static musl builds only. The runner only ever
+          # runs inside Linux containers, where users curl the released binary into
+          # their image.
+          - name: container-runner (linux-x64-musl)
+            build_target: container-runner
+            docker: docker/build/linux-x64-musl.Dockerfile
+            artifact: rivet-container-runner-x86_64-unknown-linux-musl
+            upload_prefix: container-runner
+            platform: linux-x64-musl
+            release_only: false
+          - name: container-runner (linux-arm64-musl)
+            build_target: container-runner
+            docker: docker/build/linux-arm64-musl.Dockerfile
+            artifact: rivet-container-runner-aarch64-unknown-linux-musl
+            upload_prefix: container-runner
+            platform: linux-arm64-musl
+            release_only: false
+          # Rivet Cloud CLI: 4 platforms for preview, 5 for release. The publish
+          # job also places the matching rivet-engine artifact next to the CLI
+          # binary so `rivet dev` works from the npm package.
+          - name: cli (linux-x64-musl)
+            build_target: cli
+            docker: docker/build/linux-x64-musl.Dockerfile
+            artifact: rivet-x86_64-unknown-linux-musl
+            upload_prefix: cli
+            platform: linux-x64-musl
+            release_only: false
+          - name: cli (linux-arm64-musl)
+            build_target: cli
+            docker: docker/build/linux-arm64-musl.Dockerfile
+            artifact: rivet-aarch64-unknown-linux-musl
+            upload_prefix: cli
+            platform: linux-arm64-musl
+            release_only: false
+          - name: cli (darwin-x64)
+            build_target: cli
+            docker: docker/build/darwin-x64.Dockerfile
+            artifact: rivet-x86_64-apple-darwin
+            upload_prefix: cli
+            platform: darwin-x64
+            release_only: false
+          - name: cli (darwin-arm64)
+            build_target: cli
+            docker: docker/build/darwin-arm64.Dockerfile
+            artifact: rivet-aarch64-apple-darwin
+            upload_prefix: cli
+            platform: darwin-arm64
+            release_only: false
+          - name: cli (windows-x64)
+            build_target: cli
+            docker: docker/build/windows-x64.Dockerfile
+            artifact: rivet-x86_64-pc-windows-gnu.exe
+            upload_prefix: cli
+            platform: windows-x64
+            release_only: true
+    runs-on: depot-ubuntu-24.04-8
+    permissions:
+      contents: read
+      id-token: write # required for depot OIDC trust
+      packages: read
+    steps:
+      - name: Skip release-only and out-of-scope targets
+        id: gate
+        run: |
+          skip=false
+          # Release-only targets (e.g. Windows) only build on release triggers.
+          if [ "${{ matrix.release_only }}" = "true" ] && [ "${{ needs.context.outputs.trigger }}" != "release" ]; then
+            skip=true
+          fi
+          # Selective preview: skip build targets not in the resolved scope.
+          case " ${{ needs.context.outputs.build_targets }} " in
+            *" ${{ matrix.build_target }} "*) : ;;
+            *) skip=true ;;
+          esac
+          echo "skip=$skip" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          lfs: ${{ needs.context.outputs.trigger == 'release' }}
+      - uses: depot/setup-action@v1
+        if: steps.gate.outputs.skip != 'true'
+      - name: Log in to ghcr.io
+        if: steps.gate.outputs.skip != 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Compute build mode
+        if: steps.gate.outputs.skip != 'true'
+        id: mode
+        run: |
+          if [ "${{ needs.context.outputs.trigger }}" = "release" ]; then
+            echo "build_mode=release" >> $GITHUB_OUTPUT
+          else
+            echo "build_mode=debug" >> $GITHUB_OUTPUT
+          fi
+      - name: Build via depot
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          DEPOT_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+        run: |
+          depot build \
+            --project ${{ env.DEPOT_PROJECT_ID }} \
+            --secret id=DEPOT_TOKEN,env=DEPOT_TOKEN \
+            --build-arg BUILD_TARGET=${{ matrix.build_target }} \
+            --build-arg BUILD_MODE=${{ steps.mode.outputs.build_mode }} \
+            --build-arg BUILD_FRONTEND=${{ matrix.build_target == 'engine' && 'true' || 'false' }} \
+            -f ${{ matrix.docker }} \
+            -t builder-${{ matrix.build_target }}-${{ matrix.platform }} \
+            --load \
+            .
+          CONTAINER_ID=$(docker create builder-${{ matrix.build_target }}-${{ matrix.platform }})
+          mkdir -p artifacts
+          docker cp "$CONTAINER_ID:/artifacts/${{ matrix.artifact }}" artifacts/
+          docker rm "$CONTAINER_ID"
+      - name: Upload artifact
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.upload_prefix }}-${{ matrix.platform }}
+          path: artifacts/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # build-wasm — portable wasm package used by edge runtimes
+  # ---------------------------------------------------------------------------
+  build-wasm:
+    needs: [context]
+    if: needs.context.outputs.build_wasm == 'true'
+    name: "Build rivetkit-wasm"
+    runs-on: depot-ubuntu-24.04-8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: ${{ needs.context.outputs.trigger == 'release' }}
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          rustflags: ""
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rivetkit-wasm-publish"
+          cache-on-failure: true
+      - name: Install wasm package dependencies
+        run: pnpm install --frozen-lockfile --filter=@rivetkit/rivetkit-wasm
+      - name: Build wasm package
+        run: pnpm --filter=@rivetkit/rivetkit-wasm build
+      - name: Upload wasm package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-package
+          path: rivetkit-typescript/packages/rivetkit-wasm/pkg
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # docker-images — per-arch runtime images pushed to Docker Hub
+  # ---------------------------------------------------------------------------
+  docker-images:
+    needs: [context]
+    if: needs.context.outputs.build_docker == 'true'
+    name: "Docker ${{ matrix.arch_suffix }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/arm64
+            runner: depot-ubuntu-24.04-arm-8
+            arch_suffix: -arm64
+          - platform: linux/x86_64
+            runner: depot-ubuntu-24.04-8
+            arch_suffix: -amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: ${{ needs.context.outputs.trigger == 'release' }}
+      - name: Compute build mode
+        id: mode
+        run: |
+          if [ "${{ needs.context.outputs.trigger }}" = "release" ]; then
+            echo "cargo_build_mode=release" >> $GITHUB_OUTPUT
+            echo "build_frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "cargo_build_mode=debug" >> $GITHUB_OUTPUT
+            echo "build_frontend=true" >> $GITHUB_OUTPUT
+          fi
+      - uses: ./.github/actions/docker-setup
+        with:
+          docker_username: ${{ secrets.DOCKER_CI_USERNAME }}
+          docker_password: ${{ secrets.DOCKER_CI_ACCESS_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & Push (rivetdev/engine:full)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: rivetdev/engine:full-${{ needs.context.outputs.sha }}${{ matrix.arch_suffix }}
+          file: docker/engine/Dockerfile
+          target: engine-full
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            BUILD_FRONTEND=${{ steps.mode.outputs.build_frontend }}
+            CARGO_BUILD_MODE=${{ steps.mode.outputs.cargo_build_mode }}
+      - name: Build & Push (rivetdev/engine:slim)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: rivetdev/engine:slim-${{ needs.context.outputs.sha }}${{ matrix.arch_suffix }}
+          file: docker/engine/Dockerfile
+          target: engine-slim
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            BUILD_FRONTEND=${{ steps.mode.outputs.build_frontend }}
+            CARGO_BUILD_MODE=${{ steps.mode.outputs.cargo_build_mode }}
+
+  # ---------------------------------------------------------------------------
+  # publish — npm publish + R2 upload + Docker manifest + release tail
+  # ---------------------------------------------------------------------------
+  publish:
+    needs: [context, build, build-wasm, docker-images]
+    name: "Publish"
+    # build-wasm / docker-images are skipped (not 'success') when their target
+    # is out of scope for a selective preview; treat skipped as acceptable.
+    if: |
+      !cancelled() &&
+      needs.build.result == 'success' &&
+      (needs.build-wasm.result == 'success' || needs.build-wasm.result == 'skipped') &&
+      (needs.docker-images.result == 'success' || needs.docker-images.result == 'skipped')
+    # npm trusted publishing currently requires a GitHub-hosted runner.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # git tag + gh release (release only)
+      id-token: write
+      pull-requests: write # PR comment
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need history for tag operations in the release tail.
+          fetch-depth: 0
+          lfs: ${{ needs.context.outputs.trigger == 'release' }}
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/docker-setup
+        with:
+          docker_username: ${{ secrets.DOCKER_CI_USERNAME }}
+          docker_password: ${{ secrets.DOCKER_CI_ACCESS_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---- download + place native + engine artifacts ----
+      - name: Download native artifacts
+        if: contains(needs.context.outputs.targets, 'rivetkit')
+        uses: actions/download-artifact@v4
+        with:
+          path: native-artifacts
+          pattern: native-*
+          merge-multiple: true
+      # Engine binaries are also needed by the `cli` group (bundled into CLI
+      # platform packages), so key this off build_targets, not the group.
+      - name: Download engine artifacts
+        if: contains(needs.context.outputs.build_targets, 'engine')
+        uses: actions/download-artifact@v4
+        with:
+          path: engine-artifacts
+          pattern: engine-*
+          merge-multiple: true
+      - name: Download CLI artifacts
+        if: contains(needs.context.outputs.targets, 'cli')
+        uses: actions/download-artifact@v4
+        with:
+          path: cli-artifacts
+          pattern: cli-*
+          merge-multiple: true
+      - name: Download container runner artifacts
+        if: contains(needs.context.outputs.targets, 'container-runner')
+        uses: actions/download-artifact@v4
+        with:
+          path: container-runner-artifacts
+          pattern: container-runner-*
+          merge-multiple: true
+      - name: Download wasm package artifact
+        if: needs.context.outputs.build_wasm == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-package
+          path: rivetkit-typescript/packages/rivetkit-wasm/pkg
+      - name: Place native binaries in platform packages
+        if: contains(needs.context.outputs.targets, 'rivetkit')
+        run: |
+          NATIVE_DIR=rivetkit-typescript/packages/rivetkit-napi
+          for f in native-artifacts/*.node; do
+            filename=$(basename "$f")
+            platform="${filename#rivetkit-napi.}"
+            platform="${platform%.node}"
+            mkdir -p "${NATIVE_DIR}/npm/${platform}"
+            cp "$f" "${NATIVE_DIR}/npm/${platform}/"
+            echo "Placed $filename -> npm/${platform}/"
+          done
+
+      - name: Place engine binaries in engine-cli platform packages
+        run: |
+          ENGINE_CLI_DIR=rivetkit-typescript/packages/engine-cli/npm
+          declare -A TRIPLE_TO_PLATFORM=(
+            [rivet-engine-x86_64-unknown-linux-musl]=linux-x64-musl
+            [rivet-engine-aarch64-unknown-linux-musl]=linux-arm64-musl
+            [rivet-engine-x86_64-apple-darwin]=darwin-x64
+            [rivet-engine-aarch64-apple-darwin]=darwin-arm64
+            [rivet-engine-x86_64-pc-windows-gnu.exe]=win32-x64
+          )
+          for f in engine-artifacts/rivet-engine-*; do
+            [ -e "$f" ] || continue
+            filename=$(basename "$f")
+            platform="${TRIPLE_TO_PLATFORM[$filename]:-}"
+            if [ -z "$platform" ]; then
+              echo "Skipping engine artifact not mapped to a platform package: $filename"
+              continue
+            fi
+            dest="${ENGINE_CLI_DIR}/${platform}"
+            if [ ! -d "$dest" ]; then
+              echo "Missing engine-cli platform dir: $dest" >&2
+              exit 1
+            fi
+            if [ "$platform" = "win32-x64" ]; then
+              cp "$f" "$dest/rivet-engine.exe"
+              echo "Placed $filename -> npm/${platform}/rivet-engine.exe"
+            else
+              cp "$f" "$dest/rivet-engine"
+              chmod +x "$dest/rivet-engine"
+              echo "Placed $filename -> npm/${platform}/rivet-engine"
+            fi
+          done
+
+      - name: Place CLI binaries in CLI platform packages
+        run: |
+          CLI_DIR=rivetkit-typescript/packages/cli/npm
+          declare -A TRIPLE_TO_PLATFORM=(
+            [rivet-x86_64-unknown-linux-musl]=linux-x64-musl
+            [rivet-aarch64-unknown-linux-musl]=linux-arm64-musl
+            [rivet-x86_64-apple-darwin]=darwin-x64
+            [rivet-aarch64-apple-darwin]=darwin-arm64
+            [rivet-x86_64-pc-windows-gnu.exe]=win32-x64
+          )
+          for f in cli-artifacts/rivet-*; do
+            [ -e "$f" ] || continue
+            filename=$(basename "$f")
+            platform="${TRIPLE_TO_PLATFORM[$filename]:-}"
+            if [ -z "$platform" ]; then
+              echo "Skipping CLI artifact not mapped to a platform package: $filename"
+              continue
+            fi
+            dest="${CLI_DIR}/${platform}"
+            if [ ! -d "$dest" ]; then
+              echo "Missing CLI platform dir: $dest" >&2
+              exit 1
+            fi
+            if [ "$platform" = "win32-x64" ]; then
+              cp "$f" "$dest/rivet.exe"
+              echo "Placed $filename -> npm/${platform}/rivet.exe"
+            else
+              cp "$f" "$dest/rivet"
+              chmod +x "$dest/rivet"
+              echo "Placed $filename -> npm/${platform}/rivet"
+            fi
+          done
+
+      - name: Place bundled engine in CLI platform packages
+        run: |
+          CLI_DIR=rivetkit-typescript/packages/cli/npm
+          declare -A ENGINE_TO_PLATFORM=(
+            [rivet-engine-x86_64-unknown-linux-musl]=linux-x64-musl
+            [rivet-engine-aarch64-unknown-linux-musl]=linux-arm64-musl
+            [rivet-engine-x86_64-apple-darwin]=darwin-x64
+            [rivet-engine-aarch64-apple-darwin]=darwin-arm64
+            [rivet-engine-x86_64-pc-windows-gnu.exe]=win32-x64
+          )
+          for f in engine-artifacts/rivet-engine-*; do
+            [ -e "$f" ] || continue
+            filename=$(basename "$f")
+            platform="${ENGINE_TO_PLATFORM[$filename]:-}"
+            if [ -z "$platform" ]; then
+              echo "Skipping engine artifact not mapped to a CLI platform package: $filename"
+              continue
+            fi
+            dest="${CLI_DIR}/${platform}"
+            if [ ! -d "$dest" ]; then
+              echo "Missing CLI platform dir: $dest" >&2
+              exit 1
+            fi
+            if [ "$platform" = "win32-x64" ]; then
+              cp "$f" "$dest/rivet-engine.exe"
+              echo "Placed $filename -> npm/${platform}/rivet-engine.exe"
+            else
+              cp "$f" "$dest/rivet-engine"
+              chmod +x "$dest/rivet-engine"
+              echo "Placed $filename -> npm/${platform}/rivet-engine"
+            fi
+          done
+
+      - name: Bump package versions for build
+        run: |
+          pnpm --filter=publish exec tsx src/ci/bin.ts bump-versions \
+            --version ${{ needs.context.outputs.version }} \
+            --version-only
+
+      # ---- build TypeScript packages (turbo dep graph picks up native) ----
+      - name: Build TypeScript packages
+        if: contains(needs.context.outputs.targets, 'rivetkit')
+        env:
+          SKIP_WASM_BUILD: "1"
+        run: |
+          pnpm build -F rivetkit
+          pnpm build -F rivetkit -F '@rivetkit/*' -F '!@rivetkit/shared-data' -F '!@rivetkit/engine-frontend' -F '!@rivetkit/mcp-hub' -F '!@rivetkit/rivetkit-napi' -F '!@rivetkit/rivetkit-wasm'
+          pnpm build -F '@rivet-dev/workflow-world'
+
+      # ---- shared publish (runs for all triggers) ----
+      - name: Finalize package versions for publish
+        run: pnpm --filter=publish exec tsx src/ci/bin.ts bump-versions --version ${{ needs.context.outputs.version }}
+
+      - name: Publish npm packages
+        env:
+          # setup-node provides a dummy token value; clear it so token-only
+          # post-publish operations stay disabled for trusted publishing.
+          NODE_AUTH_TOKEN: ""
+          SKIP_WASM_BUILD: "1"
+        run: |
+          pnpm --filter=publish exec tsx src/ci/bin.ts publish-npm \
+            --tag ${{ needs.context.outputs.npm_tag }} \
+            --parallel 16 \
+            --retries 3 \
+            ${{ needs.context.outputs.trigger == 'release' && '--release-mode' || '' }}
+
+      - name: Generate engine checksum manifest
+        if: contains(needs.context.outputs.targets, 'engine')
+        run: |
+          (
+            cd engine-artifacts
+            sha256sum rivet-engine-* > SHA256SUMS
+          )
+
+      - name: Upload engine binaries to R2
+        if: contains(needs.context.outputs.targets, 'engine')
+        env:
+          R2_RELEASES_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_ACCESS_KEY_ID }}
+          R2_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_SECRET_ACCESS_KEY }}
+        run: pnpm --filter=publish exec tsx src/ci/bin.ts upload-r2 --source "$GITHUB_WORKSPACE/engine-artifacts" --sha ${{ needs.context.outputs.sha }}
+
+      - name: Upload container runner binaries to R2
+        if: contains(needs.context.outputs.targets, 'container-runner')
+        env:
+          R2_RELEASES_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_ACCESS_KEY_ID }}
+          R2_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_SECRET_ACCESS_KEY }}
+        run: pnpm --filter=publish exec tsx src/ci/bin.ts upload-r2 --source "$GITHUB_WORKSPACE/container-runner-artifacts" --sha ${{ needs.context.outputs.sha }} --name container-runner
+
+      - name: Copy R2 artifacts to version path
+        if: needs.context.outputs.trigger == 'release'
+        env:
+          R2_RELEASES_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_ACCESS_KEY_ID }}
+          R2_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_SECRET_ACCESS_KEY }}
+        run: |
+          pnpm --filter=publish exec tsx src/ci/bin.ts copy-r2 \
+            --sha ${{ needs.context.outputs.sha }} \
+            --version ${{ needs.context.outputs.version }} \
+            --latest ${{ needs.context.outputs.latest }}
+          pnpm --filter=publish exec tsx src/ci/bin.ts copy-r2 \
+            --sha ${{ needs.context.outputs.sha }} \
+            --version ${{ needs.context.outputs.version }} \
+            --latest ${{ needs.context.outputs.latest }} \
+            --name container-runner
+
+      - name: Dry-run Rust crate publish
+        if: needs.context.outputs.trigger != 'release'
+        # Branch previews publish npm/R2/Docker artifacts only. Unlike npm,
+        # crates.io has no movable dist-tags, and every published preview
+        # version stays permanently visible, even if later yanked.
+        run: |
+          pnpm --filter=publish exec tsx src/ci/bin.ts publish-crates \
+            --version ${{ needs.context.outputs.version }} \
+            --dry-run \
+            --allow-dirty
+
+      - name: Publish Rust crates
+        if: needs.context.outputs.trigger == 'release'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          pnpm --filter=publish exec tsx src/ci/bin.ts publish-crates \
+            --version ${{ needs.context.outputs.version }} \
+            --allow-dirty
+
+      - name: Create Docker multi-arch manifests
+        if: needs.context.outputs.build_docker == 'true'
+        run: pnpm --filter=publish exec tsx src/ci/bin.ts docker-manifest --sha ${{ needs.context.outputs.sha }}
+
+      # ---- release-only tail ----
+      - name: Upload install scripts
+        if: needs.context.outputs.trigger == 'release'
+        env:
+          R2_RELEASES_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_ACCESS_KEY_ID }}
+          R2_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_SECRET_ACCESS_KEY }}
+        run: |
+          pnpm --filter=publish exec tsx src/ci/bin.ts upload-install-scripts \
+            --scripts-dir "$GITHUB_WORKSPACE/scripts/publish/static" \
+            --version ${{ needs.context.outputs.version }} \
+            --latest ${{ needs.context.outputs.latest }}
+
+
+      - name: Retag Docker manifests to version
+        if: needs.context.outputs.trigger == 'release'
+        run: |
+          pnpm --filter=publish exec tsx src/ci/bin.ts docker-retag \
+            --sha ${{ needs.context.outputs.sha }} \
+            --version ${{ needs.context.outputs.version }} \
+            --latest ${{ needs.context.outputs.latest }}
+
+      - name: Create git tag
+        if: needs.context.outputs.trigger == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          pnpm --filter=publish exec tsx src/ci/bin.ts git-tag --version ${{ needs.context.outputs.version }}
+
+      - name: Create GitHub release
+        if: needs.context.outputs.trigger == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm --filter=publish exec tsx src/ci/bin.ts gh-release --version ${{ needs.context.outputs.version }}

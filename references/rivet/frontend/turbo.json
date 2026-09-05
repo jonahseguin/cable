@@ -1,0 +1,16 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"],
+			"env": ["VITE_APP_*", "VITE_FEATURE_FLAGS", "VITE_DEPLOYMENT_TYPE", "BASE_URL"],
+			"outputs": ["dist/**"]
+		},
+		"dev": {
+			"dependsOn": ["^build"],
+			"env": ["VITE_APP_*", "VITE_FEATURE_FLAGS"],
+			"persistent": true
+		}
+	}
+}

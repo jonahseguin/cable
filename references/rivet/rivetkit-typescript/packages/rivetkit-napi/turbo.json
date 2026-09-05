@@ -1,0 +1,23 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"build": {
+			"inputs": [
+				"scripts/build.mjs",
+				"build.rs",
+				"src/**/*.rs",
+				"Cargo.toml",
+				"../../../Cargo.toml",
+				"../../../Cargo.lock",
+				"../../../rivetkit-rust/packages/**/src/**/*.rs",
+				"../../../rivetkit-rust/packages/**/Cargo.toml",
+				"../../../engine/packages/**/src/**/*.rs",
+				"../../../engine/packages/**/Cargo.toml",
+				"../../../engine/sdks/rust/**/src/**/*.rs",
+				"../../../engine/sdks/rust/**/Cargo.toml"
+			],
+			"outputs": ["*.node"]
+		}
+	}
+}

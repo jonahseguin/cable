@@ -1,0 +1,5 @@
+{
+  "code": "tunnel_request_aborted",
+  "group": "guard",
+  "message": "Actor tunnel aborted the request."
+}
