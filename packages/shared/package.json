@@ -1,0 +1,61 @@
+{
+  "name": "@orpc/shared",
+  "type": "module",
+  "version": "2.0.0-beta.32",
+  "description": "Internal utilities shared across oRPC packages",
+  "license": "MIT",
+  "funding": [
+    "https://github.com/sponsors/dinwwwh",
+    "https://opencollective.com/middleapi"
+  ],
+  "homepage": "https://orpc.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/middleapi/orpc.git",
+    "directory": "packages/shared"
+  },
+  "keywords": [
+    "orpc"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "exports": {
+      "./package.json": "./package.json",
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      }
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepack": "unbuild",
+    "type:check": "tsc -b"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@standardserver/shared": "^0.8.2",
+    "radash": "^12.1.1",
+    "type-fest": "^5.3.1"
+  },
+  "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "arktype": "^2.2.1",
+    "valibot": "^1.4.1",
+    "zod": "^4.5.4"
+  }
+}
