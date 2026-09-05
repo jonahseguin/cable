@@ -1,0 +1,38 @@
+[package]
+name = "rivetkit-napi"
+publish = false
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+autotests = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi6", "async", "serde-json", "dyn-symbols"] }
+napi-derive = "2"
+async-trait.workspace = true
+depot-client.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-logfmt.workspace = true
+tracing-stackdriver.workspace = true
+tracing-subscriber.workspace = true
+parking_lot.workspace = true
+scc.workspace = true
+hex.workspace = true
+http.workspace = true
+rivet-error.workspace = true
+rivetkit-core = { workspace = true, features = ["sqlite"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[dev-dependencies]
+rivetkit-core = { workspace = true, features = ["test-support"] }

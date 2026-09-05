@@ -1,0 +1,5 @@
+{
+  "code": "stale_main_page",
+  "group": "depot",
+  "message": "SQLite page one disagrees with the database size at its txid."
+}

@@ -1,0 +1,5 @@
+{
+  "code": "stage_segment_invalid",
+  "group": "depot",
+  "message": "SQLite staged commit segment is invalid."
+}

@@ -1,0 +1,3 @@
+## Codebase Patterns
+
+(empty — populate with reusable patterns as work progresses)

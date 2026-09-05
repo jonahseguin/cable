@@ -1,0 +1,224 @@
+import { VirtualWebSocket } from "@rivetkit/virtual-websocket";
+import { WSContext } from "hono/ws";
+import type { UpgradeWebSocketArgs } from "@/common/actor-websocket";
+import type { UniversalWebSocket } from "@/common/websocket-interface";
+import { getLogger } from "./log";
+
+function logger() {
+	return getLogger("inline-websocket-adapter");
+}
+
+/**
+ * InlineWebSocketAdapter creates two linked WebSocket objects:
+ * - clientWs: for the client/proxy side (returned from openWebSocket)
+ * - actorWs: for the actor side (passed via wsContext.raw)
+ *
+ * Each side's send() triggers the OTHER side's message event.
+ */
+export class InlineWebSocketAdapter {
+	#handler: UpgradeWebSocketArgs;
+	#wsContext: WSContext;
+	#readyState: 0 | 1 | 2 | 3 = 0;
+	#restoring: boolean;
+	#pendingClientMessages: Array<{
+		data: string | ArrayBufferLike | Blob | ArrayBufferView;
+		rivetMessageIndex?: number;
+	}> = [];
+
+	#clientWs: VirtualWebSocket;
+	#actorWs: VirtualWebSocket;
+
+	constructor(
+		handler: UpgradeWebSocketArgs,
+		options: {
+			restoring?: boolean;
+		} = {},
+	) {
+		this.#handler = handler;
+		this.#restoring = options.restoring ?? false;
+
+		// Create linked WebSocket pair
+		// Client's send() -> handler.onMessage (for RPC) + Actor's message event (for raw WS)
+		// Actor's send() -> Client's message event
+		this.#clientWs = new VirtualWebSocket({
+			getReadyState: () => this.#readyState,
+			onSend: (data) => this.dispatchClientMessageWithMetadata(data),
+			onClose: (code, reason) => this.#close(code, reason),
+		});
+
+		this.#actorWs = new VirtualWebSocket({
+			getReadyState: () => this.#readyState,
+			onSend: (data) => this.#clientWs.triggerMessage(data),
+			onClose: (code, reason) => this.#close(code, reason),
+		});
+
+		// Create WSContext with actorWs as raw
+		this.#wsContext = new WSContext({
+			raw: this.#actorWs,
+			send: (data: string | ArrayBuffer | Uint8Array) => {
+				logger().debug({ msg: "WSContext.send called" });
+				this.#clientWs.triggerMessage(data);
+			},
+			close: (code?: number, reason?: string) => {
+				logger().debug({ msg: "WSContext.close called", code, reason });
+				this.#close(code || 1000, reason || "");
+			},
+			readyState: 1,
+		});
+
+		// Defer initialization to allow event listeners to be attached first
+		setTimeout(() => {
+			this.#initialize();
+		}, 0);
+	}
+
+	/** Get the client-side WebSocket (for proxy/client code) */
+	get clientWebSocket(): UniversalWebSocket {
+		return this.#clientWs;
+	}
+
+	/** Get the actor-side WebSocket (passed to actor via wsContext.raw) */
+	get actorWebSocket(): UniversalWebSocket {
+		return this.#actorWs;
+	}
+
+	/**
+	 * Dispatch a client->actor message with optional transport metadata.
+	 *
+	 * This is used by dynamic actor host bridges to preserve
+	 * `rivetMessageIndex` on hibernatable engine websocket paths.
+	 */
+	dispatchClientMessageWithMetadata(
+		data: string | ArrayBufferLike | Blob | ArrayBufferView,
+		rivetMessageIndex?: number,
+	): void {
+		if (this.#readyState === this.#clientWs.CONNECTING) {
+			this.#pendingClientMessages.push({ data, rivetMessageIndex });
+			return;
+		}
+		if (
+			this.#readyState === this.#clientWs.CLOSING ||
+			this.#readyState === this.#clientWs.CLOSED
+		) {
+			return;
+		}
+		this.#dispatchClientMessage(data, rivetMessageIndex);
+	}
+
+	#dispatchClientMessage(
+		data: string | ArrayBufferLike | Blob | ArrayBufferView,
+		rivetMessageIndex?: number,
+	): void {
+		try {
+			this.#handler.onMessage(
+				{ data, rivetMessageIndex },
+				this.#wsContext,
+			);
+			(this.#actorWs as any).dispatchEvent({
+				type: "message",
+				data,
+				rivetMessageIndex,
+				target: this.#actorWs,
+				currentTarget: this.#actorWs,
+			});
+		} catch (err) {
+			this.#handleError(err);
+			this.#close(1011, "Internal error processing message");
+		}
+	}
+
+	async #initialize(): Promise<void> {
+		try {
+			logger().debug({ msg: "websocket initializing" });
+
+			this.#readyState = 1; // OPEN
+
+			if (this.#restoring && this.#handler.onRestore) {
+				logger().debug({
+					msg: "calling handler.onRestore with WSContext",
+				});
+				this.#handler.onRestore(this.#wsContext);
+			} else {
+				logger().debug({
+					msg: "calling handler.onOpen with WSContext",
+				});
+				this.#handler.onOpen(undefined, this.#wsContext);
+			}
+
+			// Fire open event to both sides
+			this.#clientWs.triggerOpen();
+			this.#actorWs.triggerOpen();
+			while (this.#pendingClientMessages.length > 0) {
+				const next = this.#pendingClientMessages.shift();
+				if (!next) {
+					continue;
+				}
+				this.#dispatchClientMessage(next.data, next.rivetMessageIndex);
+			}
+		} catch (err) {
+			this.#handleError(err);
+			this.#close(1011, "Internal error during initialization");
+		}
+	}
+
+	#handleError(error: unknown): void {
+		console.error("INLINE_WEBSOCKET_ADAPTER_ERROR", error);
+		logger().error({
+			msg: "error in websocket",
+			error,
+			errorMessage:
+				error instanceof Error ? error.message : String(error),
+			stack: error instanceof Error ? error.stack : undefined,
+		});
+
+		// Call handler.onError
+		try {
+			this.#handler.onError(error, this.#wsContext);
+		} catch (error) {
+			logger().error({
+				msg: "error in onError handler",
+				error,
+			});
+		}
+
+		// Fire error event to both sides
+		this.#clientWs.triggerError(error);
+		this.#actorWs.triggerError(error);
+	}
+
+	#close(code: number, reason: string): void {
+		if (this.#readyState === 3 || this.#readyState === 2) {
+			return;
+		}
+
+		logger().debug({ msg: "closing websocket", code, reason });
+
+		this.#readyState = 2; // CLOSING
+
+		try {
+			this.#handler.onClose(
+				{ code, reason, wasClean: true },
+				this.#wsContext,
+			);
+		} catch (error) {
+			logger().error({ msg: "error closing websocket", error });
+		} finally {
+			this.#readyState = 3; // CLOSED
+
+			// Fire close event to both sides
+			this.#clientWs.triggerClose(code, reason);
+			this.#actorWs.triggerClose(code, reason);
+		}
+	}
+}
+
+/**
+ * Creates an InlineWebSocketAdapter and returns the client-side WebSocket.
+ * This is the main entry point for creating inline WebSocket connections.
+ */
+export function createInlineWebSocket(
+	handler: UpgradeWebSocketArgs,
+): UniversalWebSocket {
+	const adapter = new InlineWebSocketAdapter(handler);
+	return adapter.clientWebSocket;
+}

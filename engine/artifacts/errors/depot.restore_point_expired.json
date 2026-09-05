@@ -1,0 +1,5 @@
+{
+  "code": "restore_point_expired",
+  "group": "depot",
+  "message": "Restore point history is no longer retained."
+}
