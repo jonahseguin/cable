@@ -1,0 +1,8 @@
+---
+description: Cable project instructions
+alwaysApply: true
+---
+
+Follow [AGENTS.md](../../AGENTS.md). Read `docs/DESIGN.md` before changing
+code, keep work inside the current milestone, and apply the project `unslop`
+skill when editing prose.
