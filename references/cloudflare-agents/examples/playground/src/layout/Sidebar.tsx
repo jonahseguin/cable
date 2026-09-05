@@ -1,0 +1,406 @@
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  CubeIcon,
+  ChatDotsIcon,
+  HardDrivesIcon,
+  GitBranchIcon,
+  EnvelopeIcon,
+  DatabaseIcon,
+  LightningIcon,
+  ClockIcon,
+  UsersIcon,
+  CpuIcon,
+  WrenchIcon,
+  KeyIcon,
+  PlayCircleIcon,
+  CheckCircleIcon,
+  SunIcon,
+  MoonIcon,
+  SignpostIcon,
+  TreeStructureIcon,
+  ChatCircleIcon,
+  StackIcon,
+  GitMergeIcon,
+  MicrophoneIcon,
+  ShieldIcon,
+  ArrowsClockwiseIcon,
+  XIcon
+} from "@phosphor-icons/react";
+import { useState, useEffect } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { Button, Link, PoweredByCloudflare } from "@cloudflare/kumo";
+
+interface NavItem {
+  label: string;
+  path: string;
+  icon: React.ReactNode;
+}
+
+interface NavCategory {
+  label: string;
+  icon: React.ReactNode;
+  items: NavItem[];
+}
+
+const navigation: NavCategory[] = [
+  {
+    label: "Core",
+    icon: <CubeIcon size={16} />,
+    items: [
+      {
+        label: "State",
+        path: "/core/state",
+        icon: <DatabaseIcon size={16} />
+      },
+      {
+        label: "Callable",
+        path: "/core/callable",
+        icon: <LightningIcon size={16} />
+      },
+      {
+        label: "Streaming",
+        path: "/core/streaming",
+        icon: <PlayCircleIcon size={16} />
+      },
+      {
+        label: "Schedule",
+        path: "/core/schedule",
+        icon: <ClockIcon size={16} />
+      },
+      {
+        label: "Connections",
+        path: "/core/connections",
+        icon: <UsersIcon size={16} />
+      },
+      {
+        label: "SQL",
+        path: "/core/sql",
+        icon: <DatabaseIcon size={16} />
+      },
+      {
+        label: "Routing",
+        path: "/core/routing",
+        icon: <SignpostIcon size={16} />
+      },
+      {
+        label: "Readonly",
+        path: "/core/readonly",
+        icon: <ShieldIcon size={16} />
+      },
+      {
+        label: "Retry",
+        path: "/core/retry",
+        icon: <ArrowsClockwiseIcon size={16} />
+      }
+    ]
+  },
+  {
+    label: "AI",
+    icon: <CpuIcon size={16} />,
+    items: [
+      {
+        label: "Chat",
+        path: "/ai/chat",
+        icon: <ChatDotsIcon size={16} />
+      },
+      {
+        label: "Tools",
+        path: "/ai/tools",
+        icon: <WrenchIcon size={16} />
+      },
+      {
+        label: "Codemode",
+        path: "/ai/codemode",
+        icon: <LightningIcon size={16} />
+      },
+      {
+        label: "Agent Tools",
+        path: "/ai/agent-tools",
+        icon: <TreeStructureIcon size={16} />
+      },
+      {
+        label: "Think + Shell",
+        path: "/ai/think-shell",
+        icon: <CpuIcon size={16} />
+      }
+    ]
+  },
+  {
+    label: "Durable Execution",
+    icon: <ClockIcon size={16} />,
+    items: [
+      {
+        label: "Fibers",
+        path: "/durable/execution",
+        icon: <ClockIcon size={16} />
+      }
+    ]
+  },
+  {
+    label: "MCP",
+    icon: <HardDrivesIcon size={16} />,
+    items: [
+      {
+        label: "Server",
+        path: "/mcp/server",
+        icon: <HardDrivesIcon size={16} />
+      },
+      {
+        label: "Client",
+        path: "/mcp/client",
+        icon: <CpuIcon size={16} />
+      },
+      {
+        label: "OAuth",
+        path: "/mcp/oauth",
+        icon: <KeyIcon size={16} />
+      },
+      {
+        label: "Advanced MCP",
+        path: "/mcp/advanced",
+        icon: <WrenchIcon size={16} />
+      }
+    ]
+  },
+  {
+    label: "Workflows",
+    icon: <GitBranchIcon size={16} />,
+    items: [
+      {
+        label: "Basic",
+        path: "/workflow/basic",
+        icon: <PlayCircleIcon size={16} />
+      },
+      {
+        label: "Approval",
+        path: "/workflow/approval",
+        icon: <CheckCircleIcon size={16} />
+      }
+    ]
+  },
+  {
+    label: "Multi-Agent",
+    icon: <TreeStructureIcon size={16} />,
+    items: [
+      {
+        label: "Supervisor",
+        path: "/multi-agent/supervisor",
+        icon: <UsersIcon size={16} />
+      },
+      {
+        label: "Chat Rooms",
+        path: "/multi-agent/rooms",
+        icon: <ChatCircleIcon size={16} />
+      },
+      {
+        label: "Workers",
+        path: "/multi-agent/workers",
+        icon: <StackIcon size={16} />
+      },
+      {
+        label: "Pipeline",
+        path: "/multi-agent/pipeline",
+        icon: <GitMergeIcon size={16} />
+      }
+    ]
+  },
+  {
+    label: "Voice",
+    icon: <MicrophoneIcon size={16} />,
+    items: [
+      {
+        label: "Voice Chat",
+        path: "/voice/chat",
+        icon: <MicrophoneIcon size={16} />
+      }
+    ]
+  },
+  {
+    label: "Email",
+    icon: <EnvelopeIcon size={16} />,
+    items: [
+      {
+        label: "Receive",
+        path: "/email/receive",
+        icon: <EnvelopeIcon size={16} />
+      },
+      {
+        label: "Secure Replies",
+        path: "/email/secure",
+        icon: <ShieldIcon size={16} />
+      }
+    ]
+  },
+  {
+    label: "Product Integrations",
+    icon: <WrenchIcon size={16} />,
+    items: [
+      {
+        label: "Integration Stories",
+        path: "/integrations/products",
+        icon: <LightningIcon size={16} />
+      }
+    ]
+  }
+];
+
+function CategorySection({
+  category,
+  onNavigate
+}: {
+  category: NavCategory;
+  onNavigate?: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div className="mb-1">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        aria-controls={`nav-category-${category.label.toLowerCase().replace(/\s+/g, "-")}`}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-kumo-subtle hover:text-kumo-default bg-kumo-control rounded-md transition-colors"
+      >
+        {isOpen ? <CaretDownIcon size={12} /> : <CaretRightIcon size={12} />}
+        {category.icon}
+        <span className="flex-1 text-left leading-snug">{category.label}</span>
+      </button>
+
+      {isOpen && (
+        <section
+          id={`nav-category-${category.label.toLowerCase().replace(/\s+/g, "-")}`}
+          aria-label={`${category.label} navigation`}
+          className="ml-5 mt-1 space-y-0.5"
+        >
+          {category.items.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                `flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors ${
+                  isActive
+                    ? "bg-kumo-control text-kumo-default font-medium"
+                    : "text-kumo-subtle hover:bg-kumo-tint hover:text-kumo-default"
+                }`
+              }
+            >
+              {item.icon}
+              {item.label}
+            </NavLink>
+          ))}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ModeToggle() {
+  const [mode, setMode] = useState(
+    () => localStorage.getItem("theme") || "light"
+  );
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-mode", mode);
+    document.documentElement.style.colorScheme = mode;
+    localStorage.setItem("theme", mode);
+  }, [mode]);
+
+  return (
+    <Button
+      variant="ghost"
+      shape="square"
+      aria-label="Toggle theme"
+      onClick={() => setMode((m) => (m === "light" ? "dark" : "light"))}
+      icon={mode === "light" ? <MoonIcon size={16} /> : <SunIcon size={16} />}
+    />
+  );
+}
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <>
+      <div className="p-4 border-b border-kumo-line flex items-center justify-between">
+        <PoweredByCloudflare href="https://developers.cloudflare.com/agents/" />
+        {onNavigate && (
+          <Button
+            variant="ghost"
+            shape="square"
+            size="sm"
+            icon={<XIcon size={18} />}
+            onClick={onNavigate}
+            aria-label="Close navigation"
+            className="md:hidden"
+          />
+        )}
+      </div>
+
+      <nav className="flex-1 overflow-y-auto p-2">
+        {navigation.map((category) => (
+          <CategorySection
+            key={category.label}
+            category={category}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </nav>
+
+      <div className="p-4 border-t border-kumo-line space-y-2">
+        <ModeToggle />
+        <div className="text-xs text-kumo-subtle">
+          <Link href="https://github.com/cloudflare/agents" variant="inline">
+            GitHub
+          </Link>
+          {" · "}
+          <Link
+            href="https://developers.cloudflare.com/agents"
+            variant="inline"
+          >
+            Docs
+          </Link>
+        </div>
+      </div>
+    </>
+  );
+}
+
+interface SidebarProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function Sidebar({ open, onClose }: SidebarProps) {
+  const location = useLocation();
+
+  useEffect(() => {
+    onClose();
+  }, [location.pathname, onClose]);
+
+  return (
+    <>
+      {/* Desktop: static sidebar */}
+      <aside className="hidden md:flex w-64 h-full border-r border-kumo-line bg-kumo-base flex-col shrink-0">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile: overlay drawer */}
+      {open && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          {/* Backdrop */}
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={onClose}
+            aria-label="Close navigation"
+          />
+          {/* Panel */}
+          <aside className="relative w-72 max-w-[85vw] h-full bg-kumo-base flex flex-col shadow-xl">
+            <SidebarContent onNavigate={onClose} />
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}

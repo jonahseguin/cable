@@ -1,0 +1,17 @@
+# Retained SDK v1 McpAgent endpoint at 2025-11-25.
+server:
+  # SDK v1's Zod conversion emits draft-07 and strips JSON Schema 2020-12
+  # $defs/additionalProperties fields.
+  # Impact if unchanged: clients cannot rely on those keywords being advertised
+  # verbatim by McpAgent registrations.
+  - json-schema-2020-12
+
+  # McpAgent's internal transport lacks SEP-1699 priming/retry hints.
+  # Impact if unchanged: reconnecting SSE clients may poll immediately or with
+  # their own default rather than a server-provided retry interval.
+  - server-sse-polling
+
+  # Workers deployments do not enable localhost-only Host/Origin middleware.
+  # Impact if unchanged: arbitrary Host/Origin rejection must be supplied by
+  # deployment routing or application middleware.
+  - dns-rebinding-protection

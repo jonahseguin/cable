@@ -1,0 +1,192 @@
+/**
+ * Self-contained runtime that boots inside the sandboxed iframe.
+ *
+ * The `iframeSandboxRuntimeMain` function is serialized via `.toString()`
+ * and injected into the iframe's `srcdoc`. It MUST be fully self-contained —
+ * no closures over module-level variables, no imported values at runtime.
+ * (Type-only imports are safe because they are erased at compile time.)
+ */
+
+/**
+ * The iframe-side runtime entry point.
+ *
+ * This function is stringified and injected into the iframe via srcdoc.
+ * Everything it needs must be defined inside its own scope.
+ */
+function iframeSandboxRuntimeMain(): void {
+  const runtimeWindow = window as Window &
+    typeof globalThis & { __codemodeIframeInitialized?: boolean };
+
+  if (runtimeWindow.__codemodeIframeInitialized) {
+    return;
+  }
+
+  runtimeWindow.__codemodeIframeInitialized = true;
+
+  const logs: string[] = [];
+  const pending: Record<
+    number,
+    { resolve: (value: unknown) => void; reject: (reason: Error) => void }
+  > = {};
+  let nextId = 0;
+  let activeNonce: string | undefined;
+
+  function post(message: unknown) {
+    parent.postMessage(message, "*");
+  }
+
+  // Capture console output
+  console.log = (...args: unknown[]) => {
+    const values = [];
+    for (let i = 0; i < args.length; i++) values.push(String(args[i]));
+    logs.push(values.join(" "));
+  };
+  console.warn = (...args: unknown[]) => {
+    const values = [];
+    for (let i = 0; i < args.length; i++) values.push(String(args[i]));
+    logs.push("[warn] " + values.join(" "));
+  };
+  console.error = (...args: unknown[]) => {
+    const values = [];
+    for (let i = 0; i < args.length; i++) values.push(String(args[i]));
+    logs.push("[error] " + values.join(" "));
+  };
+
+  function createProviderProxy(nonce: string, provider: { name: string }) {
+    return new Proxy(
+      {},
+      {
+        get:
+          (_, toolName) =>
+          (...args: unknown[]) => {
+            const id = nextId++;
+            return new Promise((resolve, reject) => {
+              pending[id] = { resolve, reject };
+              post({
+                type: "tool-call",
+                nonce,
+                id,
+                provider: provider.name,
+                name: String(toolName),
+                args
+              });
+            });
+          }
+      }
+    );
+  }
+
+  function isToolResultMessage(message: unknown): message is {
+    type: "tool-result";
+    nonce: string;
+    id: number;
+    result?: unknown;
+    error?: string;
+  } {
+    if (typeof message !== "object" || message === null) return false;
+    const candidate = message as Record<string, unknown>;
+    return (
+      candidate.type === "tool-result" &&
+      typeof candidate.nonce === "string" &&
+      typeof candidate.id === "number"
+    );
+  }
+
+  function isExecuteRequestMessage(message: unknown): message is {
+    type: "execute-request";
+    nonce: string;
+    code: string;
+    providers: { name: string }[];
+  } {
+    if (typeof message !== "object" || message === null) return false;
+    const candidate = message as Record<string, unknown>;
+    return (
+      candidate.type === "execute-request" &&
+      typeof candidate.nonce === "string" &&
+      typeof candidate.code === "string" &&
+      Array.isArray(candidate.providers) &&
+      candidate.providers.every(
+        (provider) =>
+          typeof provider === "object" &&
+          provider !== null &&
+          typeof (provider as { name?: unknown }).name === "string"
+      )
+    );
+  }
+
+  function executeCode(
+    nonce: string,
+    code: string,
+    providers: { name: string }[]
+  ) {
+    try {
+      activeNonce = nonce;
+      const providerNames: string[] = [];
+      const providerProxies: unknown[] = [];
+      for (const provider of providers) {
+        providerNames.push(provider.name);
+        providerProxies.push(createProviderProxy(nonce, provider));
+      }
+
+      const fn = new Function(...providerNames, "return (" + code + ")")(
+        ...providerProxies
+      );
+      Promise.resolve(fn())
+        .then((result: unknown) => {
+          post({ type: "execution-result", nonce, result: { result, logs } });
+        })
+        .catch((err: Error) => {
+          post({
+            type: "execution-result",
+            nonce,
+            result: {
+              result: undefined,
+              error: err.message || String(err),
+              logs
+            }
+          });
+        });
+    } catch (err) {
+      post({
+        type: "execution-result",
+        nonce,
+        result: {
+          result: undefined,
+          error: err instanceof Error ? err.message : String(err),
+          logs
+        }
+      });
+    }
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== parent) return;
+
+    const message = event.data;
+
+    if (isToolResultMessage(message)) {
+      if (message.nonce !== activeNonce) return;
+      const request = pending[message.id];
+      if (!request) return;
+
+      delete pending[message.id];
+      if ("error" in message)
+        request.reject(new Error(message.error as string));
+      else request.resolve(message.result);
+      return;
+    }
+
+    if (isExecuteRequestMessage(message)) {
+      executeCode(message.nonce, message.code, message.providers);
+    }
+  });
+
+  post({ type: "sandbox-ready" });
+}
+
+/**
+ * Returns a self-contained script string that boots the codemode iframe runtime.
+ */
+export function createIframeSandboxRuntimeScript(): string {
+  return `;(${iframeSandboxRuntimeMain.toString()})();`;
+}

@@ -1,0 +1,18 @@
+# createLegacyMcpHandler + WorkerTransport at 2025-11-25.
+server:
+  # SDK v1's Zod conversion emits draft-07 and strips JSON Schema 2020-12
+  # $defs/additionalProperties fields.
+  # Impact if unchanged: clients cannot rely on those keywords being advertised
+  # verbatim by SDK v1 server registrations.
+  - json-schema-2020-12
+
+  # WorkerTransport emits the 2025-11-25 priming event, but alpha.10 reports no
+  # retry hint and no pending tool response after Last-Event-ID reconnection.
+  # Impact if unchanged: reconnecting SSE clients may use their own retry delay,
+  # and a disconnected in-flight response may not resume on the new stream.
+  - server-sse-polling
+
+  # Workers deployments do not enable localhost-only Host/Origin middleware.
+  # Impact if unchanged: arbitrary Host/Origin rejection must be supplied by
+  # deployment routing or application middleware.
+  - dns-rebinding-protection

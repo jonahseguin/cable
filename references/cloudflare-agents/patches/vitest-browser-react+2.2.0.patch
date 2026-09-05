@@ -1,0 +1,13 @@
+diff --git a/dist/pure-C_qo4W4L.js b/dist/pure-C_qo4W4L.js
+index 1822276..e2b25bd 100644
+--- a/dist/pure-C_qo4W4L.js
++++ b/dist/pure-C_qo4W4L.js
+@@ -12,7 +12,7 @@ function ensureTestIdAttribute(element) {
+ }
+ let activeActs = 0;
+ function setActEnvironment(env) {
+-	globalThis.IS_REACT_ACT_ENVIRONMENT = env;
++	if (env) globalThis.IS_REACT_ACT_ENVIRONMENT = env;
+ }
+ function updateActEnvironment() {
+ 	setActEnvironment(activeActs > 0);

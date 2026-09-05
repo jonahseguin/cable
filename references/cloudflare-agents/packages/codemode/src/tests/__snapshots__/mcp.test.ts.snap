@@ -1,0 +1,207 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`codeMcpServer > code tool description should declare codemode with add and greet methods 1`] = `
+"Execute code to achieve a goal.
+
+Available:
+type AddInput = {
+    /** First number */
+    a: number;
+    /** Second number */
+    b: number;
+}
+type AddOutput = unknown
+type GreetInput = {
+    /** Name to greet */
+    name: string;
+}
+type GreetOutput = unknown
+
+declare const codemode: {
+	/**
+	 * Add two numbers
+	 * @param input.a - First number
+	 * @param input.b - Second number
+	 */
+	add: (input: AddInput) => Promise<AddOutput>;
+
+	/**
+	 * Generate a greeting
+	 * @param input.name - Name to greet
+	 */
+	greet: (input: GreetInput) => Promise<GreetOutput>;
+}
+
+Write an async arrow function in JavaScript that returns the result.
+Do NOT use TypeScript syntax — no type annotations, interfaces, or generics.
+Do NOT define named functions then call them — just write the arrow function body directly.
+
+Example: async () => { const r = await codemode.add({ a: 0, b: 0 }); return r; }"
+`;
+
+exports[`openApiMcpServer > execute tool description should match snapshot 1`] = `
+"Execute API calls using JavaScript code. First use 'search' to find the right endpoints.
+
+Available in your code:
+
+interface RequestOptions {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path: string;
+  query?: Record<string, string | number | boolean | undefined>;
+  body?: unknown;
+  contentType?: string;
+  rawBody?: boolean;
+}
+
+
+// OpenAPI 3.x spec with $refs resolved inline.
+// The spec object follows the standard OpenAPI 3.x structure.
+
+interface OperationObject {
+  summary?: string;
+  description?: string;
+  operationId?: string;
+  tags?: string[];
+  parameters?: Array<{
+    name: string;
+    in: "query" | "header" | "path" | "cookie";
+    required?: boolean;
+    schema?: unknown;
+    description?: string;
+  }>;
+  requestBody?: {
+    required?: boolean;
+    description?: string;
+    content?: Record<string, { schema?: unknown }>;
+  };
+  responses?: Record<string, {
+    description?: string;
+    content?: Record<string, { schema?: unknown }>;
+  }>;
+  security?: Array<Record<string, string[]>>;
+  deprecated?: boolean;
+}
+
+interface PathItem {
+  summary?: string;
+  description?: string;
+  get?: OperationObject;
+  post?: OperationObject;
+  put?: OperationObject;
+  patch?: OperationObject;
+  delete?: OperationObject;
+  head?: OperationObject;
+  options?: OperationObject;
+  trace?: OperationObject;
+  parameters?: OperationObject["parameters"];
+}
+
+interface OpenApiSpec {
+  openapi: string;
+  info: { title: string; version: string; description?: string };
+  paths: Record<string, PathItem>;
+  servers?: Array<{ url: string; description?: string }>;
+  components?: Record<string, unknown>;
+  tags?: Array<{ name: string; description?: string }>;
+}
+
+
+declare const codemode: {
+  spec(): Promise<OpenApiSpec>;
+  request(options: RequestOptions): Promise<unknown>;
+};
+
+
+Your code must be an async arrow function that returns the result.
+
+Example:
+async () => {
+  return await codemode.request({ method: "GET", path: "/your/endpoint" });
+}"
+`;
+
+exports[`openApiMcpServer > search tool description should match snapshot 1`] = `
+"Search the OpenAPI spec. codemode.spec() returns $refs resolved inline.
+
+Types:
+
+// OpenAPI 3.x spec with $refs resolved inline.
+// The spec object follows the standard OpenAPI 3.x structure.
+
+interface OperationObject {
+  summary?: string;
+  description?: string;
+  operationId?: string;
+  tags?: string[];
+  parameters?: Array<{
+    name: string;
+    in: "query" | "header" | "path" | "cookie";
+    required?: boolean;
+    schema?: unknown;
+    description?: string;
+  }>;
+  requestBody?: {
+    required?: boolean;
+    description?: string;
+    content?: Record<string, { schema?: unknown }>;
+  };
+  responses?: Record<string, {
+    description?: string;
+    content?: Record<string, { schema?: unknown }>;
+  }>;
+  security?: Array<Record<string, string[]>>;
+  deprecated?: boolean;
+}
+
+interface PathItem {
+  summary?: string;
+  description?: string;
+  get?: OperationObject;
+  post?: OperationObject;
+  put?: OperationObject;
+  patch?: OperationObject;
+  delete?: OperationObject;
+  head?: OperationObject;
+  options?: OperationObject;
+  trace?: OperationObject;
+  parameters?: OperationObject["parameters"];
+}
+
+interface OpenApiSpec {
+  openapi: string;
+  info: { title: string; version: string; description?: string };
+  paths: Record<string, PathItem>;
+  servers?: Array<{ url: string; description?: string }>;
+  components?: Record<string, unknown>;
+  tags?: Array<{ name: string; description?: string }>;
+}
+
+declare const codemode: {
+  spec(): Promise<OpenApiSpec>;
+};
+
+
+Your code must be an async arrow function that returns the result.
+
+Examples:
+
+// List all paths
+async () => {
+  const spec = await codemode.spec();
+  return Object.keys(spec.paths);
+}
+
+// Find endpoints by tag
+async () => {
+  const spec = await codemode.spec();
+  const results = [];
+  for (const [path, methods] of Object.entries(spec.paths)) {
+    for (const [method, op] of Object.entries(methods)) {
+      if (op.tags?.some(t => t.toLowerCase() === 'your_tag')) {
+        results.push({ method: method.toUpperCase(), path, summary: op.summary });
+      }
+    }
+  }
+  return results;
+}"
+`;

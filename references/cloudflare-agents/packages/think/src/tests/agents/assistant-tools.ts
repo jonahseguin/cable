@@ -1,0 +1,195 @@
+import { Agent } from "agents";
+import { Workspace } from "@cloudflare/shell";
+import { createWorkspaceTools } from "../../tools/workspace";
+import type { WorkspaceToolsOptions } from "../../tools/workspace";
+
+export class TestAssistantToolsAgent extends Agent {
+  workspace = new Workspace({
+    sql: this.ctx.storage.sql,
+    name: () => this.name
+  });
+
+  private getTools() {
+    return createWorkspaceTools(this.workspace);
+  }
+
+  // Seed workspace with files for testing
+  async seed(files: Array<{ path: string; content: string }>): Promise<void> {
+    for (const f of files) {
+      const parent = f.path.replace(/\/[^/]+$/, "");
+      if (parent && parent !== "/") {
+        await this.workspace.mkdir(parent, { recursive: true });
+      }
+      await this.workspace.writeFile(f.path, f.content);
+    }
+  }
+
+  async seedBytes(
+    path: string,
+    bytes: number[],
+    mimeType?: string
+  ): Promise<void> {
+    const parent = path.replace(/\/[^/]+$/, "");
+    if (parent && parent !== "/") {
+      await this.workspace.mkdir(parent, { recursive: true });
+    }
+    await this.workspace.writeFileBytes(path, new Uint8Array(bytes), mimeType);
+  }
+
+  async seedDir(path: string): Promise<void> {
+    await this.workspace.mkdir(path, { recursive: true });
+  }
+
+  async toolRead(
+    path: string,
+    offset?: number,
+    limit?: number
+  ): Promise<unknown> {
+    const tools = this.getTools();
+    return tools.read.execute!(
+      { path, offset, limit },
+      {
+        toolCallId: "test",
+        messages: [],
+        abortSignal: new AbortController().signal,
+        context: {}
+      }
+    );
+  }
+
+  async toolReadModelOutput(
+    path: string,
+    offset?: number,
+    limit?: number
+  ): Promise<unknown> {
+    const tools = this.getTools();
+    const input = { path, offset, limit };
+    type ReadModelOutputOptions = Parameters<
+      NonNullable<typeof tools.read.toModelOutput>
+    >[0];
+    const output = (await tools.read.execute!(input, {
+      toolCallId: "test",
+      messages: [],
+      abortSignal: new AbortController().signal,
+      context: {}
+    })) as ReadModelOutputOptions["output"];
+
+    return tools.read.toModelOutput?.({
+      toolCallId: "test",
+      input,
+      output
+    });
+  }
+
+  async toolWrite(path: string, content: string): Promise<unknown> {
+    const tools = this.getTools();
+    return tools.write.execute!(
+      { path, content },
+      {
+        toolCallId: "test",
+        messages: [],
+        abortSignal: new AbortController().signal,
+        context: {}
+      }
+    );
+  }
+
+  async toolEdit(
+    path: string,
+    old_string: string,
+    new_string: string
+  ): Promise<unknown> {
+    const tools = this.getTools();
+    return tools.edit.execute!(
+      { path, old_string, new_string },
+      {
+        toolCallId: "test",
+        messages: [],
+        abortSignal: new AbortController().signal,
+        context: {}
+      }
+    );
+  }
+
+  async toolList(
+    path?: string,
+    limit?: number,
+    offset?: number
+  ): Promise<unknown> {
+    const tools = this.getTools();
+    return tools.list.execute!(
+      { path: path ?? "/", limit, offset },
+      {
+        toolCallId: "test",
+        messages: [],
+        abortSignal: new AbortController().signal,
+        context: {}
+      }
+    );
+  }
+
+  async toolFind(pattern: string): Promise<unknown> {
+    const tools = this.getTools();
+    return tools.find.execute!(
+      { pattern },
+      {
+        toolCallId: "test",
+        messages: [],
+        abortSignal: new AbortController().signal,
+        context: {}
+      }
+    );
+  }
+
+  async toolGrep(
+    query: string,
+    include?: string,
+    fixedString?: boolean,
+    caseSensitive?: boolean,
+    contextLines?: number
+  ): Promise<unknown> {
+    const tools = this.getTools();
+    return tools.grep.execute!(
+      { query, include, fixedString, caseSensitive, contextLines },
+      {
+        toolCallId: "test",
+        messages: [],
+        abortSignal: new AbortController().signal,
+        context: {}
+      }
+    );
+  }
+
+  async toolBash(
+    script: string,
+    cwd?: string,
+    options?: Exclude<WorkspaceToolsOptions["bash"], boolean>
+  ): Promise<unknown> {
+    const tools = options
+      ? createWorkspaceTools(this.workspace, { bash: options })
+      : this.getTools();
+    const bash = tools.bash;
+    if (!bash?.execute) throw new Error("bash tool is not available");
+    return bash.execute(
+      { script, cwd },
+      {
+        toolCallId: "test",
+        messages: [],
+        abortSignal: new AbortController().signal,
+        context: {}
+      }
+    );
+  }
+
+  async seedLargeFile(path: string, sizeBytes: number): Promise<void> {
+    const parent = path.replace(/\/[^/]+$/, "");
+    if (parent && parent !== "/") {
+      this.workspace.mkdir(parent, { recursive: true });
+    }
+    // Generate content of approximately the requested size
+    const line = "x".repeat(99) + "\n"; // 100 bytes per line
+    const lines = Math.ceil(sizeBytes / 100);
+    const content = line.repeat(lines);
+    await this.workspace.writeFile(path, content);
+  }
+}

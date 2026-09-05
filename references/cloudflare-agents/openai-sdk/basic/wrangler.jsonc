@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "compatibility_date": "2026-06-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "MyAgent",
+        "name": "MyAgent"
+      }
+    ]
+  },
+  "main": "./src/server.ts",
+  "migrations": [
+    {
+      "new_sqlite_classes": ["MyAgent"],
+      "tag": "0.0.1"
+    }
+  ],
+  "name": "basic-openai-cloudflare-agent"
+}

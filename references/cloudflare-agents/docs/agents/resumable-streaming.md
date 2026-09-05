@@ -1,0 +1,127 @@
+# Resumable Streaming
+
+The `AIChatAgent` class provides **automatic resumable streaming** out of the box. When a client disconnects and reconnects during an active stream, the response automatically resumes from where it left off.
+
+This is client reconnect recovery, not Durable Object eviction recovery. Durable Object eviction recovery is also always enabled for `AIChatAgent` and `Think`: every turn runs inside a recoverable fiber. Use `chatRecovery` only to tune its budgets and terminal behavior.
+
+## How It Works
+
+When you use `AIChatAgent` with `useAgentChat`:
+
+1. **During streaming**: All chunks are automatically persisted to SQLite
+2. **On disconnect**: The stream continues server-side, buffering chunks
+3. **On reconnect**: Client requests a resume, receives all buffered chunks, and continues streaming
+
+No extra code is needed -- it just works. Generic client stream abort/cleanup is local-only by default, so browser navigation or React cleanup does not stop the server turn. An explicit `stop()` still cancels the server turn.
+
+## Example
+
+### Server
+
+```typescript
+import { AIChatAgent } from "@cloudflare/ai-chat";
+import { createWorkersAI } from "workers-ai-provider";
+import { streamText, convertToModelMessages } from "ai";
+
+export class ChatAgent extends AIChatAgent {
+  async onChatMessage() {
+    const workersai = createWorkersAI({ binding: this.env.AI });
+
+    const result = streamText({
+      model: workersai("@cf/moonshotai/kimi-k2.7-code"),
+      messages: await convertToModelMessages(this.messages)
+    });
+
+    // Automatic resumable streaming - no extra code needed
+    return result.toUIMessageStreamResponse();
+  }
+}
+```
+
+### Client
+
+```tsx
+import { useAgent } from "agents/react";
+import { useAgentChat } from "@cloudflare/ai-chat/react";
+
+function Chat() {
+  const agent = useAgent({
+    agent: "ChatAgent",
+    name: "my-chat"
+  });
+
+  const { messages, sendMessage, status } = useAgentChat({
+    agent
+    // resume: true is the default - streams automatically resume on reconnect
+    // cancelOnClientAbort: false is the default - browser cleanup does not
+    // cancel the server turn
+  });
+
+  // ... render your chat UI
+}
+```
+
+## Under the Hood
+
+### Server-side (`AIChatAgent`)
+
+- Creates SQLite tables for stream chunks and metadata on construction
+- Each stream gets a unique ID and tracks chunk indices
+- Chunks are batched (every 10 chunks) and flushed to SQLite for performance
+- When a client sends `CF_AGENT_STREAM_RESUME_REQUEST`, the server checks for active streams and responds with `CF_AGENT_STREAM_RESUMING`
+- Stale streams (older than 5 minutes) are cleaned up on restore
+- Stream buffers are garbage collected from a scheduled alarm: completed or errored streams are retained for 10 minutes (a brief reconnect-and-replay grace; the assistant message itself is persisted separately), and abandoned in-flight streams are retained for 1 hour after their last chunk before being reclaimed
+
+### Client-side (`useAgentChat`)
+
+- After the message handler is registered in `useEffect`, sends `CF_AGENT_STREAM_RESUME_REQUEST` to the server
+- This avoids a race condition where the server's `onConnect` notification could arrive before the client's handler is ready
+- On receiving `CF_AGENT_STREAM_RESUMING`, sends `CF_AGENT_STREAM_RESUME_ACK`
+- Receives all buffered chunks with `replay: true` flag and applies them in a single batch
+- Continues receiving live chunks as they arrive from the ongoing stream
+
+### The `replay` flag
+
+Replayed chunks include `replay: true` to distinguish them from live chunks. The client uses this to batch-apply all replayed chunks before rendering, which prevents intermediate states (like reasoning "Thinking..." indicators) from flashing briefly during replay. During a live stream, chunks arrive gradually and React renders each intermediate state naturally.
+
+## Durable client cleanup
+
+`resume: true` controls whether the client tries to reconnect to an active stream. `cancelOnClientAbort: false` is the default cancellation behavior: generic client stream abort/cleanup is local-only, while explicit `stop()` still cancels the server turn.
+
+```tsx
+const { messages, stop } = useAgentChat({
+  agent
+});
+```
+
+If your app intentionally wants client lifecycle to own server lifecycle, opt in:
+
+```tsx
+const { messages } = useAgentChat({
+  agent,
+  cancelOnClientAbort: true
+});
+```
+
+Use this for request-lifetime or token-saving flows. Explicit `stop()` is always
+server-side cancellation regardless of `cancelOnClientAbort`.
+
+## Disabling Resume
+
+If you do not want automatic resume (for example, for short responses), disable it:
+
+```tsx
+const { messages } = useAgentChat({
+  agent,
+  resume: false // Disable automatic stream resumption
+});
+```
+
+## Try It
+
+See [examples/resumable-stream-chat](https://github.com/cloudflare/agents/tree/main/examples/resumable-stream-chat) for a complete working example. Start a long response, refresh the page mid-stream, and watch it resume automatically.
+
+## Related Docs
+
+- [Chat Agents](./chat-agents.md) — Full `AIChatAgent` and `useAgentChat` reference
+- [Client Tools Continuation](./client-tools-continuation.md) — Client-side tool execution and auto-continuation

@@ -1,0 +1,59 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "account_id": "85d0c02b57ed75faf9b18f92d5c01602",
+
+  "assets": {
+    "directory": "public"
+  },
+  "compatibility_date": "2026-06-11",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "Sequential",
+        "name": "sequential"
+      },
+      {
+        "class_name": "Routing",
+        "name": "routing"
+      },
+      {
+        "class_name": "Parallel",
+        "name": "parallel"
+      },
+      {
+        "class_name": "Orchestrator",
+        "name": "orchestrator"
+      },
+      {
+        "class_name": "Evaluator",
+        "name": "evaluator"
+      }
+    ]
+  },
+  "main": "src/server.tsx",
+
+  "migrations": [
+    {
+      "new_sqlite_classes": [
+        "Sequential",
+        "Routing",
+        "Parallel",
+        "Orchestrator",
+        "Evaluator"
+      ],
+      "tag": "v1"
+    }
+  ],
+  "name": "anthropic-agent-patterns",
+
+  "secrets": {
+    "required": ["OPENAI_API_KEY", "AI_GATEWAY_TOKEN"]
+  },
+
+  "vars": {
+    "AI_GATEWAY_ACCOUNT_ID": "85d0c02b57ed75faf9b18f92d5c01602",
+    "AI_GATEWAY_ID": "anthropic-agent-patterns"
+  }
+}

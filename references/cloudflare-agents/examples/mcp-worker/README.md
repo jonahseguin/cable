@@ -1,0 +1,53 @@
+# MCP Server (createMcpHandler)
+
+The simplest way to run a stateless MCP server on Cloudflare Workers. Uses `createMcpHandler` from the Agents SDK to handle all MCP protocol details in one line.
+
+## What it demonstrates
+
+- **`createMcpHandler`** — the Agents SDK helper that turns an `McpServer` factory into a Worker-compatible fetch handler
+- **Minimal setup** — define tools in a factory, pass the factory to `createMcpHandler`, done
+- **Stateless** — no Durable Objects, no persistent state, each request is independent
+
+## Running
+
+```sh
+pnpm install
+pnpm start
+```
+
+Open the browser to see the built-in tool tester, or connect with the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) at `http://localhost:5173/mcp`.
+
+## How it works
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/server";
+import { createMcpHandler } from "agents/mcp/server";
+import { z } from "zod";
+
+function createServer() {
+  const server = new McpServer({ name: "Hello MCP Server", version: "1.0.0" });
+  server.registerTool(
+    "hello",
+    {
+      description: "Returns a greeting",
+      inputSchema: { name: z.string().optional() }
+    },
+    async ({ name }) => ({
+      content: [{ type: "text", text: `Hello, ${name ?? "World"}!` }]
+    })
+  );
+  return server;
+}
+
+export default {
+  fetch(request, env, ctx) {
+    return createMcpHandler(createServer)(request, env, ctx);
+  }
+} satisfies ExportedHandler;
+```
+
+## Related examples
+
+- [`mcp`](../mcp/) — stateful MCP server with `McpAgent` and Durable Objects
+- [`mcp-worker-authenticated`](../mcp-worker-authenticated/) — adding OAuth authentication
+- [`mcp-client`](../mcp-client/) — connecting to MCP servers as a client

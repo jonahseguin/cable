@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "auth-agent",
+  "compatibility_date": "2026-06-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "not_found_handling": "single-page-application",
+    // OAuth and custom agent routes are handled by the Worker
+    "run_worker_first": ["/auth/*", "/chat", "/chat/*"]
+  },
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "ChatAgent",
+        "name": "ChatAgent"
+      }
+    ]
+  },
+  "main": "src/server.ts",
+  "migrations": [
+    {
+      "new_sqlite_classes": ["ChatAgent"],
+      "tag": "v1"
+    }
+  ],
+  "secrets": {
+    "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"]
+  }
+}

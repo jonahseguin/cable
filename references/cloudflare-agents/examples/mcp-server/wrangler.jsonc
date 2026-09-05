@@ -1,0 +1,13 @@
+{
+  "name": "mcp-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-11",
+  "observability": {
+    "logs": {
+      "enabled": true
+    },
+    "traces": {
+      "enabled": true
+    }
+  }
+}

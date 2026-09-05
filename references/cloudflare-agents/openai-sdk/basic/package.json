@@ -1,0 +1,15 @@
+{
+  "author": "",
+  "description": "A basic OpenAI ⨉ Cloudflare Agents example, duplicate this repo when making more examples",
+  "keywords": [],
+  "license": "ISC",
+  "name": "@cloudflare/agents-openai-basic",
+  "private": true,
+  "scripts": {
+    "clean": "rm -rf .wrangler node_modules/.vite",
+    "start": "pnpm run clean && vite dev",
+    "types": "wrangler types env.d.ts --include-runtime false --strict-vars false"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}
