@@ -1,0 +1,75 @@
+import { McpServer } from "@modelcontextprotocol/server";
+import { createMcpHandler } from "agents/mcp/server";
+import { z } from "zod";
+import { fetchAndBuildIndex, formatResults } from "./utils";
+import { search } from "@orama/orama";
+import { Effect } from "effect";
+
+function createServer() {
+  // TODO: instrument this server for observability
+  const mcpServer = new McpServer({
+    name: "agents-mcp",
+    version: "0.0.1"
+  });
+
+  const inputSchema = {
+    query: z
+      .string()
+      .describe(
+        "query string to search for eg. 'agent hibernate', 'schedule tasks'"
+      ),
+    k: z.number().optional().default(5).describe("number of results to return")
+  };
+
+  mcpServer.registerTool(
+    "search-agent-docs",
+    {
+      description:
+        "Token efficient search of the Cloudflare Agents SDK documentation",
+      inputSchema
+    },
+    async ({ query, k }) => {
+      const searchEffect = Effect.gen(function* () {
+        console.log({ query, k });
+        const term = query.trim();
+
+        const docsDb = yield* fetchAndBuildIndex;
+
+        const result = search(docsDb, { term, limit: k });
+        const searchResult = yield* result instanceof Promise
+          ? Effect.promise(() => result)
+          : Effect.succeed(result);
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: formatResults(searchResult, term, k)
+            }
+          ]
+        };
+      }).pipe(
+        Effect.catchAll((error) => {
+          console.error(error);
+          return Effect.succeed({
+            content: [
+              {
+                type: "text" as const,
+                text: `There was an error with the search tool. Please try again later.`
+              }
+            ]
+          });
+        })
+      );
+
+      return await Effect.runPromise(searchEffect);
+    }
+  );
+  return mcpServer;
+}
+
+export default {
+  fetch(request, env, ctx) {
+    return createMcpHandler(createServer)(request, env, ctx);
+  }
+} satisfies ExportedHandler;

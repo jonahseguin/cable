@@ -1,0 +1,23 @@
+{
+  "name": "@cloudflare/agents-chat-recovery-probe",
+  "description": "Headless prod harness to validate Think durable chat-recovery assumptions (#1672)",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "types": "wrangler types env.d.ts --include-runtime false",
+    "test:e2e:deployed": "node scripts/run-suite.mjs"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^4.0.0",
+    "@cloudflare/think": "*",
+    "agents": "*",
+    "ai": "^7.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260729.1",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.115.0"
+  }
+}

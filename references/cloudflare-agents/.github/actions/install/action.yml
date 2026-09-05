@@ -1,0 +1,33 @@
+name: Install
+description: Set up Node and install dependencies with pnpm's package cache.
+
+inputs:
+  registry-url:
+    description: Registry URL for setup-node (set this when publishing).
+    required: false
+    default: ""
+  node-version:
+    description: >-
+      Node version for setup-node. Defaults to the latest 24.x. Pin an exact
+      patch (e.g. 24.15.0) for jobs that download a browser via
+      @puppeteer/browsers, whose extract-zip dependency silently corrupts the
+      extraction on Node 24.16+ (see puppeteer/puppeteer#14957).
+    required: false
+    default: "24"
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        run_install: false
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+        registry-url: ${{ inputs.registry-url }}
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

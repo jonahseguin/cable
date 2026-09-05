@@ -1,0 +1,42 @@
+{
+  "name": "@cloudflare/agents-deploy-churn-example",
+  "description": "Reliability harness: drive a durable chat turn while firing repeated real wrangler deploys mid-turn to observe recovery behavior",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "start": "vite dev",
+    "build": "vite build",
+    "deploy": "vite build && wrangler deploy",
+    "churn": "tsx scripts/churn.ts",
+    "rollback": "tsx scripts/deploy-rollback.ts",
+    "tail": "tsx scripts/tail.ts",
+    "types": "wrangler types env.d.ts --include-runtime false"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.0",
+    "@cloudflare/kumo": "^2.6.0",
+    "@cloudflare/think": "*",
+    "@phosphor-icons/react": "^2.1.10",
+    "agents": "*",
+    "ai": "^7.0.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "workers-ai-provider": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.48.0",
+    "@cloudflare/workers-types": "^5.20260729.1",
+    "@tailwindcss/vite": "^4",
+    "@types/node": "^26.0.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "partysocket": "1.3.0",
+    "tailwindcss": "^4.3.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.0",
+    "wrangler": "^4.115.0"
+  }
+}

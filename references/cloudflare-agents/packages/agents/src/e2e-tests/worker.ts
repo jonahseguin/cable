@@ -1,0 +1,1022 @@
+/**
+ * E2E test worker — agent with multiple fiber methods for eviction testing.
+ * Runs under wrangler dev with persistent SQLite storage.
+ *
+ * Uses a short keepAliveIntervalMs (2s) so alarm-based recovery
+ * happens quickly in tests instead of waiting the default 30s.
+ */
+import { Agent, callable, routeAgentRequest } from "agents";
+import type { TaskHandlers, TaskStep } from "agents/tasks";
+import { Streams } from "agents/streams";
+import type {
+  FiberInspection,
+  FiberRecoveryContext as RunFiberRecoveryContext,
+  FiberRecoveryResult,
+  StartFiberResult
+} from "agents";
+import { genericObservability } from "agents/observability";
+import type { Observability } from "agents/observability";
+
+type Env = {
+  RunFiberTestAgent: DurableObjectNamespace<RunFiberTestAgent>;
+  TaskKillTestAgent: DurableObjectNamespace<TaskKillTestAgent>;
+  StreamKillTestAgent: DurableObjectNamespace<StreamKillTestAgent>;
+  SubAgentFiberParent: DurableObjectNamespace<SubAgentFiberParent>;
+  SubAgentFiberChild: DurableObjectNamespace<SubAgentFiberChild>;
+  PoisonRowAgent: DurableObjectNamespace<PoisonRowAgent>;
+  ScanDeadlineAgent: DurableObjectNamespace<ScanDeadlineAgent>;
+  ConcurrentFiberAgent: DurableObjectNamespace<ConcurrentFiberAgent>;
+  PoisonBackoffAgent: DurableObjectNamespace<PoisonBackoffAgent>;
+  FacetRecoveryParent: DurableObjectNamespace<FacetRecoveryParent>;
+  FacetRecoveryChild: DurableObjectNamespace<FacetRecoveryChild>;
+};
+
+function fiberSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export type StepResult = {
+  index: number;
+  value: string;
+  completedAt: number;
+};
+
+export type SlowFiberSnapshot = {
+  completedSteps: StepResult[];
+  totalSteps: number;
+};
+
+// ── RunFiberTestAgent (uses Agent.runFiber directly, no mixin) ────────
+
+export class RunFiberTestAgent extends Agent<Record<string, unknown>> {
+  static options = { keepAliveIntervalMs: 2_000 };
+
+  recoveredFibers: RunFiberRecoveryContext[] = [];
+
+  override async onFiberRecovered(
+    ctx: RunFiberRecoveryContext
+  ): Promise<void | FiberRecoveryResult> {
+    this.recoveredFibers.push(ctx);
+    // Re-start the fiber from checkpoint
+    if (ctx.name === "slowSteps") {
+      void this.runFiber("slowSteps", async (fiber) => {
+        const snapshot = ctx.snapshot as {
+          completedSteps: Array<{ index: number; value: string }>;
+          totalSteps: number;
+        } | null;
+        const completedSteps = snapshot?.completedSteps ?? [];
+        const totalSteps = snapshot?.totalSteps ?? 0;
+        const startIndex = completedSteps.length;
+
+        for (let i = startIndex; i < totalSteps; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          completedSteps.push({ index: i, value: `step-${i}-done` });
+          fiber.stash({ completedSteps: [...completedSteps], totalSteps });
+        }
+      }).catch(console.error);
+    }
+    if (ctx.name === "managedSlowComplete") {
+      return {
+        status: "completed",
+        snapshot: {
+          recovered: true,
+          checkpoint: ctx.snapshot
+        },
+        metadata: {
+          recoveredBy: "onFiberRecovered"
+        }
+      };
+    }
+  }
+
+  @callable()
+  startSlowFiber(totalSteps: number): string {
+    void this.runFiber("slowSteps", async (ctx) => {
+      const completedSteps: Array<{ index: number; value: string }> = [];
+
+      for (let i = 0; i < totalSteps; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        completedSteps.push({ index: i, value: `step-${i}-done` });
+        ctx.stash({ completedSteps: [...completedSteps], totalSteps });
+      }
+    }).catch(console.error);
+
+    return "started";
+  }
+
+  @callable()
+  async startManagedSlowFiber(
+    totalSteps: number,
+    idempotencyKey: string,
+    mode: "complete" | "interrupt"
+  ): Promise<StartFiberResult> {
+    const name = mode === "complete" ? "managedSlowComplete" : "managedSlow";
+    return this.startFiber(
+      name,
+      async (ctx) => {
+        const completedSteps: StepResult[] = [];
+        for (let i = 0; i < totalSteps; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          completedSteps.push({
+            index: i,
+            value: `managed-step-${i}-done`,
+            completedAt: Date.now()
+          });
+          ctx.stash({ completedSteps: [...completedSteps], totalSteps });
+        }
+      },
+      {
+        idempotencyKey,
+        metadata: { totalSteps, mode }
+      }
+    );
+  }
+
+  @callable()
+  async retryManagedSlowFiberAndWait(
+    totalSteps: number,
+    idempotencyKey: string,
+    mode: "complete" | "interrupt"
+  ): Promise<StartFiberResult> {
+    const name = mode === "complete" ? "managedSlowComplete" : "managedSlow";
+    return this.startFiber(
+      name,
+      async () => {
+        throw new Error("duplicate managed fiber callback should not run");
+      },
+      {
+        idempotencyKey,
+        metadata: { totalSteps, mode, duplicate: true },
+        waitForCompletion: true
+      }
+    );
+  }
+
+  @callable()
+  getFiberStatus(): {
+    hasRunningFibers: boolean;
+    runCount: number;
+    recoveredCount: number;
+    recoveredSnapshots: unknown[];
+  } {
+    const rows = this.sql<{ id: string; snapshot: string | null }>`
+      SELECT id, snapshot FROM cf_agents_runs
+    `;
+    return {
+      hasRunningFibers: rows.length > 0,
+      runCount: rows.length,
+      recoveredCount: this.recoveredFibers.length,
+      recoveredSnapshots: this.recoveredFibers.map((f) => f.snapshot)
+    };
+  }
+
+  @callable()
+  getRecoveredFibers(): RunFiberRecoveryContext[] {
+    return this.recoveredFibers;
+  }
+
+  @callable()
+  async getManagedFiberByKey(
+    idempotencyKey: string
+  ): Promise<FiberInspection | null> {
+    return this.inspectFiberByKey(idempotencyKey);
+  }
+
+  @callable()
+  async getManagedFiberStatus(idempotencyKey: string): Promise<{
+    runCount: number;
+    recoveredCount: number;
+    fiber: FiberInspection | null;
+  }> {
+    const rows = this.sql<{ count: number }>`
+      SELECT COUNT(*) as count FROM cf_agents_runs
+    `;
+    return {
+      runCount: rows[0]?.count ?? 0,
+      recoveredCount: this.recoveredFibers.length,
+      fiber: await this.inspectFiberByKey(idempotencyKey)
+    };
+  }
+
+  @callable()
+  getRunningFiberSnapshot(): unknown {
+    const rows = this.sql<{ snapshot: string | null }>`
+      SELECT snapshot FROM cf_agents_runs LIMIT 1
+    `;
+    if (rows.length === 0) return null;
+    return rows[0].snapshot ? JSON.parse(rows[0].snapshot) : null;
+  }
+}
+
+// ── Sub-agent runFiber recovery ───────────────────────────────────────
+
+export class SubAgentFiberChild extends Agent<Record<string, unknown>> {
+  static options = { keepAliveIntervalMs: 2_000 };
+
+  recoveredFibers: RunFiberRecoveryContext[] = [];
+
+  override async onFiberRecovered(
+    ctx: RunFiberRecoveryContext
+  ): Promise<void | FiberRecoveryResult> {
+    this.recoveredFibers.push(ctx);
+    if (ctx.name === "managedSubSlowComplete") {
+      return {
+        status: "completed",
+        snapshot: {
+          recovered: true,
+          checkpoint: ctx.snapshot
+        }
+      };
+    }
+  }
+
+  async startSlowFiber(totalSteps: number): Promise<string> {
+    void this.runFiber("subSlowSteps", async (ctx) => {
+      const completedSteps: Array<{ index: number; value: string }> = [];
+
+      for (let i = 0; i < totalSteps; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        completedSteps.push({ index: i, value: `sub-step-${i}-done` });
+        ctx.stash({ completedSteps: [...completedSteps], totalSteps });
+      }
+    }).catch(console.error);
+
+    return "started";
+  }
+
+  async startManagedSlowFiber(
+    totalSteps: number,
+    idempotencyKey: string
+  ): Promise<StartFiberResult> {
+    return this.startFiber(
+      "managedSubSlowComplete",
+      async (ctx) => {
+        const completedSteps: StepResult[] = [];
+        for (let i = 0; i < totalSteps; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          completedSteps.push({
+            index: i,
+            value: `managed-sub-step-${i}-done`,
+            completedAt: Date.now()
+          });
+          ctx.stash({ completedSteps: [...completedSteps], totalSteps });
+        }
+      },
+      {
+        idempotencyKey,
+        metadata: { totalSteps }
+      }
+    );
+  }
+
+  getFiberStatus(): {
+    hasRunningFibers: boolean;
+    runCount: number;
+    recoveredCount: number;
+    recoveredSnapshots: unknown[];
+  } {
+    const rows = this.sql<{ id: string; snapshot: string | null }>`
+      SELECT id, snapshot FROM cf_agents_runs
+    `;
+    return {
+      hasRunningFibers: rows.length > 0,
+      runCount: rows.length,
+      recoveredCount: this.recoveredFibers.length,
+      recoveredSnapshots: this.recoveredFibers.map((f) => f.snapshot)
+    };
+  }
+
+  getRecoveredFibers(): RunFiberRecoveryContext[] {
+    return this.recoveredFibers;
+  }
+
+  async getManagedFiberByKey(
+    idempotencyKey: string
+  ): Promise<FiberInspection | null> {
+    return this.inspectFiberByKey(idempotencyKey);
+  }
+
+  async getManagedFiberStatus(idempotencyKey: string): Promise<{
+    runCount: number;
+    recoveredCount: number;
+    fiber: FiberInspection | null;
+  }> {
+    const rows = this.sql<{ count: number }>`
+      SELECT COUNT(*) as count FROM cf_agents_runs
+    `;
+    return {
+      runCount: rows[0]?.count ?? 0,
+      recoveredCount: this.recoveredFibers.length,
+      fiber: await this.inspectFiberByKey(idempotencyKey)
+    };
+  }
+
+  getRunningFiberSnapshot(): unknown {
+    const rows = this.sql<{ snapshot: string | null }>`
+      SELECT snapshot FROM cf_agents_runs LIMIT 1
+    `;
+    if (rows.length === 0) return null;
+    return rows[0].snapshot ? JSON.parse(rows[0].snapshot) : null;
+  }
+}
+
+export class SubAgentFiberParent extends Agent<Record<string, unknown>> {
+  static options = { keepAliveIntervalMs: 2_000 };
+
+  @callable()
+  async startChildSlowFiber(
+    childName: string,
+    totalSteps: number
+  ): Promise<string> {
+    const child = await this.subAgent(SubAgentFiberChild, childName);
+    return child.startSlowFiber(totalSteps);
+  }
+
+  @callable()
+  async startChildManagedSlowFiber(
+    childName: string,
+    totalSteps: number,
+    idempotencyKey: string
+  ): Promise<StartFiberResult> {
+    const child = await this.subAgent(SubAgentFiberChild, childName);
+    return child.startManagedSlowFiber(totalSteps, idempotencyKey);
+  }
+
+  @callable()
+  async getChildRunningFiberSnapshot(childName: string): Promise<unknown> {
+    const child = await this.subAgent(SubAgentFiberChild, childName);
+    return child.getRunningFiberSnapshot();
+  }
+
+  @callable()
+  async getChildFiberStatus(childName: string): Promise<{
+    hasRunningFibers: boolean;
+    runCount: number;
+    recoveredCount: number;
+    recoveredSnapshots: unknown[];
+  }> {
+    const child = await this.subAgent(SubAgentFiberChild, childName);
+    return child.getFiberStatus();
+  }
+
+  @callable()
+  async getChildRecoveredFibers(
+    childName: string
+  ): Promise<RunFiberRecoveryContext[]> {
+    const child = await this.subAgent(SubAgentFiberChild, childName);
+    return child.getRecoveredFibers();
+  }
+
+  @callable()
+  async getChildManagedFiberStatus(
+    childName: string,
+    idempotencyKey: string
+  ): Promise<{
+    runCount: number;
+    recoveredCount: number;
+    fiber: FiberInspection | null;
+  }> {
+    const child = await this.subAgent(SubAgentFiberChild, childName);
+    return child.getManagedFiberStatus(idempotencyKey);
+  }
+}
+
+// ── Recovery-recorder base ────────────────────────────────────────────
+//
+// Persists recovery signals (onFiberRecovered invocations + observability
+// `fiber:recovery:skipped` events) into a durable SQL table so assertions
+// survive DO eviction between polls. Counters live in storage, not memory.
+
+abstract class RecoveryRecorderAgent extends Agent<Record<string, unknown>> {
+  private _recoveryLogReady = false;
+
+  // Custom observability impl that records skip reasons durably, then
+  // forwards to the default diagnostics-channel implementation.
+  override observability: Observability = {
+    emit: (event) => {
+      if (event.type === "fiber:recovery:skipped") {
+        this._recordRecoveryEvent(
+          "skipped",
+          event.payload.fiberId,
+          event.payload.fiberName,
+          event.payload.reason
+        );
+      }
+      genericObservability.emit(event);
+    }
+  };
+
+  private _ensureRecoveryLog(): void {
+    if (this._recoveryLogReady) return;
+    this.sql`
+      CREATE TABLE IF NOT EXISTS test_recovery_log (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        fiber_id TEXT,
+        fiber_name TEXT,
+        reason TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `;
+    this._recoveryLogReady = true;
+  }
+
+  protected _recordRecoveryEvent(
+    kind: "hook" | "skipped",
+    fiberId: string | null,
+    fiberName: string | null,
+    reason: string | null
+  ): void {
+    this._ensureRecoveryLog();
+    this.sql`
+      INSERT INTO test_recovery_log
+        (kind, fiber_id, fiber_name, reason, created_at)
+      VALUES (${kind}, ${fiberId}, ${fiberName}, ${reason}, ${Date.now()})
+    `;
+  }
+
+  protected _runRowCount(): number {
+    const rows = this.sql<{ count: number }>`
+      SELECT COUNT(*) AS count FROM cf_agents_runs
+    `;
+    return rows[0]?.count ?? 0;
+  }
+
+  protected _hookCount(): number {
+    this._ensureRecoveryLog();
+    const rows = this.sql<{ count: number }>`
+      SELECT COUNT(*) AS count FROM test_recovery_log WHERE kind = 'hook'
+    `;
+    return rows[0]?.count ?? 0;
+  }
+
+  protected _distinctHookFiberCount(): number {
+    this._ensureRecoveryLog();
+    const rows = this.sql<{ count: number }>`
+      SELECT COUNT(DISTINCT fiber_id) AS count
+      FROM test_recovery_log WHERE kind = 'hook'
+    `;
+    return rows[0]?.count ?? 0;
+  }
+
+  protected _skipReasonCount(reason: string): number {
+    this._ensureRecoveryLog();
+    const rows = this.sql<{ count: number }>`
+      SELECT COUNT(*) AS count
+      FROM test_recovery_log WHERE kind = 'skipped' AND reason = ${reason}
+    `;
+    return rows[0]?.count ?? 0;
+  }
+
+  protected _hookTimestamps(): number[] {
+    this._ensureRecoveryLog();
+    const rows = this.sql<{ created_at: number }>`
+      SELECT created_at FROM test_recovery_log
+      WHERE kind = 'hook' ORDER BY seq ASC
+    `;
+    return rows.map((r) => r.created_at);
+  }
+}
+
+// ── PoisonRowAgent (test 1: poison-row aging → max_age_exceeded) ───────
+//
+// An unmanaged fiber whose recovery hook ALWAYS throws. The orphaned
+// `cf_agents_runs` row is retained for retry across alarm passes until it
+// exceeds `fiberRecoveryMaxAgeMs`, at which point it is dropped and a
+// `max_age_exceeded` skip is emitted.
+
+export class PoisonRowAgent extends RecoveryRecorderAgent {
+  static options = {
+    keepAliveIntervalMs: 2_000,
+    // Large enough to outlast the wrangler restart gap (so the retain phase
+    // is observable after restart), small enough to expire within the test's
+    // polling window. Age is measured from the fiber's original created_at.
+    fiberRecoveryMaxAgeMs: 25_000
+  };
+
+  override async onFiberRecovered(
+    ctx: RunFiberRecoveryContext
+  ): Promise<void | FiberRecoveryResult> {
+    this._recordRecoveryEvent("hook", ctx.id, ctx.name, null);
+    throw new Error(`poison recovery for ${ctx.name} (${ctx.id})`);
+  }
+
+  @callable()
+  startPoisonFiber(totalSteps: number): string {
+    void this.runFiber("poisonSteps", async (ctx) => {
+      const completedSteps: number[] = [];
+      for (let i = 0; i < totalSteps; i++) {
+        await fiberSleep(1000);
+        completedSteps.push(i);
+        ctx.stash({ completedSteps: [...completedSteps], totalSteps });
+      }
+    }).catch(console.error);
+    return "started";
+  }
+
+  @callable()
+  getPoisonStatus(): {
+    runCount: number;
+    hookCount: number;
+    maxAgeExceededCount: number;
+  } {
+    return {
+      runCount: this._runRowCount(),
+      hookCount: this._hookCount(),
+      maxAgeExceededCount: this._skipReasonCount("max_age_exceeded")
+    };
+  }
+}
+
+// ── ScanDeadlineAgent (test 2: scan-deadline yield → scan_deadline_exceeded)
+//
+// Starts many orphaned unmanaged fibers. A tiny `fiberRecoveryScanDeadlineMs`
+// forces a single alarm pass to yield partway through the batch; subsequent
+// passes drain the rest so every fiber is eventually recovered.
+
+export class ScanDeadlineAgent extends RecoveryRecorderAgent {
+  static options = {
+    keepAliveIntervalMs: 2_000,
+    // Tiny budget: one alarm pass cannot recover the whole batch.
+    fiberRecoveryScanDeadlineMs: 75
+  };
+
+  override async onFiberRecovered(
+    ctx: RunFiberRecoveryContext
+  ): Promise<void | FiberRecoveryResult> {
+    // A little work per fiber so cumulative scan time crosses the deadline
+    // partway through the batch.
+    await fiberSleep(25);
+    this._recordRecoveryEvent("hook", ctx.id, ctx.name, null);
+  }
+
+  @callable()
+  startManyFibers(count: number, stepCount: number): string {
+    for (let n = 0; n < count; n++) {
+      void this.runFiber(`scanFiber-${n}`, async (ctx) => {
+        const completedSteps: number[] = [];
+        for (let i = 0; i < stepCount; i++) {
+          await fiberSleep(1000);
+          completedSteps.push(i);
+          ctx.stash({ completedSteps: [...completedSteps], index: n });
+        }
+      }).catch(console.error);
+    }
+    return "started";
+  }
+
+  @callable()
+  getScanStatus(): {
+    runCount: number;
+    hookCount: number;
+    distinctRecovered: number;
+    scanDeadlineExceededCount: number;
+  } {
+    return {
+      runCount: this._runRowCount(),
+      hookCount: this._hookCount(),
+      distinctRecovered: this._distinctHookFiberCount(),
+      scanDeadlineExceededCount: this._skipReasonCount("scan_deadline_exceeded")
+    };
+  }
+}
+
+// ── ConcurrentFiberAgent (test 3: concurrent fiber recovery) ──────────
+//
+// Starts N concurrent fibers (a mix of managed + unmanaged), all orphaned by
+// the kill. Every one must be recovered after restart — covering the gap that
+// existing tests only exercise single-fiber recovery.
+
+export class ConcurrentFiberAgent extends RecoveryRecorderAgent {
+  static options = { keepAliveIntervalMs: 2_000 };
+
+  override async onFiberRecovered(
+    ctx: RunFiberRecoveryContext
+  ): Promise<void | FiberRecoveryResult> {
+    this._recordRecoveryEvent("hook", ctx.id, ctx.name, null);
+    if (ctx.name.startsWith("concurrentManaged")) {
+      return {
+        status: "completed",
+        snapshot: { recovered: true, checkpoint: ctx.snapshot },
+        metadata: { recoveredBy: "onFiberRecovered" }
+      };
+    }
+  }
+
+  @callable()
+  startConcurrentFibers(
+    unmanagedCount: number,
+    managedCount: number,
+    stepCount: number
+  ): { unmanaged: number; managed: number } {
+    for (let n = 0; n < unmanagedCount; n++) {
+      void this.runFiber(`concurrentUnmanaged-${n}`, async (ctx) => {
+        const completedSteps: number[] = [];
+        for (let i = 0; i < stepCount; i++) {
+          await fiberSleep(1000);
+          completedSteps.push(i);
+          ctx.stash({ completedSteps: [...completedSteps], index: n });
+        }
+      }).catch(console.error);
+    }
+    for (let n = 0; n < managedCount; n++) {
+      void this.startFiber(
+        `concurrentManaged-${n}`,
+        async (ctx) => {
+          const completedSteps: number[] = [];
+          for (let i = 0; i < stepCount; i++) {
+            await fiberSleep(1000);
+            completedSteps.push(i);
+            ctx.stash({ completedSteps: [...completedSteps], index: n });
+          }
+        },
+        { idempotencyKey: `concurrent-managed-${n}`, metadata: { index: n } }
+      ).catch(console.error);
+    }
+    return { unmanaged: unmanagedCount, managed: managedCount };
+  }
+
+  @callable()
+  getConcurrentStatus(): {
+    runCount: number;
+    hookCount: number;
+    distinctRecovered: number;
+  } {
+    return {
+      runCount: this._runRowCount(),
+      hookCount: this._hookCount(),
+      distinctRecovered: this._distinctHookFiberCount()
+    };
+  }
+
+  @callable()
+  async getManagedKeyStatus(
+    idempotencyKey: string
+  ): Promise<FiberInspection | null> {
+    return this.inspectFiberByKey(idempotencyKey);
+  }
+}
+
+// ── PoisonBackoffAgent (recovery-alarm backoff cadence) ───────────────
+//
+// `fiberRecoveryMaxAgeMs: 0` retains the orphan FOREVER, and the recovery hook
+// always throws, so the row is never recovered and never aged out. The
+// recovery follow-up alarm must back off exponentially (rather than firing
+// every keepAliveIntervalMs) — exposed by recording each hook-attempt timestamp
+// so the test can assert the inter-retry gaps grow while the row is retained.
+
+export class PoisonBackoffAgent extends RecoveryRecorderAgent {
+  static options = {
+    keepAliveIntervalMs: 2_000,
+    // Retain forever: the row is never aged out, so the only thing bounding the
+    // retry storm is the alarm backoff.
+    fiberRecoveryMaxAgeMs: 0
+  };
+
+  override async onFiberRecovered(
+    ctx: RunFiberRecoveryContext
+  ): Promise<void | FiberRecoveryResult> {
+    this._recordRecoveryEvent("hook", ctx.id, ctx.name, null);
+    throw new Error(`poison recovery for ${ctx.name} (${ctx.id})`);
+  }
+
+  @callable()
+  startPoisonFiber(totalSteps: number): string {
+    void this.runFiber("poisonBackoffSteps", async (ctx) => {
+      const completedSteps: number[] = [];
+      for (let i = 0; i < totalSteps; i++) {
+        await fiberSleep(1000);
+        completedSteps.push(i);
+        ctx.stash({ completedSteps: [...completedSteps], totalSteps });
+      }
+    }).catch(console.error);
+    return "started";
+  }
+
+  @callable()
+  getBackoffStatus(): {
+    runCount: number;
+    hookCount: number;
+    hookTimestamps: number[];
+  } {
+    return {
+      runCount: this._runRowCount(),
+      hookCount: this._hookCount(),
+      hookTimestamps: this._hookTimestamps()
+    };
+  }
+}
+
+// ── Facet (sub-agent) multi-pass recovery ─────────────────────────────
+//
+// A facet child runs MANY orphaned fibers with a tiny scan deadline, so its
+// recovery cannot drain in one pass. The root parent owns the physical alarm
+// and re-drives the child's recovery across passes (the facet-run lease is
+// retained while the child still has rows). Covers the gap that the root-DO
+// tests don't exercise the facet recovery path under multi-pass churn.
+
+export class FacetRecoveryChild extends RecoveryRecorderAgent {
+  static options = {
+    keepAliveIntervalMs: 2_000,
+    fiberRecoveryScanDeadlineMs: 75
+  };
+
+  override async onFiberRecovered(
+    ctx: RunFiberRecoveryContext
+  ): Promise<void | FiberRecoveryResult> {
+    await fiberSleep(25);
+    this._recordRecoveryEvent("hook", ctx.id, ctx.name, null);
+  }
+
+  startManyFibers(count: number, stepCount: number): string {
+    for (let n = 0; n < count; n++) {
+      void this.runFiber(`facetFiber-${n}`, async (ctx) => {
+        const completedSteps: number[] = [];
+        for (let i = 0; i < stepCount; i++) {
+          await fiberSleep(1000);
+          completedSteps.push(i);
+          ctx.stash({ completedSteps: [...completedSteps], index: n });
+        }
+      }).catch(console.error);
+    }
+    return "started";
+  }
+
+  getScanStatus(): {
+    runCount: number;
+    hookCount: number;
+    distinctRecovered: number;
+    scanDeadlineExceededCount: number;
+  } {
+    return {
+      runCount: this._runRowCount(),
+      hookCount: this._hookCount(),
+      distinctRecovered: this._distinctHookFiberCount(),
+      scanDeadlineExceededCount: this._skipReasonCount("scan_deadline_exceeded")
+    };
+  }
+}
+
+export class FacetRecoveryParent extends Agent<Record<string, unknown>> {
+  static options = { keepAliveIntervalMs: 2_000 };
+
+  @callable()
+  async startChildManyFibers(
+    childName: string,
+    count: number,
+    stepCount: number
+  ): Promise<string> {
+    const child = await this.subAgent(FacetRecoveryChild, childName);
+    return child.startManyFibers(count, stepCount);
+  }
+
+  @callable()
+  async getChildScanStatus(childName: string): Promise<{
+    runCount: number;
+    hookCount: number;
+    distinctRecovered: number;
+    scanDeadlineExceededCount: number;
+  }> {
+    const child = await this.subAgent(FacetRecoveryChild, childName);
+    return child.getScanStatus();
+  }
+}
+
+// ── TaskKillTestAgent (the Tasks capability under real SIGKILL) ─────
+
+/**
+ * Drives the `tasks` capability through a real process kill: journaled step
+ * executions are recorded in the host's own SQLite (instance memory dies
+ * with the process), so the restart can prove which steps re-ran and which
+ * replayed from the journal. Only Fibers is exercised — no legacy fiber
+ * APIs.
+ */
+export class TaskKillTestAgent extends Agent<Record<string, unknown>> {
+  static options = { keepAliveIntervalMs: 2_000 };
+
+  override readonly taskDefinitions = {
+    slowSteps: async (input: { totalSteps: number }, step: TaskStep) => {
+      for (let i = 0; i < input.totalSteps; i++) {
+        await step.do(`step:${i}`, async () => {
+          await fiberSleep(1000);
+          this.sql`
+            INSERT INTO e2e_task_step_executions (step_index, executed_at)
+            VALUES (${i}, ${Date.now()})
+          `;
+          return i;
+        });
+      }
+      return { totalSteps: input.totalSteps };
+    },
+
+    guardedSteps: async (input: { totalSteps: number }, step: TaskStep) => {
+      // Replay-entry evidence: the step a lost attempt left mid-execution,
+      // surfaced by the engine before any step re-executes.
+      if (step.interrupted !== null) {
+        this.sql`
+          INSERT INTO e2e_task_recoveries (run_id, interrupted_step, recovered_at)
+          VALUES ('e2e-guarded', ${step.interrupted.name}, ${Date.now()})
+        `;
+      }
+      for (let i = 0; i < input.totalSteps; i++) {
+        await step.do(`step:${i}`, async () => {
+          await fiberSleep(1000);
+          return i;
+        });
+      }
+      return "ran-to-completion";
+    }
+  } satisfies TaskHandlers;
+
+  onStart(): void {
+    this.sql`
+      CREATE TABLE IF NOT EXISTS e2e_task_step_executions (
+        step_index INTEGER NOT NULL,
+        executed_at INTEGER NOT NULL
+      )
+    `;
+    this.sql`
+      CREATE TABLE IF NOT EXISTS e2e_task_recoveries (
+        run_id TEXT NOT NULL,
+        interrupted_step TEXT,
+        recovered_at INTEGER NOT NULL
+      )
+    `;
+  }
+
+  @callable()
+  async startSlowStepsRun(totalSteps: number): Promise<string> {
+    const receipt = await this.tasks.run(
+      "slowSteps",
+      { totalSteps },
+      { runId: "e2e-slow-steps" }
+    );
+    return receipt.runId;
+  }
+
+  @callable()
+  async startGuardedRun(totalSteps: number): Promise<string> {
+    const receipt = await this.tasks.run(
+      "guardedSteps",
+      { totalSteps },
+      { runId: "e2e-guarded" }
+    );
+    return receipt.runId;
+  }
+
+  @callable()
+  async getRunState(
+    runId: string
+  ): Promise<{ state: string; result: unknown } | null> {
+    const snapshot = await this.tasks.get(runId);
+    if (!snapshot) return null;
+    return {
+      state: snapshot.state,
+      result: snapshot.state === "completed" ? snapshot.result : null
+    };
+  }
+
+  @callable()
+  getStepExecutions(): Array<{ step_index: number }> {
+    return this.sql<{ step_index: number }>`
+      SELECT step_index FROM e2e_task_step_executions
+      ORDER BY executed_at ASC, step_index ASC
+    `;
+  }
+
+  @callable()
+  getRecoveries(): Array<{
+    run_id: string;
+    interrupted_step: string | null;
+  }> {
+    return this.sql<{
+      run_id: string;
+      interrupted_step: string | null;
+    }>`
+      SELECT run_id, interrupted_step
+      FROM e2e_task_recoveries
+      ORDER BY recovered_at ASC
+    `;
+  }
+}
+
+// ── StreamKillTestAgent (Tasks + Streams composition under real SIGKILL) ──
+
+/**
+ * Proves the Tasks + Streams composition across a real process kill: a task
+ * produces 1s-spaced chunks into a durable stream; after SIGKILL + restart,
+ * the replayed producer resumes from the stream's durable cursor — exactly
+ * the chunks that survived — and finishes without duplicating any.
+ */
+export class StreamKillTestAgent extends Agent<Record<string, unknown>> {
+  static options = { keepAliveIntervalMs: 2_000 };
+
+  readonly streams = new Streams();
+
+  constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
+    super(ctx, env);
+    // Subclass-owned capabilities install onto the Agent's lifecycle before
+    // it starts — the pattern for composing extra capabilities on an Agent.
+    this.lifecycle.use(this.streams);
+  }
+
+  override readonly taskDefinitions = {
+    generate: async (
+      input: { streamId: string; total: number },
+      step: TaskStep
+    ) => {
+      return step.do("stream", async () => {
+        const stream = await this.streams.open(input.streamId);
+        if (stream.cursor > 0) {
+          // Replay after interruption: the stream's durable cursor is the
+          // recovery evidence, and production resumes exactly there.
+          this.sql`
+            INSERT INTO e2e_stream_recoveries
+              (stream_id, stream_state, stream_cursor, recovered_at)
+            VALUES
+              (${input.streamId}, 'streaming', ${stream.cursor}, ${Date.now()})
+          `;
+        }
+        for (let i = stream.cursor; i < input.total; i++) {
+          await fiberSleep(1000);
+          stream.append({ i });
+        }
+        stream.close();
+        return { streamId: input.streamId, cursor: input.total };
+      });
+    }
+  } satisfies TaskHandlers;
+
+  onStart(): void {
+    this.sql`
+      CREATE TABLE IF NOT EXISTS e2e_stream_recoveries (
+        stream_id TEXT NOT NULL,
+        stream_state TEXT,
+        stream_cursor INTEGER NOT NULL,
+        recovered_at INTEGER NOT NULL
+      )
+    `;
+  }
+
+  @callable()
+  async startGenerate(streamId: string, total: number): Promise<string> {
+    const receipt = await this.tasks.run(
+      "generate",
+      { streamId, total },
+      { runId: "e2e-stream-gen" }
+    );
+    return receipt.runId;
+  }
+
+  @callable()
+  async getRunState(
+    runId: string
+  ): Promise<{ state: string; result: unknown } | null> {
+    const snapshot = await this.tasks.get(runId);
+    if (!snapshot) return null;
+    return {
+      state: snapshot.state,
+      result: snapshot.state === "completed" ? snapshot.result : null
+    };
+  }
+
+  @callable()
+  async getStreamStatus(
+    streamId: string
+  ): Promise<{ state: string; cursor: number } | null> {
+    const status = await this.streams.status(streamId);
+    return status ? { state: status.state, cursor: status.cursor } : null;
+  }
+
+  @callable()
+  async readAllChunks(streamId: string): Promise<number[]> {
+    const seqs: number[] = [];
+    for await (const chunk of this.streams.read(streamId)) {
+      seqs.push(chunk.seq);
+    }
+    return seqs;
+  }
+
+  @callable()
+  getRecoveries(): Array<{
+    stream_state: string | null;
+    stream_cursor: number;
+  }> {
+    return this.sql<{
+      stream_state: string | null;
+      stream_cursor: number;
+    }>`
+      SELECT stream_state, stream_cursor
+      FROM e2e_stream_recoveries ORDER BY recovered_at ASC
+    `;
+  }
+}
+
+export default {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
+    return (
+      (await routeAgentRequest(request, env)) ||
+      new Response("Not found", { status: 404 })
+    );
+  }
+};

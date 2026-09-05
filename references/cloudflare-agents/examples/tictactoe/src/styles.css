@@ -1,0 +1,20 @@
+/* Tailwind ignores node_modules by default, so we source Kumo for class extraction. */
+@source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
+@import "tailwindcss";
+@import "@cloudflare/kumo/styles/tailwind";
+/* Game-specific: board cell styles (no Kumo equivalent) */
+@layer components {
+  .cell {
+    @apply bg-kumo-control rounded-2xl aspect-square flex items-center justify-center
+           text-4xl cursor-pointer transition-all duration-200
+           ring ring-kumo-line hover:bg-kumo-tint hover:-translate-y-0.5;
+  }
+
+  .cell.played {
+    @apply cursor-not-allowed hover:translate-y-0;
+  }
+
+  .cell:hover:not(.played) {
+    @apply ring-kumo-ring shadow-lg;
+  }
+}

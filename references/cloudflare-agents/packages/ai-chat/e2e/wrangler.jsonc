@@ -1,0 +1,45 @@
+{
+  "ai": { "binding": "AI", "remote": true },
+  "compatibility_date": "2026-06-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "class_name": "ChatAgent", "name": "ChatAgent" },
+      { "class_name": "LlmChatAgent", "name": "LlmChatAgent" },
+      { "class_name": "ClientToolAgent", "name": "ClientToolAgent" },
+      {
+        "class_name": "ClientToolApprovalAgent",
+        "name": "ClientToolApprovalAgent"
+      },
+      { "class_name": "SlowAgent", "name": "SlowAgent" },
+      { "class_name": "BadKeyAgent", "name": "BadKeyAgent" },
+      { "class_name": "SanitizeAgent", "name": "SanitizeAgent" },
+      { "class_name": "MaxPersistedAgent", "name": "MaxPersistedAgent" },
+      { "class_name": "DataPartsAgent", "name": "DataPartsAgent" },
+      { "class_name": "ResponseLlmAgent", "name": "ResponseLlmAgent" },
+      { "class_name": "ResponseChainAgent", "name": "ResponseChainAgent" }
+    ]
+  },
+  "main": "worker.ts",
+  "migrations": [
+    { "new_sqlite_classes": ["ChatAgent"], "tag": "v1" },
+    { "new_sqlite_classes": ["LlmChatAgent"], "tag": "v2" },
+    {
+      "new_sqlite_classes": ["ClientToolAgent", "SlowAgent", "BadKeyAgent"],
+      "tag": "v3"
+    },
+    {
+      "new_sqlite_classes": [
+        "SanitizeAgent",
+        "MaxPersistedAgent",
+        "DataPartsAgent"
+      ],
+      "tag": "v4"
+    },
+    {
+      "new_sqlite_classes": ["ResponseLlmAgent", "ResponseChainAgent"],
+      "tag": "v5"
+    },
+    { "new_sqlite_classes": ["ClientToolApprovalAgent"], "tag": "v6" }
+  ]
+}

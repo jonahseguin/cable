@@ -1,0 +1,959 @@
+import { env } from "cloudflare:workers";
+import { describe, expect, it } from "vitest";
+import type { UIMessage as ChatMessage } from "ai";
+import { getAgentByName } from "agents";
+import type { ChatResponseResult } from "../";
+import { MessageType, type OutgoingMessage } from "../types";
+import {
+  connectChatWS,
+  isUseChatResponseMessage,
+  waitForChatClearBroadcast
+} from "./test-utils";
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function expectDebounceGap(
+  firstStart: number | null,
+  secondStart: number | null,
+  minimumGapMs: number
+) {
+  expect(firstStart).not.toBeNull();
+  expect(secondStart).not.toBeNull();
+
+  if (firstStart === null || secondStart === null) {
+    return;
+  }
+
+  const sortedStarts = [firstStart, secondStart].sort((a, b) => a - b);
+  expect(sortedStarts[1] - sortedStarts[0]).toBeGreaterThanOrEqual(
+    minimumGapMs
+  );
+}
+
+async function waitUntil(
+  predicate: () => boolean | Promise<boolean>,
+  timeoutMs = 4000,
+  intervalMs = 25
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await predicate()) {
+      return;
+    }
+
+    await delay(intervalMs);
+  }
+
+  throw new Error(`Timed out after ${timeoutMs}ms`);
+}
+
+function sendChatRequest(
+  ws: WebSocket,
+  requestId: string,
+  messages: ChatMessage[],
+  extraBody?: Record<string, unknown>
+) {
+  ws.send(
+    JSON.stringify({
+      type: MessageType.CF_AGENT_USE_CHAT_REQUEST,
+      id: requestId,
+      init: {
+        method: "POST",
+        body: JSON.stringify({ messages, ...extraBody })
+      }
+    })
+  );
+}
+
+/**
+ * Deterministic barrier for tests that fire multiple overlapping submits
+ * and assert which one(s) get to run under `latest` / `merge` / `debounce`
+ * policies. Waits until the agent has observed the expected number of
+ * *overlapping* submits past `_getSubmitConcurrencyDecision` — i.e. submits
+ * that arrived while a turn was already queued or in-flight. The first
+ * submit on an empty queue does NOT bump this counter, so for a test that
+ * fires N submits in a row, `expected` should be `N - 1`.
+ *
+ * Without this barrier the DO's webSocketMessage dispatch for the most
+ * recent submit can race the previous turn's completion under CPU
+ * pressure, causing `_isSupersededSubmit` to be evaluated with stale
+ * state and the wrong turn to run.
+ */
+async function waitForOverlappingSubmits(
+  agentStub: { getOverlappingSubmitCountForTest(): Promise<number> | number },
+  expected: number,
+  timeoutMs = 4000
+) {
+  await waitUntil(async () => {
+    const observed = await agentStub.getOverlappingSubmitCountForTest();
+    return observed >= expected;
+  }, timeoutMs);
+}
+
+async function waitForActiveRequest(
+  agentStub: {
+    getStartedRequestIds(): Promise<string[]> | string[];
+    isChatTurnActiveForTest(): Promise<boolean> | boolean;
+  },
+  requestId: string,
+  timeoutMs = 4000
+) {
+  await waitUntil(async () => {
+    const [started, isActive] = await Promise.all([
+      agentStub.getStartedRequestIds(),
+      agentStub.isChatTurnActiveForTest()
+    ]);
+    return isActive && started.includes(requestId);
+  }, timeoutMs);
+}
+
+function recordMessages(ws: WebSocket): OutgoingMessage[] {
+  const seen: OutgoingMessage[] = [];
+  ws.addEventListener("message", (event: MessageEvent) => {
+    try {
+      seen.push(JSON.parse(event.data as string) as OutgoingMessage);
+    } catch {
+      // Ignore non-JSON messages.
+    }
+  });
+  return seen;
+}
+
+function waitForDone(ws: WebSocket, requestId: string, timeoutMs = 5000) {
+  return new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      ws.removeEventListener("message", onMessage);
+      reject(new Error(`Timed out waiting for done: ${requestId}`));
+    }, timeoutMs);
+
+    function onMessage(event: MessageEvent) {
+      const data = JSON.parse(event.data as string);
+      if (
+        isUseChatResponseMessage(data) &&
+        data.id === requestId &&
+        data.done
+      ) {
+        clearTimeout(timeout);
+        ws.removeEventListener("message", onMessage);
+        resolve();
+      }
+    }
+
+    ws.addEventListener("message", onMessage);
+  });
+}
+
+const firstUserMessage: ChatMessage = {
+  id: "user-1",
+  role: "user",
+  parts: [{ type: "text", text: "Hello" }]
+};
+
+const secondUserMessage: ChatMessage = {
+  id: "user-2",
+  role: "user",
+  parts: [{ type: "text", text: "Second" }]
+};
+
+const thirdUserMessage: ChatMessage = {
+  id: "user-3",
+  role: "user",
+  parts: [{ type: "text", text: "Third" }]
+};
+
+describe("AIChatAgent messageConcurrency", () => {
+  it("latest runs only the newest overlapping submit while preserving queued user messages", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/latest-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.LatestMessageConcurrencyAgent,
+      room
+    );
+
+    // Keep the first turn active long enough for both overlapping latest
+    // submits to be admitted before the queued turn checks supersession.
+    sendChatRequest(ws, "req-latest-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 15,
+      chunkDelayMs: 150
+    });
+    await waitForActiveRequest(agentStub, "req-latest-1");
+
+    sendChatRequest(ws, "req-latest-2", [firstUserMessage, secondUserMessage], {
+      format: "plaintext",
+      chunkCount: 8,
+      chunkDelayMs: 80
+    });
+    await delay(50);
+
+    sendChatRequest(
+      ws,
+      "req-latest-3",
+      [firstUserMessage, secondUserMessage, thirdUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 8,
+        chunkDelayMs: 80
+      }
+    );
+
+    await waitForOverlappingSubmits(agentStub, 2);
+
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length === 2;
+    });
+    await agentStub.waitForIdleForTest();
+
+    expect(await agentStub.getStartedRequestIds()).toEqual([
+      "req-latest-1",
+      "req-latest-3"
+    ]);
+
+    const persistedMessages =
+      (await agentStub.getPersistedMessages()) as ChatMessage[];
+    const userTexts = persistedMessages
+      .filter((message) => message.role === "user")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : []
+        )
+      );
+
+    expect(userTexts).toEqual(
+      expect.arrayContaining(["Hello", "Second", "Third"])
+    );
+
+    ws.close(1000);
+  });
+
+  it("drop rejects overlapping submits, sends rollback state, and never starts a second turn", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/drop-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const seenMessages = recordMessages(ws);
+    const agentStub = await getAgentByName(
+      env.DropMessageConcurrencyAgent,
+      room
+    );
+
+    sendChatRequest(ws, "req-drop-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 15,
+      chunkDelayMs: 100
+    });
+    await waitForActiveRequest(agentStub, "req-drop-1");
+
+    sendChatRequest(ws, "req-drop-2", [firstUserMessage, secondUserMessage], {
+      format: "plaintext",
+      chunkCount: 8,
+      chunkDelayMs: 50
+    });
+
+    await waitForDone(ws, "req-drop-2");
+    await delay(50);
+
+    expect(await agentStub.getStartedRequestIds()).toEqual(["req-drop-1"]);
+
+    const rollbackMessage = [...seenMessages]
+      .reverse()
+      .find((message) => message.type === MessageType.CF_AGENT_CHAT_MESSAGES);
+    expect(rollbackMessage).toBeDefined();
+    if (rollbackMessage?.type === MessageType.CF_AGENT_CHAT_MESSAGES) {
+      const rollbackTexts = rollbackMessage.messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : []
+        )
+      );
+      expect(rollbackTexts).not.toContain("Second");
+    }
+
+    await agentStub.waitForIdleForTest();
+
+    const persistedMessages =
+      (await agentStub.getPersistedMessages()) as ChatMessage[];
+    const userTexts = persistedMessages
+      .filter((message) => message.role === "user")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : []
+        )
+      );
+
+    expect(userTexts).toEqual(["Hello"]);
+
+    ws.close(1000);
+  });
+
+  it("merge concatenates overlapping queued user messages into one follow-up turn", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/merge-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.MergeMessageConcurrencyAgent,
+      room
+    );
+
+    // req-merge-1 holds the lock for 2.25s (15 × 150ms). We need that
+    // window to cover *all* of:
+    //   (1) req-merge-2 + req-merge-3 reaching `_getSubmitConcurrencyDecision`
+    //       so `_latestOverlappingSubmitSequence` is bumped to 2,
+    //   (2) `waitForOverlappingSubmits(2)` polling and observing it.
+    // The previous 1s budget was tight under CI load — bump it to give
+    // the WS dispatch plenty of headroom.
+    sendChatRequest(ws, "req-merge-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 15,
+      chunkDelayMs: 150
+    });
+    await delay(100);
+
+    sendChatRequest(ws, "req-merge-2", [firstUserMessage, secondUserMessage], {
+      format: "plaintext",
+      chunkCount: 15,
+      chunkDelayMs: 150
+    });
+    await delay(50);
+
+    sendChatRequest(
+      ws,
+      "req-merge-3",
+      [firstUserMessage, secondUserMessage, thirdUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 15,
+        chunkDelayMs: 150
+      }
+    );
+
+    // Counter must reach 2 *before* req-merge-1 finishes — that's what
+    // makes the supersession check on req-merge-2 see the right value.
+    await waitForOverlappingSubmits(agentStub, 2);
+
+    // waitForIdleForTest now drains both the turn queue *and* any
+    // pending submits past the concurrency decision (mid-persistMessages),
+    // so we can rely on it as the single barrier before asserting.
+    await agentStub.waitForIdleForTest();
+
+    expect(await agentStub.getStartedRequestIds()).toEqual([
+      "req-merge-1",
+      "req-merge-3"
+    ]);
+
+    const persistedMessages =
+      (await agentStub.getPersistedMessages()) as ChatMessage[];
+    const userMessages = persistedMessages.filter(
+      (message) => message.role === "user"
+    );
+    const userTexts = userMessages.flatMap((message) =>
+      message.parts.flatMap((part) => (part.type === "text" ? [part.text] : []))
+    );
+
+    expect(userTexts).toEqual(
+      expect.arrayContaining(["Hello", "Second\n\nThird"])
+    );
+    expect(userMessages).toHaveLength(2);
+
+    ws.close(1000);
+  });
+
+  it("debounce waits for a quiet period and then runs only the latest submit", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/debounce-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.DebounceMessageConcurrencyAgent,
+      room
+    );
+
+    // Keep the first turn in-flight long enough for both overlapping submits
+    // to reach the concurrency controller before the queued debounce turn can
+    // evaluate whether it was superseded. Otherwise slow CI WebSocket dispatch
+    // can let req-debounce-2 run before req-debounce-3 has been admitted.
+    sendChatRequest(ws, "req-debounce-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 15,
+      chunkDelayMs: 150
+    });
+    await delay(50);
+
+    sendChatRequest(
+      ws,
+      "req-debounce-2",
+      [firstUserMessage, secondUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 8,
+        chunkDelayMs: 80
+      }
+    );
+    await delay(50);
+
+    sendChatRequest(
+      ws,
+      "req-debounce-3",
+      [firstUserMessage, secondUserMessage, thirdUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 8,
+        chunkDelayMs: 80
+      }
+    );
+
+    await waitForOverlappingSubmits(agentStub, 2);
+
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length === 2;
+    });
+    await agentStub.waitForIdleForTest();
+
+    expect(await agentStub.getStartedRequestIds()).toEqual([
+      "req-debounce-1",
+      "req-debounce-3"
+    ]);
+
+    const firstStart = await agentStub.getRequestStartTime("req-debounce-1");
+    const thirdStart = await agentStub.getRequestStartTime("req-debounce-3");
+    expect(firstStart).not.toBeNull();
+    expect(thirdStart).not.toBeNull();
+
+    if (firstStart !== null && thirdStart !== null) {
+      expect(thirdStart - firstStart).toBeGreaterThanOrEqual(80);
+    }
+
+    const persistedMessages =
+      (await agentStub.getPersistedMessages()) as ChatMessage[];
+    const userTexts = persistedMessages
+      .filter((message) => message.role === "user")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : []
+        )
+      );
+
+    expect(userTexts).toEqual(
+      expect.arrayContaining(["Hello", "Second", "Third"])
+    );
+
+    ws.close(1000);
+  });
+
+  it("falls back to the default debounce window when debounceMs is omitted", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/missing-debounce-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.MissingDebounceMessageConcurrencyAgent,
+      room
+    );
+
+    sendChatRequest(ws, "req-missing-debounce-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 5,
+      chunkDelayMs: 50
+    });
+
+    sendChatRequest(
+      ws,
+      "req-missing-debounce-2",
+      [firstUserMessage, secondUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 1,
+        chunkDelayMs: 10
+      }
+    );
+
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length === 2;
+    }, 5000);
+    await agentStub.waitForIdleForTest();
+
+    const firstStart = await agentStub.getRequestStartTime(
+      "req-missing-debounce-1"
+    );
+    const secondStart = await agentStub.getRequestStartTime(
+      "req-missing-debounce-2"
+    );
+
+    expectDebounceGap(firstStart, secondStart, 700);
+
+    ws.close(1000);
+  });
+
+  it("falls back to the default debounce window when debounceMs is invalid", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/invalid-debounce-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.InvalidDebounceMessageConcurrencyAgent,
+      room
+    );
+
+    sendChatRequest(ws, "req-invalid-debounce-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 5,
+      chunkDelayMs: 50
+    });
+
+    sendChatRequest(
+      ws,
+      "req-invalid-debounce-2",
+      [firstUserMessage, secondUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 1,
+        chunkDelayMs: 10
+      }
+    );
+
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length === 2;
+    }, 5000);
+    await agentStub.waitForIdleForTest();
+
+    const firstStart = await agentStub.getRequestStartTime(
+      "req-invalid-debounce-1"
+    );
+    const secondStart = await agentStub.getRequestStartTime(
+      "req-invalid-debounce-2"
+    );
+
+    expectDebounceGap(firstStart, secondStart, 700);
+
+    ws.close(1000);
+  });
+
+  it("applies messageConcurrency only to submit-message requests, not regenerate", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/drop-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.DropMessageConcurrencyAgent,
+      room
+    );
+
+    sendChatRequest(ws, "req-regen-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 6,
+      chunkDelayMs: 50
+    });
+    await delay(40);
+
+    sendChatRequest(ws, "req-regen-2", [firstUserMessage], {
+      trigger: "regenerate-message",
+      format: "plaintext",
+      chunkCount: 4,
+      chunkDelayMs: 40
+    });
+
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length === 2;
+    });
+    await agentStub.waitForIdleForTest();
+
+    expect(await agentStub.getStartedRequestIds()).toEqual([
+      "req-regen-1",
+      "req-regen-2"
+    ]);
+
+    ws.close(1000);
+  });
+
+  it("clear skips queued latest submits before they start", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/latest-message-concurrency-agent/${room}`
+    );
+    const { ws: observerWs } = await connectChatWS(
+      `/agents/latest-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.LatestMessageConcurrencyAgent,
+      room
+    );
+
+    sendChatRequest(ws, "req-clear-1", [firstUserMessage], {
+      format: "plaintext",
+      useAbortSignal: true,
+      chunkCount: 8,
+      chunkDelayMs: 50
+    });
+    await delay(40);
+
+    sendChatRequest(ws, "req-clear-2", [firstUserMessage, secondUserMessage], {
+      format: "plaintext",
+      chunkCount: 8,
+      chunkDelayMs: 50
+    });
+    await delay(20);
+
+    const clearBroadcast = waitForChatClearBroadcast(observerWs);
+    ws.send(
+      JSON.stringify({
+        type: MessageType.CF_AGENT_CHAT_CLEAR
+      })
+    );
+    await clearBroadcast;
+
+    await waitForDone(ws, "req-clear-2");
+    await agentStub.waitForIdleForTest();
+
+    expect(await agentStub.getStartedRequestIds()).toEqual(["req-clear-1"]);
+
+    const persistedMessages =
+      (await agentStub.getPersistedMessages()) as ChatMessage[];
+    const userTexts = persistedMessages
+      .filter((message) => message.role === "user")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : []
+        )
+      );
+    expect(userTexts).not.toContain("Second");
+
+    ws.close(1000);
+    observerWs.close(1000);
+  });
+
+  it("does not treat post-clear submits as overlapping with a stale epoch turn", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/drop-message-concurrency-agent/${room}`
+    );
+    const { ws: observerWs } = await connectChatWS(
+      `/agents/drop-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.DropMessageConcurrencyAgent,
+      room
+    );
+
+    sendChatRequest(ws, "req-clear-stale-1", [firstUserMessage], {
+      format: "plaintext",
+      responseDelayMs: 800,
+      chunkCount: 1,
+      chunkDelayMs: 10
+    });
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length >= 1;
+    });
+
+    const clearBroadcast = waitForChatClearBroadcast(observerWs);
+    ws.send(
+      JSON.stringify({
+        type: MessageType.CF_AGENT_CHAT_CLEAR
+      })
+    );
+    await clearBroadcast;
+
+    sendChatRequest(ws, "req-clear-stale-2", [secondUserMessage], {
+      format: "plaintext",
+      chunkCount: 1,
+      chunkDelayMs: 10
+    });
+
+    await waitUntil(async () => {
+      const persistedMessages =
+        (await agentStub.getPersistedMessages()) as ChatMessage[];
+      const userTexts = persistedMessages
+        .filter((message) => message.role === "user")
+        .flatMap((message) =>
+          message.parts.flatMap((part) =>
+            part.type === "text" ? [part.text] : []
+          )
+        );
+
+      return userTexts.includes("Second");
+    }, 8000);
+    await expect(
+      agentStub.waitUntilStableForTest({ timeout: 15_000 })
+    ).resolves.toBe(true);
+
+    expect(await agentStub.getStartedRequestIds()).toEqual([
+      "req-clear-stale-1",
+      "req-clear-stale-2"
+    ]);
+
+    const persistedMessages =
+      (await agentStub.getPersistedMessages()) as ChatMessage[];
+    const userTexts = persistedMessages
+      .filter((message) => message.role === "user")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : []
+        )
+      );
+
+    expect(userTexts).toContain("Second");
+
+    ws.close(1000);
+    observerWs.close(1000);
+  });
+
+  it("latest: onChatResponse fires only for the turn that actually runs, not superseded ones", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/latest-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.LatestMessageConcurrencyAgent,
+      room
+    );
+
+    // ~1.3s per stream (8 chunks × 160ms). The supersede sequence below
+    // fires three sends inside ~60ms, then relies on
+    // `waitForOverlappingSubmits(2)` plus `waitUntil(started.length === 2)`
+    // as barriers. Widening chunkDelayMs gives the supersede plenty of
+    // wall-clock time to land before req-1's stream completes, even when
+    // the host is loaded.
+    sendChatRequest(ws, "req-resp-latest-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 8,
+      chunkDelayMs: 160
+    });
+    await delay(40);
+
+    sendChatRequest(
+      ws,
+      "req-resp-latest-2",
+      [firstUserMessage, secondUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 8,
+        chunkDelayMs: 160
+      }
+    );
+    await delay(20);
+
+    sendChatRequest(
+      ws,
+      "req-resp-latest-3",
+      [firstUserMessage, secondUserMessage, thirdUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 8,
+        chunkDelayMs: 160
+      }
+    );
+
+    // Wait for both overlapping submits (req-2 and req-3) to be observed
+    // by the agent before asserting. See waitForOverlappingSubmits docs
+    // for why this barrier is required.
+    await waitForOverlappingSubmits(agentStub, 2);
+
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length === 2;
+    });
+    await agentStub.waitForIdleForTest();
+
+    const results =
+      (await agentStub.getChatResponseResults()) as ChatResponseResult[];
+    const resultRequestIds = results.map((r) => r.requestId);
+
+    expect(resultRequestIds).toEqual([
+      "req-resp-latest-1",
+      "req-resp-latest-3"
+    ]);
+    expect(results.every((r) => r.status === "completed")).toBe(true);
+
+    ws.close(1000);
+  });
+
+  it("drop: onChatResponse fires only for the accepted turn, not the dropped one", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/drop-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.DropMessageConcurrencyAgent,
+      room
+    );
+
+    sendChatRequest(ws, "req-resp-drop-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 15,
+      chunkDelayMs: 100
+    });
+    await waitForActiveRequest(agentStub, "req-resp-drop-1");
+
+    sendChatRequest(
+      ws,
+      "req-resp-drop-2",
+      [firstUserMessage, secondUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 8,
+        chunkDelayMs: 50
+      }
+    );
+
+    await waitForDone(ws, "req-resp-drop-2");
+    await agentStub.waitForIdleForTest();
+
+    const results =
+      (await agentStub.getChatResponseResults()) as ChatResponseResult[];
+    const resultRequestIds = results.map((r) => r.requestId);
+
+    expect(resultRequestIds).toEqual(["req-resp-drop-1"]);
+    expect(results[0]).toMatchObject({ status: "completed" });
+
+    ws.close(1000);
+  });
+
+  it("merge: onChatResponse fires once for the first turn and once for the merged turn", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(
+      `/agents/merge-message-concurrency-agent/${room}`
+    );
+    await delay(50);
+
+    const agentStub = await getAgentByName(
+      env.MergeMessageConcurrencyAgent,
+      room
+    );
+
+    // Keep req-1 open long enough for both overlapping merge submits to be
+    // admitted before req-2 can acquire the turn lock and check supersession.
+    // This mirrors the primary merge strategy test above.
+    sendChatRequest(ws, "req-resp-merge-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 15,
+      chunkDelayMs: 150
+    });
+    await delay(50);
+
+    sendChatRequest(
+      ws,
+      "req-resp-merge-2",
+      [firstUserMessage, secondUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 8,
+        chunkDelayMs: 80
+      }
+    );
+    await delay(50);
+
+    sendChatRequest(
+      ws,
+      "req-resp-merge-3",
+      [firstUserMessage, secondUserMessage, thirdUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 8,
+        chunkDelayMs: 80
+      }
+    );
+
+    await waitForOverlappingSubmits(agentStub, 2);
+
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length === 2;
+    });
+    await agentStub.waitForIdleForTest();
+
+    const results =
+      (await agentStub.getChatResponseResults()) as ChatResponseResult[];
+    const resultRequestIds = results.map((r) => r.requestId);
+
+    expect(resultRequestIds).toEqual(["req-resp-merge-1", "req-resp-merge-3"]);
+    expect(results.every((r) => r.status === "completed")).toBe(true);
+
+    ws.close(1000);
+  });
+
+  it("queue: onChatResponse fires for every turn when messageConcurrency is queue", async () => {
+    const room = crypto.randomUUID();
+    const { ws } = await connectChatWS(`/agents/slow-stream-agent/${room}`);
+    await delay(50);
+
+    const agentStub = await getAgentByName(env.SlowStreamAgent, room);
+
+    sendChatRequest(ws, "req-resp-queue-1", [firstUserMessage], {
+      format: "plaintext",
+      chunkCount: 3,
+      chunkDelayMs: 30
+    });
+    await delay(50);
+
+    sendChatRequest(
+      ws,
+      "req-resp-queue-2",
+      [firstUserMessage, secondUserMessage],
+      {
+        format: "plaintext",
+        chunkCount: 3,
+        chunkDelayMs: 30
+      }
+    );
+
+    await waitUntil(async () => {
+      const started = await agentStub.getStartedRequestIds();
+      return started.length === 2;
+    });
+    await agentStub.waitForIdleForTest();
+
+    const results =
+      (await agentStub.getChatResponseResults()) as ChatResponseResult[];
+    const resultRequestIds = results.map((r) => r.requestId);
+
+    // We assert set-equality, not push order, on `_chatResponseResults`.
+    // Strict FIFO scheduling for queue mode is already pinned upstream by
+    // `waitUntil(started.length === 2)` (which observes the agent-side
+    // start-order array) and by `waitForIdleForTest()` (which serializes
+    // on the queue draining); the side-array `onChatResponse` pushes into
+    // can transiently interleave under microtask scheduling pressure
+    // between two adjacent turns without changing the queue's actual
+    // serialization. The properties this test cares about are: both turns
+    // completed, neither was dropped/superseded, and there are exactly
+    // two results.
+    expect(resultRequestIds.slice().sort()).toEqual([
+      "req-resp-queue-1",
+      "req-resp-queue-2"
+    ]);
+    expect(results.every((r) => r.status === "completed")).toBe(true);
+
+    ws.close(1000);
+  });
+});

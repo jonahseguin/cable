@@ -1,0 +1,74 @@
+import { callable, routeAgentRequest } from "agents";
+import { Think } from "@cloudflare/think";
+import type {
+  ThinkScheduledTasks,
+  ThinkSubmissionInspection,
+  ThinkSubmissionStatus
+} from "@cloudflare/think";
+
+export class TaskAgent extends Think<Env> {
+  getModel() {
+    return "@cf/moonshotai/kimi-k2.7-code";
+  }
+
+  getSystemPrompt() {
+    return [
+      "You are a background task assistant.",
+      "Respond with a concise status update and the final answer for the submitted task."
+    ].join("\n");
+  }
+
+  getScheduledTasks(): ThinkScheduledTasks {
+    return {
+      hourlyQueueDigest: {
+        schedule: "every 1 hour",
+        prompt:
+          "Write a concise hourly reminder that durable background task queues should be checked for stuck or failed work."
+      }
+    };
+  }
+
+  @callable()
+  async submitTask(prompt: string, idempotencyKey?: string) {
+    const key = idempotencyKey?.trim() || undefined;
+    return this.submitMessages(
+      [
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          parts: [{ type: "text", text: prompt }]
+        }
+      ],
+      {
+        idempotencyKey: key,
+        metadata: { source: "example", promptPreview: prompt.slice(0, 120) }
+      }
+    );
+  }
+
+  @callable()
+  async inspectTask(
+    submissionId: string
+  ): Promise<ThinkSubmissionInspection | null> {
+    return this.inspectSubmission(submissionId);
+  }
+
+  @callable()
+  async listTasks(status?: ThinkSubmissionStatus) {
+    return this.listSubmissions({ status, limit: 25 });
+  }
+
+  @callable()
+  async cancelTask(submissionId: string) {
+    await this.cancelSubmission(submissionId, "Cancelled from dashboard");
+  }
+}
+
+export default {
+  async fetch(request: Request, env: Env) {
+    return (
+      (await routeAgentRequest(request, env)) ||
+      new Response("Not found", { status: 404 })
+    );
+  }
+};

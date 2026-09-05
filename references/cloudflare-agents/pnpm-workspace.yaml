@@ -1,0 +1,63 @@
+packages:
+  - "agent-think"
+  - "examples/*"
+  - "!examples/next"
+  - "examples/next/*"
+  - "packages/*"
+  - "voice-providers/*"
+  - "guides/*"
+  - "experimental/*"
+  - "openai-sdk/*"
+  - "site/*"
+linkWorkspacePackages: true
+preferWorkspacePackages: true
+patchedDependencies:
+  "@chonkiejs/chunk@0.9.3": patches/@chonkiejs+chunk+0.9.3.patch
+  vitest-browser-react@2.2.0: patches/vitest-browser-react+2.2.0.patch
+allowBuilds:
+  # pi-recovery fixture deps (@earendil-works/pi-ai); the faux provider path
+  # never invokes these, so their postinstall/native builds are not needed.
+  "@google/genai": false
+  protobufjs: false
+  "@mongodb-js/zstd": true
+  autoevals: set this to true or false
+  better-sqlite3: true
+  core-js-pure: true
+  esbuild: true
+  node-liblzma: true
+  nx: true
+  sharp: true
+  workerd: true
+  # Transitive dep of @cloudflare/tanstack-ai (tanstack-recovery harness). The
+  # Workers AI binding path never uses the OpenRouter SDK, so its build is skipped.
+  "@openrouter/sdk": false
+  # agent-think's unit tests mock GitHub over MSW; its postinstall is not needed.
+  msw: false
+minimumReleaseAgeExclude:
+  - "@cloudflare/*"
+  - "@typescript/*"
+  - workerd@1.20260722.1
+  - miniflare@4.20260722.1
+  - wrangler@4.115.0
+  - workers-ai-provider@3.2.1 || 3.3.0 || 4.0.0
+  - "@shikijs/core@4.3.0"
+  - "@shikijs/engine-javascript@4.3.0"
+  - "@shikijs/engine-oniguruma@4.3.0"
+  - "@shikijs/langs@4.3.0"
+  - "@shikijs/primitive@4.3.0"
+  - "@shikijs/themes@4.3.0"
+  - "@shikijs/types@4.3.0"
+  - "@types/node@26.0.1"
+  - framer-motion@12.42.0
+  - motion-dom@12.42.0
+  - nanoid@5.1.16
+  - postal-mime@2.7.5
+  - shiki@4.3.0
+  - cronstrue@3.23.0
+  - es-module-lexer@2.2.0
+  - tailwindcss@4.3.2
+  - "@modelcontextprotocol/core@2.0.0"
+  - "@modelcontextprotocol/server@2.0.0"
+  - "@modelcontextprotocol/client@2.0.0"
+  - "@modelcontextprotocol/conformance@0.2.0-alpha.10"
+  - "@modelcontextprotocol/sdk@1.30.0"

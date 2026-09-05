@@ -1,0 +1,227 @@
+/**
+ * Dynamic Worker Bundler
+ *
+ * Creates worker bundles from source files for Cloudflare's Worker Loader binding.
+ */
+
+import { bundleWithEsbuild, bundlerOnlyOptionsWarning } from "./bundler";
+import { hasNodejsCompat, parseWranglerConfig } from "./config";
+import { hasDependencies, installDependencies } from "./installer";
+import { transformAndResolve } from "./transformer";
+import type { CreateWorkerOptions, CreateWorkerResult, Modules } from "./types";
+import {
+  DEFAULT_ENTRY_POINTS,
+  detectEntryPoint,
+  formatFileListForError
+} from "./utils";
+import { showExperimentalWarning } from "./experimental";
+import {
+  InMemoryFileSystem,
+  isFileSystem,
+  type FileSystem
+} from "./file-system";
+
+// Re-export types
+export type {
+  BundlerLoader,
+  CreateWorkerOptions,
+  CreateWorkerResult,
+  Files,
+  JsxMode,
+  Modules,
+  WranglerConfig
+} from "./types";
+
+// Re-export app bundler
+export { createApp } from "./app";
+export type { CreateAppOptions, CreateAppResult } from "./app";
+
+// Re-export asset handler
+export {
+  handleAssetRequest,
+  buildAssetManifest,
+  buildAssets,
+  createMemoryStorage
+} from "./asset-handler";
+export type {
+  AssetConfig,
+  AssetMetadata,
+  AssetManifest,
+  AssetStorage
+} from "./asset-handler";
+
+// Re-export MIME utilities
+export { inferContentType, isTextContentType } from "./mime";
+
+// Re-export file-system
+export {
+  createFileSystemSnapshot,
+  DurableObjectKVFileSystem,
+  DurableObjectRawFileSystem,
+  InMemoryFileSystem,
+  type FileSystem
+} from "./file-system";
+
+// Re-export installer utilities
+export { installDependencies, hasDependencies } from "./installer";
+export type { InstallResult } from "./common";
+
+/**
+ * Creates a worker bundle from source files.
+ *
+ * This function performs:
+ * 1. Entry point detection (from package.json or defaults)
+ * 2. Auto-installation of npm dependencies (if package.json has dependencies)
+ * 3. TypeScript/JSX transformation (via Sucrase)
+ * 4. Module resolution (handling imports/exports)
+ * 5. Optional bundling (combining all modules into one)
+ *
+ * @param options - Configuration options
+ * @returns The main module path and all modules
+ */
+export async function createWorker(
+  options: CreateWorkerOptions
+): Promise<CreateWorkerResult> {
+  showExperimentalWarning("createWorker");
+  let {
+    files,
+    bundle = true,
+    externals = [],
+    target = "es2022",
+    minify = false,
+    sourcemap = false,
+    registry,
+    jsx,
+    jsxImportSource,
+    define,
+    loader,
+    conditions,
+    virtualModules,
+    __dangerouslyUseEsBuildPluginsDoNotUseOrYouWillBeFired: plugins
+  } = options;
+
+  let fileSystem: FileSystem;
+  if (isFileSystem(files)) {
+    fileSystem = files;
+  } else {
+    fileSystem = new InMemoryFileSystem(files);
+  }
+
+  // Always treat cloudflare:* modules as external (runtime-provided)
+  externals = ["cloudflare:", ...externals];
+
+  // Parse wrangler config for compatibility settings
+  const wranglerConfig = parseWranglerConfig(fileSystem);
+  const nodejsCompat = hasNodejsCompat(wranglerConfig);
+
+  // Auto-install dependencies if package.json or pyproject.toml has dependencies
+  const installWarnings: string[] = [];
+  if (hasDependencies(fileSystem)) {
+    const installResult = await installDependencies(fileSystem, {
+      ...(registry ? { registry } : {})
+    });
+    installWarnings.push(...installResult.warnings);
+  }
+
+  // Detect entry point (priority: explicit option > wrangler main > package.json > defaults)
+  const entryPoint =
+    options.entryPoint ?? detectEntryPoint(fileSystem, wranglerConfig);
+
+  if (!entryPoint) {
+    throw new Error(
+      `Could not determine entry point for createWorker. Tried (in order): the \`entryPoint\` option, \`main\` in wrangler config, \`exports\`/\`module\`/\`main\` in package.json, and the defaults ${DEFAULT_ENTRY_POINTS.join(", ")}. Pass \`entryPoint\` explicitly or add one of those files.`
+    );
+  }
+
+  if (fileSystem.read(entryPoint) === null) {
+    throw new Error(
+      `Entry point "${entryPoint}" was not found in \`files\`. Available files: ${formatFileListForError(fileSystem)}.`
+    );
+  }
+
+  if (entryPoint.endsWith(".py")) {
+    const modules: Modules = {};
+    for (const path of fileSystem.list()) {
+      if (path === "pyproject.toml") {
+        continue;
+      }
+      const content = fileSystem.read(path);
+      if (content !== null) {
+        modules[path] = content;
+      }
+    }
+
+    return {
+      mainModule: entryPoint,
+      modules,
+      wranglerConfig: {
+        compatibilityDate: wranglerConfig?.compatibilityDate ?? "2026-07-02",
+        compatibilityFlags: wranglerConfig?.compatibilityFlags ?? []
+      },
+      warnings: installWarnings
+    };
+  }
+
+  if (bundle) {
+    // Try bundling with esbuild-wasm
+    const result = await bundleWithEsbuild({
+      files: fileSystem,
+      entryPoint,
+      externals,
+      target,
+      minify,
+      sourcemap,
+      nodejsCompat,
+      jsx,
+      jsxImportSource,
+      define,
+      loader,
+      conditions,
+      virtualModules,
+      plugins
+    });
+
+    // Add wrangler config if a config file was found
+    if (wranglerConfig !== undefined) {
+      result.wranglerConfig = wranglerConfig;
+    }
+
+    // Add install warnings to result
+    if (installWarnings.length > 0) {
+      result.warnings = [...(result.warnings ?? []), ...installWarnings];
+    }
+    return result;
+  } else {
+    // No bundling - transform files and resolve dependencies.
+    // Sourcemaps and the esbuild-only options (jsx, jsxImportSource, define,
+    // loader, conditions, plugins) are not supported in transform mode — the
+    // output mirrors the input structure and never touches esbuild.
+    const result = await transformAndResolve(fileSystem, entryPoint, externals);
+
+    const bundlerOnly = bundlerOnlyOptionsWarning({
+      jsx,
+      jsxImportSource,
+      define,
+      loader,
+      conditions,
+      virtualModules,
+      plugins
+    });
+
+    // Add wrangler config if a config file was found
+    if (wranglerConfig !== undefined) {
+      result.wranglerConfig = wranglerConfig;
+    }
+
+    // Add install warnings to result
+    const extraWarnings = [
+      ...installWarnings,
+      ...(bundlerOnly ? [bundlerOnly] : [])
+    ];
+    if (extraWarnings.length > 0) {
+      result.warnings = [...(result.warnings ?? []), ...extraWarnings];
+    }
+
+    return result;
+  }
+}
