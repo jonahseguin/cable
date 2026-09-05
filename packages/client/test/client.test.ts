@@ -127,6 +127,8 @@ describe("procedure client over memory", () => {
 
 // Compile-time rejections are checked by tsc; these statements never execute.
 function checkProcedureTypes(client: Client<typeof api>): void {
+  // @ts-expect-error A client requires a contract produced by c.contract().
+  createClient<{ count: typeof api.posts.count }>({});
   // @ts-expect-error A query cannot be called as a mutation.
   void client.posts.list.mutate({ limit: 1 }); // oxlint-disable-line typescript/no-unsafe-call -- Intentionally rejected operation in a negative type test.
   // @ts-expect-error The contract requires a numeric limit.
@@ -139,6 +141,12 @@ function checkProcedureTypes(client: Client<typeof api>): void {
 void checkProcedureTypes;
 
 describe("runtime contract metadata", () => {
+  it("rejects metadata that lost its contract provenance when copied", () => {
+    expect(() => createClient({ contract: { ...api } })).toThrow(
+      "Client metadata must come from c.contract().",
+    );
+  });
+
   it("rejects a successful GET envelope returned with a failing HTTP status", async () => {
     const contract = c.contract({
       cached: c.query({ input: z.void(), output: z.string(), transport: { method: "GET" } }),
