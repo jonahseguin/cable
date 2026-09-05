@@ -1,0 +1,1179 @@
+// Copyright (c) 2025 Cloudflare, Inc.
+// Licensed under the MIT license found in the LICENSE.txt file or at:
+//     https://opensource.org/license/mit
+
+import { StubHook, RpcPayload, RpcStub, PropertyPath, PayloadStubHook, ErrorStubHook, RpcTarget, unwrapStubAndPath, streamImpl } from "./core.js";
+import { Devaluator, Evaluator, ExportId, ImportId, Exporter, Importer, serialize, EncodingLevel, RpcLimits, DEFAULT_LIMITS } from "./serialize.js";
+
+/**
+ * Interface for a string-based RPC transport. This is the default transport type — no
+ * `encodingLevel` field is needed. Messages are JSON strings. Implement this interface if the
+ * built-in transports (e.g. for HTTP batch and WebSocket) don't meet your needs.
+ */
+export interface RpcTransport {
+  /**
+   * The encoding level this transport works with. For this interface it is always "string";
+   * it may be omitted. (See `RpcTransportWithCustomEncoding` for the other levels.)
+   */
+  readonly encodingLevel?: "string";
+
+  /**
+   * Sends a message to the other end. May optionally return a promise; if the promise rejects,
+   * the session is aborted.
+   */
+  send(message: string): void | Promise<void>;
+
+  /**
+   * Receives a message sent by the other end.
+   *
+   * If and when the transport becomes disconnected, this will reject. The thrown error will be
+   * propagated to all outstanding calls and future calls on any stubs associated with the session.
+   * If there are no outstanding calls (and none are made in the future), then the error does not
+   * propagate anywhere -- this is considered a "clean" shutdown.
+   */
+  receive(): Promise<string>;
+
+  /**
+   * Indicates that the RPC system has suffered an error that prevents the session from continuing.
+   * The transport should ideally try to send any queued messages if it can, and then close the
+   * connection. (It's not strictly necessary to deliver queued messages, but the last message sent
+   * before abort() is called is often an "abort" message, which communicates the error to the
+   * peer, so if that is dropped, the peer may have less information about what happened.)
+   */
+  abort?(reason: any): void;
+}
+
+/**
+ * Interface for a transport that receives partially encoded JS values instead of JSON strings.
+ * The selected `encodingLevel` describes what the transport can assume about message values.
+ */
+export interface RpcTransportWithCustomEncoding {
+  /**
+   * The encoding level this transport works with.
+   *
+   * - "jsonCompatible": JSON-compatible JS value tree; transport handles final serialization.
+   * - "jsonCompatibleWithBytes": Like "jsonCompatible" but Uint8Array values are left raw.
+   * - "structuredClonable": Structured-clonable native values pass through where possible.
+   */
+  readonly encodingLevel: "jsonCompatible" | "jsonCompatibleWithBytes" | "structuredClonable";
+
+  /**
+   * Encodes and sends a message to the other end. Returns the encoded byte size if known.
+   * If the size is unavailable, return void; Cap'n Web will estimate stream message sizes for
+   * flow control. Send errors should be propagated via `receive()` rejecting.
+   */
+  send(message: unknown): number | void;
+
+  /**
+   * Receives and decodes a message sent by the other end.
+   *
+   * If and when the transport becomes disconnected, this will reject. The thrown error will be
+   * propagated to all outstanding calls and future calls on any stubs associated with the session.
+   * If there are no outstanding calls (and none are made in the future), then the error does not
+   * propagate anywhere -- this is considered a "clean" shutdown.
+   */
+  receive(): Promise<unknown>;
+
+  /**
+   * Indicates that the RPC system has suffered an error that prevents the session from continuing.
+   * The transport should ideally try to send any queued messages if it can, and then close the
+   * connection. (It's not strictly necessary to deliver queued messages, but the last message sent
+   * before abort() is called is often an "abort" message, which communicates the error to the
+   * peer, so if that is dropped, the peer may have less information about what happened.)
+   */
+  abort?(reason: any): void;
+}
+
+/** Any supported transport type. */
+export type AnyRpcTransport = RpcTransport | RpcTransportWithCustomEncoding;
+
+const ESTIMATED_OBJECT_OVERHEAD = 16;
+const ESTIMATED_ENTRY_OVERHEAD = 8;
+const ESTIMATED_BINARY_OVERHEAD = 16;
+const MAX_ESTIMATE_DEPTH = 64;
+
+function estimateStringSize(value: string): number {
+  // Bias high. UTF-8 uses up to 3 bytes for BMP code points, and surrogate pairs are 4 bytes for
+  // 2 UTF-16 code units.
+  return 2 + value.length * 3;
+}
+
+function estimateEncodedSize(value: unknown, seen?: WeakSet<object>, depth: number = 0): number {
+  if (depth >= MAX_ESTIMATE_DEPTH) return ESTIMATED_ENTRY_OVERHEAD;
+
+  switch (typeof value) {
+    case "string":
+      return estimateStringSize(value);
+    case "number":
+      return 16;
+    case "bigint":
+      return 16;
+    case "boolean":
+      return 8;
+    case "undefined":
+      return 16;
+    case "object": {
+      if (value === null) return 8;
+      if (ArrayBuffer.isView(value)) return ESTIMATED_BINARY_OVERHEAD + value.byteLength;
+      if (value instanceof ArrayBuffer) return ESTIMATED_BINARY_OVERHEAD + value.byteLength;
+      if (typeof Blob !== "undefined" && value instanceof Blob) {
+        return ESTIMATED_BINARY_OVERHEAD + value.size;
+      }
+      if (value instanceof Date) return 16;
+
+      // `seen` is only ever added to, never removed, so it dedupes by object identity across the
+      // entire traversal rather than just along the current path. This is intentional: it keeps the
+      // estimate safe against cyclic graphs (which would otherwise recurse forever). The trade-off
+      // is that a value reachable via two different paths (shared but acyclic) is counted in full
+      // the first time and only as ESTIMATED_ENTRY_OVERHEAD afterward, so shared substructure
+      // under-counts slightly. That's acceptable here — this is a flow-control estimate, not an
+      // exact serialized size, and it otherwise biases high.
+      seen ??= new WeakSet();
+      if (seen.has(value)) return ESTIMATED_ENTRY_OVERHEAD;
+      seen.add(value);
+
+      if (value instanceof Array) {
+        let size = ESTIMATED_OBJECT_OVERHEAD;
+        for (let item of value) {
+          size += ESTIMATED_ENTRY_OVERHEAD + estimateEncodedSize(item, seen, depth + 1);
+        }
+        return size;
+      }
+
+      if (value instanceof Error) {
+        let size = ESTIMATED_OBJECT_OVERHEAD + estimateStringSize(value.name) +
+            estimateStringSize(value.message) + estimateStringSize(value.stack ?? "");
+        for (let key of Object.keys(value)) {
+          size += ESTIMATED_ENTRY_OVERHEAD + estimateStringSize(key) +
+              estimateEncodedSize((value as any)[key], seen, depth + 1);
+        }
+        return size;
+      }
+
+      let size = ESTIMATED_OBJECT_OVERHEAD;
+      for (let key of Object.keys(value)) {
+        size += ESTIMATED_ENTRY_OVERHEAD + estimateStringSize(key) +
+            estimateEncodedSize((value as Record<string, unknown>)[key], seen, depth + 1);
+      }
+      return size;
+    }
+    default:
+      return 16;
+  }
+}
+
+// Entry on the exports table.
+type ExportTableEntry = {
+  hook: StubHook,
+  refcount: number,
+  pull?: Promise<void>,
+
+  // If true, the export should be automatically released (with refcount 1) after its "resolve"
+  // or "reject" message is sent. This is set for exports created by ["stream"] messages.
+  autoRelease?: boolean,
+
+  // If this export was created by a ["pipe"] message, this holds the ReadableStream end of the
+  // pipe. It is consumed (and set to undefined) when a ["readable", importId] expression
+  // references this export.
+  pipeReadable?: ReadableStream
+};
+
+// Entry on the imports table.
+class ImportTableEntry {
+  constructor(public session: RpcSessionImpl, public importId: number, pulling: boolean) {
+    if (pulling) {
+      this.activePull = Promise.withResolvers<void>();
+    }
+  }
+
+  public localRefcount: number = 0;
+  public remoteRefcount: number = 1;
+
+  private activePull?: PromiseWithResolvers<void>;
+  public resolution?: StubHook;
+
+  // List of integer indexes into session.onBrokenCallbacks which are callbacks registered on
+  // this import. Initialized on first use (so `undefined` is the same as an empty list).
+  private onBrokenRegistrations?: number[];
+
+  resolve(resolution: StubHook) {
+    // TODO: Need embargo handling here? PayloadStubHook needs to be wrapped in a
+    // PromiseStubHook awaiting the embargo I suppose. Previous notes on embargoes:
+    // - Resolve message specifies last call that was received before the resolve. The introducer is
+    //   responsible for any embargoes up to that point.
+    // - Any further calls forwarded by the introducer after that point MUST immediately resolve to
+    //   a forwarded call. The caller is responsible for ensuring the last of these is handed off
+    //   before direct calls can be delivered.
+
+    if (this.localRefcount == 0) {
+      // Already disposed (canceled), so ignore the resolution and don't send a redundant release.
+      resolution.dispose();
+      return;
+    }
+
+    this.resolution = resolution;
+    this.sendRelease();
+
+    if (this.onBrokenRegistrations) {
+      // Delete all our callback registrations from this session and re-register them on the
+      // target stub.
+      for (let i of this.onBrokenRegistrations) {
+        let callback = this.session.onBrokenCallbacks[i];
+        let endIndex = this.session.onBrokenCallbacks.length;
+        resolution.onBroken(callback);
+        if (this.session.onBrokenCallbacks[endIndex] === callback) {
+          // Oh, calling onBroken() just registered the callback back on this connection again.
+          // But when the connection dies, we want all the callbacks to be called in the order in
+          // which they were registered. So we don't want this one pushed to the back of the line
+          // here. So, let's remove the newly-added registration and keep the original.
+          // TODO: This is quite hacky, think about whether this is really the right answer.
+          delete this.session.onBrokenCallbacks[endIndex];
+        } else {
+          // The callback is now registered elsewhere, so delete it from our session.
+          delete this.session.onBrokenCallbacks[i];
+        }
+      }
+      this.onBrokenRegistrations = undefined;
+    }
+
+    if (this.activePull) {
+      this.activePull.resolve();
+      this.activePull = undefined;
+    }
+  }
+
+  async awaitResolution(): Promise<RpcPayload> {
+    if (!this.activePull) {
+      this.session.sendPull(this.importId);
+      this.activePull = Promise.withResolvers<void>();
+    }
+    await this.activePull.promise;
+    return this.resolution!.pull();
+  }
+
+  dispose() {
+    if (this.resolution) {
+      this.resolution.dispose();
+    } else {
+      this.abort(new Error("RPC was canceled because the RpcPromise was disposed."));
+      this.sendRelease();
+    }
+  }
+
+  abort(error: any) {
+    if (!this.resolution) {
+      this.resolution = new ErrorStubHook(error);
+
+      if (this.activePull) {
+        this.activePull.reject(error);
+        this.activePull = undefined;
+      }
+
+      // The RpcSession itself will have called all our callbacks so we don't need to track the
+      // registrations anymore.
+      this.onBrokenRegistrations = undefined;
+    }
+  }
+
+  onBroken(callback: (error: any) => void): void {
+    if (this.resolution) {
+      this.resolution.onBroken(callback);
+    } else {
+      let index = this.session.onBrokenCallbacks.length;
+      this.session.onBrokenCallbacks.push(callback);
+
+      if (!this.onBrokenRegistrations) this.onBrokenRegistrations = [];
+      this.onBrokenRegistrations.push(index);
+    }
+  }
+
+  private sendRelease() {
+    if (this.remoteRefcount > 0) {
+      this.session.sendRelease(this.importId, this.remoteRefcount);
+      this.remoteRefcount = 0;
+    }
+  }
+};
+
+class RpcImportHook extends StubHook {
+  public entry?: ImportTableEntry;  // undefined when we're disposed
+
+  // `pulling` is true if we already expect that this import is going to be resolved later, and
+  // null if this import is not allowed to be pulled (i.e. it's a stub not a promise).
+  constructor(public isPromise: boolean, entry: ImportTableEntry) {
+    super();
+    ++entry.localRefcount;
+    this.entry = entry;
+  }
+
+  collectPath(path: PropertyPath): RpcImportHook {
+    return this;
+  }
+
+  getEntry(): ImportTableEntry {
+    if (this.entry) {
+      return this.entry;
+    } else {
+      // Shouldn't get here in practice since the holding stub should have replaced the hook when
+      // disposed.
+      throw new Error("This RpcImportHook was already disposed.");
+    }
+  }
+
+  // Like getEntry(), but for use in methods that take ownership of args or captures: if the
+  // entry is gone, there is no callee left to consume them, so dispose them before throwing.
+  private getEntryTakingOwnership(disposeOwned: () => void): ImportTableEntry {
+    try {
+      return this.getEntry();
+    } catch (err) {
+      disposeOwned();
+      throw err;
+    }
+  }
+
+  // -------------------------------------------------------------------------------------
+  // implements StubHook
+
+  call(path: PropertyPath, args: RpcPayload): StubHook {
+    let entry = this.getEntryTakingOwnership(() => args.dispose());
+    if (entry.resolution) {
+      return entry.resolution.call(path, args);
+    } else {
+      return entry.session.sendCall(entry.importId, path, args);
+    }
+  }
+
+  stream(path: PropertyPath, args: RpcPayload): {promise: Promise<void>, size?: number} {
+    let entry = this.getEntryTakingOwnership(() => args.dispose());
+    if (entry.resolution) {
+      return entry.resolution.stream(path, args);
+    } else {
+      return entry.session.sendStream(entry.importId, path, args);
+    }
+  }
+
+  map(path: PropertyPath, captures: StubHook[], instructions: unknown[]): StubHook {
+    let entry = this.getEntryTakingOwnership(() => {
+      for (let cap of captures) {
+        cap.dispose();
+      }
+    });
+    if (entry.resolution) {
+      return entry.resolution.map(path, captures, instructions);
+    } else {
+      return entry.session.sendMap(entry.importId, path, captures, instructions);
+    }
+  }
+
+  get(path: PropertyPath): StubHook {
+    let entry = this.getEntry();
+    if (entry.resolution) {
+      return entry.resolution.get(path);
+    } else {
+      return entry.session.sendCall(entry.importId, path);
+    }
+  }
+
+  dup(): RpcImportHook {
+    return new RpcImportHook(false, this.getEntry());
+  }
+
+  pull(): RpcPayload | Promise<RpcPayload> {
+    let entry = this.getEntry();
+
+    if (!this.isPromise) {
+      throw new Error("Can't pull this hook because it's not a promise hook.");
+    }
+
+    if (entry.resolution) {
+      return entry.resolution.pull();
+    }
+
+    return entry.awaitResolution();
+  }
+
+  ignoreUnhandledRejections(): void {
+    // We don't actually have to do anything here because this method only has to ignore rejections
+    // if pull() is *not* called, and if pull() is not called then we won't generate any rejections
+    // anyway.
+  }
+
+  dispose(): void {
+    let entry = this.entry;
+    this.entry = undefined;
+    if (entry) {
+      if (--entry.localRefcount === 0) {
+        entry.dispose();
+      }
+    }
+  }
+
+  onBroken(callback: (error: any) => void): void {
+    if (this.entry) {
+      this.entry.onBroken(callback);
+    }
+  }
+}
+
+class RpcMainHook extends RpcImportHook {
+  private session?: RpcSessionImpl;
+
+  constructor(entry: ImportTableEntry) {
+    super(false, entry);
+    this.session = entry.session;
+  }
+
+  dispose(): void {
+    if (this.session) {
+      let session = this.session;
+      this.session = undefined;
+      session.shutdown();
+    }
+  }
+}
+
+/**
+ * Options to customize behavior of an RPC session. All functions which start a session should
+ * optionally accept this.
+ */
+export type RpcSessionOptions = {
+  /**
+   * If provided, this function will be called whenever an `Error` object is serialized (for any
+   * reason, not just because it was thrown). This can be used to log errors, and also to redact
+   * them.
+   *
+   * If `onSendError` returns an Error object, than object will be substituted in place of the
+   * original. If it has a stack property, the stack will be sent to the client.
+   *
+   * If `onSendError` doesn't return anything (or is not provided at all), the default behavior is
+   * to serialize the error with the stack omitted.
+   */
+  onSendError?: (error: Error) => Error | void;
+
+  /**
+   * Overrides for the resource limits enforced while deserializing messages from the peer. Any
+   * field left unset falls back to `DEFAULT_LIMITS`. These guard against resource-exhaustion
+   * attacks from untrusted peers; see `RpcLimits` for the meaning and defaults of each field.
+   *
+   * Limits are a purely local, receiver-side decision -- the protocol has no negotiation step, so
+   * the peer never learns these values. A message that exceeds a limit is rejected, aborting the
+   * session.
+   */
+  limits?: Partial<RpcLimits>;
+};
+
+class RpcSessionImpl implements Importer, Exporter {
+  private exports: Array<ExportTableEntry> = [];
+  private reverseExports: Map<StubHook, ExportId> = new Map();
+  private imports: Array<ImportTableEntry> = [];
+  private abortReason?: any;
+  private cancelReadLoop?: (error: any) => void;
+
+  // We assign positive numbers to imports we initiate, and negative numbers to exports we
+  // initiate. So the next import ID is just `imports.length`, but the next export ID needs
+  // to be tracked explicitly.
+  private nextExportId = -1;
+
+  // If set, call this when all incoming calls are complete.
+  private onBatchDone?: Omit<PromiseWithResolvers<void>, "promise">;
+
+  // How many promises is our peer expecting us to resolve?
+  private pullCount = 0;
+
+  // Sparse array of onBrokenCallback registrations. Items are strictly appended to the end but
+  // may be deleted from the middle (hence leaving the array sparse).
+  onBrokenCallbacks: ((error: any) => void)[] = [];
+
+  // Encoding level from the transport (defaults to "string")
+  private encodingLevel: EncodingLevel;
+
+  // Resource limits enforced on incoming messages, resolved once from the defaults plus any
+  // per-session overrides.
+  private limits: RpcLimits;
+
+  constructor(private transport: AnyRpcTransport, mainHook: StubHook,
+      private options: RpcSessionOptions) {
+    // `RpcTransport` has no `encodingLevel` field, so its presence is what marks a custom-encoding
+    // transport. Read it defensively: treat a present-but-`undefined` value (e.g. an uninitialized
+    // class field) as the default string level rather than mis-routing it down the custom-encoding
+    // path, and reject any other unrecognized value (e.g. a stale pre-rename level name) loudly
+    // instead of silently corrupting the wire.
+    let level: EncodingLevel = "string";
+    if ('encodingLevel' in transport) {
+      let raw = transport.encodingLevel as unknown;
+      if (raw !== undefined) {
+        if (raw !== "string" && raw !== "jsonCompatible" &&
+            raw !== "jsonCompatibleWithBytes" && raw !== "structuredClonable") {
+          throw new TypeError(`Unknown transport encodingLevel: ${String(raw)}`);
+        }
+        level = raw;
+      }
+    }
+    this.encodingLevel = level;
+
+    this.limits = { ...DEFAULT_LIMITS, ...options.limits };
+
+    // Export zero is automatically the bootstrap object.
+    this.exports.push({hook: mainHook, refcount: 1});
+
+    // Import zero is the other side's bootstrap object.
+    this.imports.push(new ImportTableEntry(this, 0, false));
+
+    this.readLoop().catch(err => this.abort(err));
+  }
+
+  // Should only be called once immediately after construction.
+  getMainImport(): RpcImportHook {
+    return new RpcMainHook(this.imports[0]);
+  }
+
+  shutdown(): void {
+    // TODO(someday): Should we add some sort of "clean shutdown" mechanism? This gets the job
+    //   done just fine for the moment.
+    this.abort(new Error("RPC session was shut down by disposing the main stub"), false);
+  }
+
+  exportStub(hook: StubHook): ExportId {
+    if (this.abortReason) throw this.abortReason;
+
+    let existingExportId = this.reverseExports.get(hook);
+    if (existingExportId !== undefined) {
+      ++this.exports[existingExportId].refcount;
+      return existingExportId;
+    } else {
+      let exportId = this.nextExportId--;
+      this.exports[exportId] = { hook, refcount: 1 };
+      this.reverseExports.set(hook, exportId);
+      // TODO: Use onBroken().
+      return exportId;
+    }
+  }
+
+  exportPromise(hook: StubHook): ExportId {
+    if (this.abortReason) throw this.abortReason;
+
+    // Promises always use a new ID because otherwise the recipient could miss the resolution.
+    let exportId = this.nextExportId--;
+    this.exports[exportId] = { hook, refcount: 1 };
+    this.reverseExports.set(hook, exportId);
+
+    // Automatically start resolving any promises we send.
+    this.ensureResolvingExport(exportId);
+    return exportId;
+  }
+
+  unexport(ids: Array<ExportId>): void {
+    for (let id of ids) {
+      this.releaseExport(id, 1);
+    }
+  }
+
+  private releaseExport(exportId: ExportId, refcount: number) {
+    let entry = this.exports[exportId];
+    if (!entry) {
+      throw new Error(`no such export ID: ${exportId}`);
+    }
+    if (entry.refcount < refcount) {
+      throw new Error(`refcount would go negative: ${entry.refcount} < ${refcount}`);
+    }
+    entry.refcount -= refcount;
+    if (entry.refcount === 0) {
+      delete this.exports[exportId];
+      this.reverseExports.delete(entry.hook);
+      entry.hook.dispose();
+    }
+  }
+
+  onSendError(error: Error): Error | void {
+    if (this.options.onSendError) {
+      return this.options.onSendError(error);
+    }
+  }
+
+  private ensureResolvingExport(exportId: ExportId) {
+    let exp = this.exports[exportId];
+    if (!exp) {
+      throw new Error(`no such export ID: ${exportId}`);
+    }
+    if (!exp.pull) {
+      let resolve = async () => {
+        let hook = exp.hook;
+        for (;;) {
+          let payload = await hook.pull();
+          if (payload.value instanceof RpcStub) {
+            let {hook: inner, pathIfPromise} = unwrapStubAndPath(payload.value);
+            if (pathIfPromise && pathIfPromise.length == 0) {
+              if (this.getImport(hook) === undefined) {
+                // Optimization: The resolution is just another promise, and it is not a promise
+                // pointing back to the peer. So if we send a resolve message, it's just going to
+                // resolve to another new promise export, which is just going to have to wait for
+                // another resolve message later. This intermediate resolve message gives the peer
+                // no useful information, so let's skip it and just wait for the chained
+                // resolution.
+                hook = inner;
+                continue;
+              }
+            }
+          }
+
+          return payload;
+        }
+      };
+
+      let autoRelease = exp.autoRelease;
+
+      ++this.pullCount;
+      exp.pull = resolve().then(
+        payload => {
+          // We don't transfer ownership of stubs in the payload since the payload
+          // belongs to the hook which sticks around to handle pipelined requests.
+          let value = Devaluator.devaluate(payload.value, undefined, this, payload, this.encodingLevel);
+          this.send(["resolve", exportId, value]);
+          if (autoRelease) this.releaseExport(exportId, 1);
+        },
+        error => {
+          this.send(["reject", exportId, Devaluator.devaluate(error, undefined, this, undefined, this.encodingLevel)]);
+          if (autoRelease) this.releaseExport(exportId, 1);
+        }
+      ).catch(
+        error => {
+          // If serialization failed, report the serialization error, which should
+          // itself always be serializable.
+          try {
+            this.send(["reject", exportId, Devaluator.devaluate(error, undefined, this, undefined, this.encodingLevel)]);
+            if (autoRelease) this.releaseExport(exportId, 1);
+          } catch (error2) {
+            // TODO: Shouldn't happen, now what?
+            this.abort(error2);
+          }
+        }
+      ).finally(() => {
+        if (--this.pullCount === 0) {
+          if (this.onBatchDone) {
+            this.onBatchDone.resolve();
+          }
+        }
+      });
+    }
+  }
+
+  getImport(hook: StubHook): ImportId | undefined {
+    if (hook instanceof RpcImportHook && hook.entry && hook.entry.session === this) {
+      return hook.entry.importId;
+    } else {
+      return undefined;
+    }
+  }
+
+  importStub(idx: ImportId): RpcImportHook {
+    if (this.abortReason) throw this.abortReason;
+
+    let entry = this.imports[idx];
+    if (!entry) {
+      entry = new ImportTableEntry(this, idx, false);
+      this.imports[idx] = entry;
+    }
+    return new RpcImportHook(/*isPromise=*/false, entry);
+  }
+
+  importPromise(idx: ImportId): StubHook {
+    if (this.abortReason) throw this.abortReason;
+
+    if (this.imports[idx]) {
+      // Can't reuse an existing ID for a promise!
+      return new ErrorStubHook(new Error(
+          "Bug in RPC system: The peer sent a promise reusing an existing export ID."));
+    }
+
+    // Create an already-pulling hook.
+    let entry = new ImportTableEntry(this, idx, true);
+    this.imports[idx] = entry;
+    return new RpcImportHook(/*isPromise=*/true, entry);
+  }
+
+  getExport(idx: ExportId): StubHook | undefined {
+    return this.exports[idx]?.hook;
+  }
+
+  getPipeReadable(exportId: ExportId): ReadableStream {
+    let entry = this.exports[exportId];
+    if (!entry || !entry.pipeReadable) {
+      throw new Error(`Export ${exportId} is not a pipe or its readable end was already consumed.`);
+    }
+    let readable = entry.pipeReadable;
+    entry.pipeReadable = undefined;
+    return readable;
+  }
+
+  getLimits(): RpcLimits {
+    return this.limits;
+  }
+
+  createPipe(readable: ReadableStream, readableHook: StubHook): ImportId {
+    if (this.abortReason) throw this.abortReason;
+
+    this.send(["pipe"]);
+
+    let importId = this.imports.length;
+    // The pipe import is not a promise -- it's immediately usable as a writable stream.
+    let entry = new ImportTableEntry(this, importId, false);
+    this.imports.push(entry);
+
+    // Create a proxy WritableStream from the import hook and pump the ReadableStream into it.
+    let hook = new RpcImportHook(/*isPromise=*/false, entry);
+    let writable = streamImpl.createWritableStreamFromHook(hook);
+    readable.pipeTo(writable).catch(() => {
+      // Errors are handled by the writable stream's error handling -- either the write fails
+      // and the writable side reports it, or the readable side errors and pipeTo aborts the
+      // writable side. Either way, the hook's disposal will handle cleanup.
+    }).finally(() => readableHook.dispose());
+
+    return importId;
+  }
+
+  // Serializes and sends a message. Returns the byte length reported by the transport, or
+  // undefined if the transport doesn't report size.
+  private send(msg: any): number | undefined {
+    if (this.abortReason !== undefined) {
+      // Ignore sends after we've aborted.
+      return 0;
+    }
+
+    if (this.encodingLevel === "string") {
+      let msgText: string;
+      try {
+        msgText = JSON.stringify(msg);
+      } catch (err) {
+        // If JSON stringification failed, there's something wrong with the devaluator, as it
+        // should not allow non-JSONable values to be injected in the first place.
+        try { this.abort(err); } catch (err2) {}
+        throw err;
+      }
+
+      try {
+        let sent = (this.transport as RpcTransport).send(msgText) as Promise<void> | undefined;
+        if (sent !== undefined && typeof sent.catch === "function") {
+          // If send fails, abort the connection, but don't try to send an abort message since
+          // that'll probably also fail.
+          sent.catch(err => this.abort(err, false));
+        }
+      } catch (err) {
+        // The transport threw synchronously. Treat it like an async send failure: abort the
+        // session (without trying to send an abort message over the broken transport), but
+        // defer to a microtask so the caller finishes its own bookkeeping first, matching the
+        // timing of a rejected promise from an async transport.
+        queueMicrotask(() => this.abort(err, false));
+      }
+      return msgText.length;
+    } else {
+      // Custom encoding transport encodes and returns the actual encoded size, or void if size
+      // is unavailable (e.g. structured clone).
+      try {
+        let size = (this.transport as RpcTransportWithCustomEncoding).send(msg);
+        if (typeof size === "number") {
+          return size;
+        }
+        // Defend against transports that return something other than a number, e.g. an
+        // accidentally-async `send()` returning a promise: treat the size as unknown, and
+        // observe any returned thenable so a rejection aborts the session rather than going
+        // unhandled. (The documented contract is to report errors via `receive()`.)
+        let thenable = size as unknown;
+        if (thenable && typeof (thenable as PromiseLike<unknown>).then === "function") {
+          Promise.resolve(thenable).catch(err => this.abort(err, false));
+        }
+        return undefined;
+      } catch (err) {
+        // Same as the synchronous failure case above.
+        queueMicrotask(() => this.abort(err, false));
+        return undefined;
+      }
+    }
+  }
+
+  sendCall(id: ImportId, path: PropertyPath, args?: RpcPayload): RpcImportHook {
+    if (this.abortReason) {
+      args?.dispose();
+      throw this.abortReason;
+    }
+
+    let value: Array<any> = ["pipeline", id, path];
+    if (args) {
+      let devalue: unknown;
+      try {
+        devalue = Devaluator.devaluate(args.value, undefined, this, args, this.encodingLevel);
+      } catch (err) {
+        args.dispose();
+        throw err;
+      }
+
+      // HACK: Since the args is an array, devaluator will wrap in a second array. Need to unwrap.
+      // TODO: Clean this up somehow.
+      value.push((<Array<unknown>>devalue)[0]);
+
+      // Serializing the payload takes ownership of all stubs within, so the payload itself does
+      // not need to be disposed on success. If serialization threw partway through, disposing
+      // the payload above is safe: any hooks already exported were dups of the payload's hooks,
+      // and the Devaluator rolls back its own export-table entries before rethrowing.
+    }
+    this.send(["push", value]);
+
+    let entry = new ImportTableEntry(this, this.imports.length, false);
+    this.imports.push(entry);
+    return new RpcImportHook(/*isPromise=*/true, entry);
+  }
+
+  sendStream(id: ImportId, path: PropertyPath, args: RpcPayload)
+      : {promise: Promise<void>, size: number} {
+    if (this.abortReason) {
+      args.dispose();
+      throw this.abortReason;
+    }
+
+    let value: Array<any> = ["pipeline", id, path];
+    let devalue: unknown;
+    try {
+      devalue = Devaluator.devaluate(args.value, undefined, this, args, this.encodingLevel);
+    } catch (err) {
+      // Disposing the partially-serialized payload is safe for the same reasons as in sendCall().
+      args.dispose();
+      throw err;
+    }
+
+    // HACK: Since the args is an array, devaluator will wrap in a second array. Need to unwrap.
+    // TODO: Clean this up somehow.
+    value.push((<Array<unknown>>devalue)[0]);
+
+    let msg = ["stream", value];
+    let size = this.send(msg);
+    if (size === undefined) {
+      size = estimateEncodedSize(msg);
+    }
+
+    // Create the import entry in "already pulling" state (pulling=true), since stream messages
+    // are automatically pulled. Set remoteRefcount to 0 so that resolve() won't send a release
+    // message — the server implicitly releases the export after sending the resolve. Set
+    // localRefcount to 1 so that resolve() doesn't treat this as already-disposed.
+    let importId = this.imports.length;
+    let entry = new ImportTableEntry(this, importId, /*pulling=*/true);
+    entry.remoteRefcount = 0;
+    entry.localRefcount = 1;
+    this.imports.push(entry);
+
+    // Await the resolution, then dispose the result payload and clean up the import table entry.
+    // (Normally, sendRelease() cleans up the import table, but since remoteRefcount is 0, we
+    // need to do it manually.)
+    let promise = entry.awaitResolution().then(
+      p => { p.dispose(); delete this.imports[importId]; },
+      err => { delete this.imports[importId]; throw err; }
+    );
+
+    return { promise, size };
+  }
+
+  sendMap(id: ImportId, path: PropertyPath, captures: StubHook[], instructions: unknown[])
+      : RpcImportHook {
+    if (this.abortReason) {
+      for (let cap of captures) {
+        cap.dispose();
+      }
+      throw this.abortReason;
+    }
+
+    // Note: This loop cannot throw synchronously after the abortReason check above. getImport()
+    // never throws, and exportStub()'s only throw is its own abortReason check — but aborts are
+    // always deferred to a microtask, so abortReason cannot become set partway through this loop.
+    // (Don't add a dispose() rollback here: exportStub() stores the hook itself, not a dup, in
+    // the export table, so disposing exported captures would corrupt the table.)
+    let devaluedCaptures = captures.map(hook => {
+      let importId = this.getImport(hook);
+      if (importId !== undefined) {
+        return ["import", importId];
+      } else {
+        return ["export", this.exportStub(hook)];
+      }
+    });
+
+    let value = ["remap", id, path, devaluedCaptures, instructions];
+
+    this.send(["push", value]);
+
+    let entry = new ImportTableEntry(this, this.imports.length, false);
+    this.imports.push(entry);
+    return new RpcImportHook(/*isPromise=*/true, entry);
+  }
+
+  sendPull(id: ImportId) {
+    if (this.abortReason) throw this.abortReason;
+
+    this.send(["pull", id]);
+  }
+
+  sendRelease(id: ImportId, remoteRefcount: number) {
+    if (this.abortReason) return;
+
+    this.send(["release", id, remoteRefcount]);
+    delete this.imports[id];
+  }
+
+  abort(error: any, trySendAbortMessage: boolean = true) {
+    // Don't double-abort.
+    if (this.abortReason !== undefined) return;
+
+    this.cancelReadLoop?.(error);
+    this.cancelReadLoop = undefined;
+
+    if (trySendAbortMessage) {
+      try {
+        let abortMsg = ["abort", Devaluator.devaluate(error, undefined, this, undefined, this.encodingLevel)];
+        if (this.encodingLevel === "string") {
+          let sent = (this.transport as RpcTransport)
+              .send(JSON.stringify(abortMsg)) as Promise<void> | undefined;
+          if (sent !== undefined && typeof sent.catch === "function") {
+            sent.catch(err => {});
+          }
+        } else {
+          let result = (this.transport as RpcTransportWithCustomEncoding).send(abortMsg) as unknown;
+          if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+            Promise.resolve(result).catch(err => {});
+          }
+        }
+      } catch (err) {
+        // ignore, probably the whole reason we're aborting is because the transport is broken
+      }
+    }
+
+    if (error === undefined) {
+      // Shouldn't happen, but if it does, avoid setting `abortReason` to `undefined`.
+      error = "undefined";
+    }
+
+    this.abortReason = error;
+    if (this.onBatchDone) {
+      this.onBatchDone.reject(error);
+    }
+
+    if (this.transport.abort) {
+      // Call transport's abort handler, but guard against buggy app code.
+      try {
+        this.transport.abort(error);
+      } catch (err) {
+        // Treat as unhandled rejection.
+        Promise.resolve(err);
+      }
+    }
+
+    // WATCH OUT: these are sparse arrays. `for/let/of` will iterate only positive indexes
+    // including deleted indexes -- bad. We need to use `for/let/in` instead.
+    for (let i in this.onBrokenCallbacks) {
+      try {
+        this.onBrokenCallbacks[i](error);
+      } catch (err) {
+        // Treat as unhandled rejection.
+        Promise.resolve(err);
+      }
+    }
+    for (let i in this.imports) {
+      this.imports[i].abort(error);
+    }
+    for (let i in this.exports) {
+      this.exports[i].hook.dispose();
+    }
+  }
+
+  private async readLoop() {
+    while (!this.abortReason) {
+      // Each receive needs its own abort promise so Promise.race() doesn't keep old reads.
+      let readCanceled = Promise.withResolvers<never>();
+      this.cancelReadLoop = readCanceled.reject;
+
+      let raw: unknown;
+
+      try {
+        raw = await Promise.race([this.transport.receive(), readCanceled.promise]);
+      } finally {
+        if (this.cancelReadLoop === readCanceled.reject) {
+          this.cancelReadLoop = undefined;
+        }
+      }
+
+      // Bound a single string message before parsing it. At this point the transport has already
+      // buffered the complete message; true byte-level / pre-read enforcement belongs in the
+      // transport/socket. This backstop still prevents oversized messages from reaching JSON.parse
+      // and downstream deserialization work, and a throw here propagates out of readLoop and aborts
+      // the session. Only "string"-level transports hand us a measurable wire string; richer
+      // encoding levels deliver an already-decoded value, so the size cap does not apply.
+      if (this.encodingLevel === "string" &&
+          (raw as string).length > this.limits.maxMessageSize) {
+        throw new TypeError(
+            `Incoming message exceeds maximum size of ${this.limits.maxMessageSize} UTF-16 code ` +
+            `units.`);
+      }
+
+      if (this.abortReason) break;  // check again before processing
+
+      // Only parse JSON at "string" level; otherwise message is already an object
+      let msg = this.encodingLevel === "string" ? JSON.parse(raw as string) : raw;
+
+      if (msg instanceof Array) {
+        switch (msg[0]) {
+          case "push":  // ["push", Expression]
+            if (msg.length > 1) {
+              let payload = new Evaluator(this, this.encodingLevel).evaluate(msg[1]);
+              let hook = new PayloadStubHook(payload);
+
+              // It's possible for a rejection to occur before the client gets a chance to send
+              // a "pull" message or to use the promise in a pipeline. We don't want that to be
+              // treated as an unhandled rejection on our end.
+              hook.ignoreUnhandledRejections();
+
+              this.exports.push({ hook, refcount: 1 });
+              continue;
+            }
+            break;
+
+          case "stream": {  // ["stream", Expression]
+            // Like "push", but:
+            // - Promise pipelining on the result is not supported.
+            // - The export is automatically considered "pulled".
+            // - Once the "resolve" is sent, the export is implicitly released.
+            if (msg.length > 1) {
+              let payload = new Evaluator(this, this.encodingLevel).evaluate(msg[1]);
+              let hook = new PayloadStubHook(payload);
+              hook.ignoreUnhandledRejections();
+
+              let exportId = this.exports.length;
+              this.exports.push({ hook, refcount: 1, autoRelease: true });
+
+              // Automatically pull since stream messages are always pulled.
+              this.ensureResolvingExport(exportId);
+              continue;
+            }
+            break;
+          }
+
+          case "pipe": {  // ["pipe"]
+            // Create a TransformStream. The writable end becomes the export (so the sender can
+            // write/close/abort it). The readable end is stashed for later retrieval via
+            // ["readable", importId].
+            let { readable, writable } = new TransformStream();
+            let hook = streamImpl.createWritableStreamHook(writable);
+            this.exports.push({ hook, refcount: 1, pipeReadable: readable });
+            continue;
+          }
+
+          case "pull": {  // ["pull", ImportId]
+            let exportId = msg[1];
+            if (typeof exportId == "number") {
+              this.ensureResolvingExport(exportId);
+              continue;
+            }
+            break;
+          }
+
+          case "resolve":   // ["resolve", ExportId, Expression]
+          case "reject": {  // ["reject", ExportId, Expression]
+            let importId = msg[1];
+            if (typeof importId == "number" && msg.length > 2) {
+              let imp = this.imports[importId];
+              if (imp) {
+                if (msg[0] == "resolve") {
+                  imp.resolve(new PayloadStubHook(new Evaluator(this, this.encodingLevel).evaluate(msg[2])));
+                } else {
+                  // HACK: We expect errors are always simple values (no stubs) so we can just
+                  //   pull the value out of the payload.
+                  let payload = new Evaluator(this, this.encodingLevel).evaluate(msg[2]);
+                  payload.dispose();  // just in case -- should be no-op
+                  imp.resolve(new ErrorStubHook(payload.value));
+                }
+              } else {
+                // Import ID is not found on the table. Probably we released it already, in which
+                // case we do not care about the resolution, so whatever.
+
+                if (msg[0] == "resolve") {
+                  // We need to evaluate the resolution and immediately dispose it so that we
+                  // release any stubs it contains.
+                  new Evaluator(this, this.encodingLevel).evaluate(msg[2]).dispose();
+                }
+              }
+              continue;
+            }
+            break;
+          }
+
+          case "release": {
+            let exportId = msg[1];
+            let refcount = msg[2];
+            if (typeof exportId == "number" && typeof refcount == "number") {
+              this.releaseExport(exportId, refcount);
+              continue;
+            }
+            break;
+          }
+
+          case "abort": {
+            let payload = new Evaluator(this, this.encodingLevel).evaluate(msg[1]);
+            payload.dispose();  // just in case -- should be no-op
+            this.abort(payload.value, false);
+            break;
+          }
+        }
+      }
+
+      throw new Error(`bad RPC message: ${JSON.stringify(msg)}`);
+    }
+  }
+
+  async drain(): Promise<void> {
+    if (this.abortReason) {
+      throw this.abortReason;
+    }
+
+    if (this.pullCount > 0) {
+      let {promise, resolve, reject} = Promise.withResolvers<void>();
+      this.onBatchDone = {resolve, reject};
+      await promise;
+    }
+  }
+
+  getStats(): {imports: number, exports: number} {
+    let result = {imports: 0, exports: 0};
+    // We can't just use `.length` because the arrays can be sparse and can have negative indexes.
+    for (let i in this.imports) {
+      ++result.imports;
+    }
+    for (let i in this.exports) {
+      ++result.exports;
+    }
+    return result;
+  }
+}
+
+// Public interface that wraps RpcSession and hides private implementation details (even from
+// JavaScript with no type enforcement).
+export class RpcSession {
+  #session: RpcSessionImpl;
+  #mainStub: RpcStub;
+
+  constructor(transport: AnyRpcTransport, localMain?: any, options: RpcSessionOptions = {}) {
+    let mainHook: StubHook;
+    if (localMain) {
+      mainHook = new PayloadStubHook(RpcPayload.fromAppReturn(localMain));
+    } else {
+      mainHook = new ErrorStubHook(new Error("This connection has no main object."));
+    }
+    this.#session = new RpcSessionImpl(transport, mainHook, options);
+    this.#mainStub = new RpcStub(this.#session.getMainImport());
+  }
+
+  getRemoteMain(): RpcStub {
+    return this.#mainStub;
+  }
+
+  getStats(): {imports: number, exports: number} {
+    return this.#session.getStats();
+  }
+
+  drain(): Promise<void> {
+    return this.#session.drain();
+  }
+}
