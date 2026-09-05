@@ -1,0 +1,21 @@
+{
+  "name": "@cable/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Portable procedure runtime, wire codec, Host interfaces, and durable channel engine.",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit"
+  }
+}

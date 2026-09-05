@@ -1,0 +1,21 @@
+{
+  "name": "@cable/conformance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared behavioral test suite for every Host adapter.",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit"
+  }
+}

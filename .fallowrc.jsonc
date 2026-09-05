@@ -1,0 +1,56 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "sealed": true,
+  "entry": ["oxfmt.config.ts"],
+  "ignorePatterns": [
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".cursor/**",
+    ".fallow/**",
+    "coverage/**",
+    "references/**",
+    "tools/oxlint/anti-slop/**",
+    "**/dist/**",
+  ],
+  "publicPackages": ["@cable/*"],
+  // The local anti-slop plugin imports this package, but that vendored source
+  // is intentionally excluded from project analysis.
+  "ignoreDependencies": ["@oxlint/plugins"],
+  "rules": {
+    "dev-dependencies-in-production": "error",
+    "private-type-leaks": "error",
+    "re-export-cycle": "error",
+    "require-suppression-reason": "error",
+    "stale-suppressions": "error",
+    "test-only-dependencies": "error",
+    "type-only-dependencies": "error",
+    "unused-dev-dependencies": "error",
+    "unused-optional-dependencies": "error",
+  },
+  "duplicates": {
+    "enabled": true,
+    "ignore": ["references/**", "tools/oxlint/anti-slop/**", "**/dist/**"],
+    "minLines": 5,
+    "minOccurrences": 2,
+    "minTokens": 50,
+    "mode": "mild",
+    "near": false,
+    "threshold": 0,
+  },
+  "health": {
+    "ignore": ["references/**", "tools/oxlint/anti-slop/**", "**/dist/**"],
+    "maxCognitive": 15,
+    // CRAP needs real coverage data, and function length is not a quality
+    // metric. Fallow has no per-check off switch, so keep both informational
+    // dimensions out of the gate while retaining cyclomatic and cognitive
+    // complexity checks.
+    "maxCrap": 4294967295,
+    "maxCyclomatic": 20,
+    "maxUnitSize": 4294967295,
+  },
+  "typeAware": {
+    "enabled": true,
+    "require": "complete",
+  },
+}

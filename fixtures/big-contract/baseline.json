@@ -1,0 +1,6 @@
+{
+  "status": "scaffold",
+  "milestone": "M1",
+  "instantiationsBelow": 500000,
+  "checkSecondsBelow": 2.5
+}

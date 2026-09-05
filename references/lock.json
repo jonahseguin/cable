@@ -1,0 +1,30 @@
+{
+  "trpc": {
+    "url": "https://github.com/trpc/trpc.git",
+    "commit": "66d054454a3339dd8421da9dcf0648f92816f704"
+  },
+  "orpc": {
+    "url": "https://github.com/unnoq/orpc.git",
+    "commit": "6f5501f3f331eceda23dd306793c01ad7f6dddba"
+  },
+  "effect": {
+    "url": "https://github.com/Effect-TS/effect.git",
+    "commit": "1747d842c80413dc4488574600c935d240d662d2"
+  },
+  "rivet": {
+    "url": "https://github.com/rivet-dev/actors.git",
+    "commit": "caed5835fe3cc3cd37c9a6eb715abd5105024f2a"
+  },
+  "cloudflare-agents": {
+    "url": "https://github.com/cloudflare/agents.git",
+    "commit": "ec93caf6ec1efebb521aa9ab30c0a8cb2b4d50d5"
+  },
+  "partyserver": {
+    "url": "https://github.com/cloudflare/partykit.git",
+    "commit": "f0a2e97d233f24545b2648aec2ed6a191e11074e"
+  },
+  "capnweb": {
+    "url": "https://github.com/cloudflare/capnweb.git",
+    "commit": "3edfc500a97361b1bdac97c260c9597f500748c6"
+  }
+}
