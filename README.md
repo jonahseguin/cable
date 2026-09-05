@@ -11,8 +11,9 @@ the work and gates.
 
 ## Start working
 
-Use the Bun version pinned in `package.json`. Node remains available for project
-tools that require it; supported Node versions are listed in `engines.node`.
+Use the Bun version pinned in `package.json` and the recommended Node toolchain in
+`.node-version`. Node 22.18 remains the minimum supported runtime and is checked by
+CI; the full quality and type performance gate uses Node 24.16.
 
 ```sh
 bun install --frozen-lockfile
