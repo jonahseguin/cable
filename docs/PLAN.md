@@ -1,8 +1,9 @@
 # Implementation plan
 
-M0 through M3 are complete. The current milestone is **M4: React integration**.
-M3 passed at `b24677e72d`; CI run `34011847336` confirmed its gate. No library
-API is published. Read [DESIGN.md](DESIGN.md)
+M0 through M4 are complete. The current milestone is **M5: Node development
+host**. M3 passed at `b24677e72d`; CI run `34011847336` confirmed its gate. M4
+passed at `0d188888fa`; CI run `34020413544` confirmed its gate. No library API
+is published. Read [DESIGN.md](DESIGN.md)
 for the full requirements; ADRs record explicit amendments. ADR 0014 supersedes
 the design's historical submodule setup; follow [the reference guide](../references/README.md).
 The user authorized
@@ -116,7 +117,7 @@ client and SSR output. The type-performance programs measure 310,351 client
 instantiations in 0.46 seconds and 235,460 edge instantiations in 0.31 seconds.
 CI run `34011847336` passed the Node 22 compatibility job and full quality gate.
 
-## M4 local acceptance
+## M4 acceptance
 
 `@cable/react` provides native TanStack Query options and React channel hooks.
 The chat example uses both, including an SSR-scoped `QueryClient`. The local
@@ -124,6 +125,8 @@ quality gate passes 226 root tests, 13 Cloudflare unit tests, 46 workerd tests
 with 2 expected native socket-send-fault skips, and the chat integration smoke.
 The type-performance programs measure 320,097 client instantiations in 0.57
 seconds and 235,460 edge instantiations in 0.29 seconds. CI verification is
-pending; M5 has not started. ADR 0025 keeps both programs below 500,000
-instantiations, sets the M4 client check-time limit to 3.0 seconds, and keeps
-the edge limit at 2.5 seconds.
+passed at `0d188888fa` in run `34020413544`. CI measured 320,097 client
+instantiations in 2.63 seconds and 235,460 edge instantiations in 1.62 seconds.
+ADR 0025 keeps both programs below 500,000 instantiations, sets the M4 client
+check-time limit to 3.0 seconds, and keeps the edge limit at 2.5 seconds. M5
+is active.
