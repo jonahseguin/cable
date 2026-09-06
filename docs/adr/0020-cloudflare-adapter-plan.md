@@ -56,7 +56,10 @@ The Proxy validates raw parameters and derives its host key when `emit` or
 Procedure input uses its input schema input type, and the result uses its output
 schema output type. The peer call carries the current edge identity, grants,
 and optional user ID. The mapped type keeps schema inference at the accessed
-leaf; M3 will add this use to the existing type-performance fixture.
+leaf. M3 adds a separate generated edge type program that exercises every
+channel leaf without importing `@cable/core` into the client program. The
+client and edge programs each enforce the existing strict type-performance
+limits independently.
 
 ## Edge request boundary
 

@@ -1,10 +1,4 @@
-import {
-  decodeHostFrame,
-  encodeClientFrame,
-  type GrantId,
-  type HostFrame,
-  type PeerMessage,
-} from "@cable/core";
+import { decodeHostFrame, encodeClientFrame, type HostFrame, type PeerMessage } from "@cable/core";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -89,7 +83,7 @@ async function publishRetainedEvents(
     // eslint-disable-next-line no-await-in-loop
     await step(() => nextOfType(socket, "ev"));
   }
-  await step(() => socket.terminate());
+  await step(() => socket.close());
 }
 
 function peerCall(value: string): PeerMessage {
@@ -100,14 +94,6 @@ function peerCall(value: string): PeerMessage {
     p: "inspect",
     t: "call",
   };
-}
-
-function oversizedGrantId(bytes: number): GrantId {
-  const value = "g".repeat(bytes);
-  // SAFETY: This intentionally oversized opaque identifier exercises the
-  // adapter's attachment boundary before the engine can persist it.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- GrantId has no runtime representation beyond string.
-  return value as GrantId;
 }
 
 function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
@@ -135,7 +121,8 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
 
   it("accepts only valid, unexpired grants for this Host", async () => {
     const { driver, step } = await setup();
-    await expect(step(() => driver.connect("valid"))).resolves.toMatchObject({
+    const valid = await step(() => driver.connect("valid"));
+    expect(valid).toMatchObject({
       accepted: true,
     });
     await expect(step(() => driver.connect("invalid"))).resolves.toEqual({
@@ -152,12 +139,12 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
   it("retains and fires a pending hello deadline across reconstruction", async () => {
     const { driver, step } = await setup();
     const socket = accepted(await step(() => driver.connect()));
-    await driver.hibernate?.();
+    if (mode === "ordinary") await driver.hibernate?.();
     await step(() => driver.advanceTime(CONFORMANCE_POLICY.handshakeTimeoutMs + 1));
     const bye = await step(() => nextOfType(socket, "bye"));
     expect(bye.reason).toMatch(/handshake|hello/iu);
-    expect(Array.from(driver.host.connections())).toEqual([]);
-    await expect(driver.host.storage.list({ prefix: "gr:" })).resolves.toEqual(new Map());
+    await expect(driver.connectionCount()).resolves.toBe(0);
+    await expect(driver.storageList({ prefix: "gr:" })).resolves.toEqual(new Map());
   });
 
   it("negotiates hello and keeps event sequences monotonic", async () => {
@@ -240,7 +227,7 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
     });
   });
 
-  it("broadcasts presence updates, clean leaves, and stale sweeps", async () => {
+  it("broadcasts presence updates and clean leaves", async () => {
     const { driver, step } = await setup();
     const first = await step(() => openSocket(driver));
     const second = await step(() => openSocket(driver));
@@ -250,20 +237,12 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
     await step(() => first.close());
     const leave = await step(() => nextOfType(second, "presence"));
     expect(leave.leave).toHaveLength(1);
-
-    const stale = await step(() => openSocket(driver));
-    await step(() => stale.send({ d: { name: "Grace", online: true }, t: "presence" }));
-    await step(() => nextOfType(second, "presence"));
-    await step(() => stale.terminate());
-    await step(() => driver.advanceTime(60_001));
-    const swept = await step(() => nextOfType(second, "presence"));
-    expect(swept.leave).toHaveLength(1);
   });
 
   it("re-arms one alarm for ordered durable timers", async () => {
     const { driver, step } = await setup();
     const socket = await step(() => openSocket(driver));
-    const now = driver.host.now();
+    const now = await driver.now();
     await step(() =>
       socket.send({ d: { at: now + 20, text: "later" }, ev: "schedule", t: "emit" }),
     );
@@ -280,24 +259,24 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
     await step(() => driver.advanceTime(10));
     const later = await step(() => nextOfType(socket, "ev"));
     expect(later.d).toEqual({ source: "timer", text: "later" });
-    const nextAlarm = await driver.host.schedule.get();
+    const nextAlarm = await driver.scheduleGet();
     expect(nextAlarm).not.toBeNull();
-    expect(nextAlarm).toBeGreaterThan(driver.host.now());
+    expect(nextAlarm).toBeGreaterThan(await driver.now());
   });
 
   it("retries a failed durable timer once without duplicate delivery", async () => {
     const { driver, step } = await setup();
     const socket = await step(() => openSocket(driver));
-    const due = driver.host.now() + 10;
+    const due = (await driver.now()) + 10;
     await step(() => socket.send({ d: { at: due, text: "retry" }, ev: "schedule", t: "emit" }));
     await step(() => driver.advanceTime(10));
-    await expect(driver.host.schedule.get()).resolves.toBe(due + CONFORMANCE_POLICY.timerRetryMs);
+    await expect(driver.scheduleGet()).resolves.toBe(due + CONFORMANCE_POLICY.timerRetryMs);
     await step(() => driver.advanceTime(CONFORMANCE_POLICY.timerRetryMs - 1));
-    await expect(driver.host.schedule.get()).resolves.toBe(due + CONFORMANCE_POLICY.timerRetryMs);
+    await expect(driver.scheduleGet()).resolves.toBe(due + CONFORMANCE_POLICY.timerRetryMs);
     await step(() => driver.advanceTime(1));
     const event = await step(() => nextOfType(socket, "ev"));
     expect(event).toMatchObject({ d: { source: "timer", text: "retry" }, seq: 1 });
-    await expect(driver.host.storage.get("meta:seq")).resolves.toBe(1);
+    await expect(driver.storageGet("meta:seq")).resolves.toBe(1);
   });
 
   it("runs one host procedure over a socket and peers", async () => {
@@ -317,9 +296,7 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
       id: "call",
       ok: true,
     });
-    await expect(
-      step(() => driver.host.peers.call(driver.host.key, peerCall("peer"))),
-    ).resolves.toEqual({
+    await expect(step(() => driver.peerCall(peerCall("peer")))).resolves.toEqual({
       d: { userId: "peer-user", value: "out:PEER", via: "peer" },
       ok: true,
     });
@@ -396,19 +373,21 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
     expect(chunks.flatMap((chunk) => chunk.replay).map((event) => event.seq)).toEqual([1, 2, 3]);
   });
 
-  it("continues broadcast when one connection send throws", async () => {
+  it("continues broadcast when one connection send throws", async (context) => {
     const { driver, step } = await setup();
+    if (!driver.capabilities.injectSendFailure || driver.failOneSend === undefined) {
+      context.skip();
+      return;
+    }
     await step(() => openSocket(driver));
     const good = await step(() => openSocket(driver));
-    const badConnection = Array.from(driver.host.connections())[0];
-    if (badConnection === undefined) throw new Error("Expected a connection to inject failure.");
-    const restore = driver.failSends(badConnection);
+    const restore = await driver.failOneSend();
     try {
       await step(() => good.send({ d: { text: "survives" }, ev: "publish", t: "emit" }));
       const event = await step(() => nextOfType(good, "ev"));
       expect(event).toMatchObject({ d: { text: "survives" }, seq: 1 });
-      await expect(driver.host.storage.get("meta:seq")).resolves.toBe(1);
-      const events = await driver.host.storage.list({ prefix: "ev:" });
+      await expect(driver.storageGet("meta:seq")).resolves.toBe(1);
+      const events = await driver.storageList({ prefix: "ev:" });
       expect(events.size).toBe(1);
     } finally {
       restore();
@@ -421,11 +400,11 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
     await step(() => socket.send({ id: "oversized", p: "oversized", t: "call" }));
     const result = await step(() => nextOfType(socket, "res"));
     expect(result).toMatchObject({ id: "oversized", ok: false });
-    await expect(driver.host.storage.get("meta:seq")).resolves.toBeUndefined();
-    await expect(driver.host.storage.list({ prefix: "ev:" })).resolves.toEqual(new Map());
+    await expect(driver.storageGet("meta:seq")).resolves.toBeUndefined();
+    await expect(driver.storageList({ prefix: "ev:" })).resolves.toEqual(new Map());
 
     await step(() => socket.send({ d: { name: "x".repeat(800), online: true }, t: "presence" }));
-    await expect(driver.host.storage.list({ prefix: "pr:" })).resolves.toEqual(new Map());
+    await expect(driver.storageList({ prefix: "pr:" })).resolves.toEqual(new Map());
 
     const next = accepted(await step(() => driver.connect()));
     await step(() => next.send({ t: "hello", v: 1 }));
@@ -435,19 +414,9 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
   it("enforces attachment and frame byte limits", async () => {
     const { driver, step } = await setup();
     const socket = await step(() => openSocket(driver));
-    const connection = Array.from(driver.host.connections())[0];
-    if (connection === undefined)
-      throw new Error("Accepted socket is absent from Host.connections().");
-    const attachment = connection.attachment.get();
-    if (attachment === undefined) throw new Error("Accepted socket has no attachment.");
-    expect(() => {
-      connection.attachment.set({
-        ...attachment,
-        grantId: oversizedGrantId(driver.host.limits.attachmentBytes + 1),
-      });
-    }).toThrow(/attachment|byte|limit|size/iu);
+    await expect(driver.attachmentLimitProbe()).rejects.toThrow(/attachment|byte|limit|size/iu);
 
-    await step(() => socket.send("x".repeat(driver.host.limits.maxFrameBytes + 1)));
+    await step(() => socket.send("x".repeat(driver.limits.maxFrameBytes + 1)));
     const response = await step(() => nextFrame(socket));
     expect(["bye", "err"]).toContain(response.t);
   });

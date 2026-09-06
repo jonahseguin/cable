@@ -56,7 +56,8 @@ Sock8's lock URL uses SSH, so `scripts/refs.sh update sock8` requires GitHub SSH
 access. The snapshot has no repository-level license file or declaration;
 `packages/typescript-config/package.json` declares `PROPRIETARY`. It is controlled
 reference material. Do not port its code unless its licensing is settled and the
-port is attributed.
+port is attributed. See [the Sock8 reference note](../docs/sock8-reference.md)
+before relying on it.
 
 ## External documentation
 

@@ -16,6 +16,21 @@
   },
   "scripts": {
     "build": "tsdown src/index.ts --format esm --dts --clean",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run src --config vitest.unit.config.ts",
+    "test:workerd": "vitest run --config vitest.config.ts --max-workers=1 --no-isolate",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.workerd.json && tsc --noEmit -p workerd/tsconfig.json",
+    "types:check": "wrangler types --config wrangler.test.jsonc --env-interface CloudflareTestEnv worker-configuration.d.ts --check",
+    "types:generate": "wrangler types --config wrangler.test.jsonc --env-interface CloudflareTestEnv worker-configuration.d.ts"
+  },
+  "dependencies": {
+    "@cable/contract": "workspace:*",
+    "@cable/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@cable/conformance": "workspace:*",
+    "@cloudflare/vitest-plugin": "1.1.4",
+    "vitest": "4.1.11",
+    "wrangler": "4.129.0",
+    "zod": "4.5.4"
   }
 }

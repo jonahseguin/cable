@@ -1,4 +1,10 @@
-import type { ClientFrame, Connection, Host, HostWireFrame } from "@cable/core";
+import type {
+  ClientFrame,
+  HostLimits,
+  HostWireFrame,
+  PeerMessage,
+  StorageListOptions,
+} from "@cable/core";
 
 /** Grant case requested by a shared conformance scenario. */
 export type ConformanceGrant = "expired" | "invalid" | "valid" | "valid-other" | "wrong-host";
@@ -11,8 +17,6 @@ export interface ConformanceSocket {
   next(): Promise<HostWireFrame>;
   /** Send a typed or intentionally malformed client frame and drain Host work. */
   send(frame: ClientFrame | string | ArrayBuffer): Promise<void>;
-  /** Drop the runtime socket without an `onClose` callback. */
-  terminate(): Promise<void>;
 }
 
 /** Result of attempting an upgrade through the adapter's real edge seam. */
@@ -22,12 +26,28 @@ export type ConformanceUpgrade =
 
 /** Runtime operations required by the shared Host scenarios. */
 export interface HostConformanceDriver {
-  readonly host: Host;
+  readonly key: string;
+  readonly limits: HostLimits;
+  attachmentLimitProbe(): Promise<void>;
   advanceTime(milliseconds: number): Promise<void>;
+  connectionCount(): Promise<number>;
   connect(grant?: ConformanceGrant): Promise<ConformanceUpgrade>;
-  /** Make one connection's server writes throw until the returned restore callback runs. */
-  failSends(connection: Connection): () => void;
+  /**
+   * Make one connection's server writes throw until the returned restore callback runs.
+   *
+   * Native workerd does not expose a seam to inject a server-side socket-send
+   * failure, so its driver omits this capability and the shared scenario skips.
+   */
+  readonly capabilities: {
+    readonly injectSendFailure: boolean;
+  };
+  failOneSend?(): Promise<() => void>;
   hibernate?(): Promise<void>;
+  now(): Promise<number>;
+  peerCall<T>(message: PeerMessage): Promise<T>;
+  scheduleGet(): Promise<number | null>;
+  storageGet<T>(key: string): Promise<T | undefined>;
+  storageList<T>(options: StorageListOptions): Promise<ReadonlyMap<string, T>>;
 }
 
 /** Construct an isolated Host configured with the shared conformance fixture. */

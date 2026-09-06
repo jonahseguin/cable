@@ -2,9 +2,11 @@
 .env
 .env.*
 !.env.example
+**/.dev.vars
 .fallow/cache/
 coverage/
 dist/
 node_modules/
+**/.wrangler/
 **/dist/
 *.tsbuildinfo

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["worker-configuration.d.ts", "workerd/worker.ts"],
+  "exclude": ["dist", "node_modules", "../../references"]
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["edge.ts", "contract.ts"],
+  "exclude": ["backend.ts", "client.ts", "dist", "node_modules", "../../references"]
+}

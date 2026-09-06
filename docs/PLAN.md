@@ -1,7 +1,11 @@
 # Implementation plan
 
-M0 and M1 are complete. The current milestone is **M2: channels over memory**. No library API is published. Read [DESIGN.md](DESIGN.md)
-for the full requirements; ADRs record explicit amendments. The user authorized
+M0 through M2 are complete. The current milestone is **M3: Cloudflare adapter**.
+M2 passed at `5bec59297b`; CI run `34006151006` confirmed its gate. No library
+API is published. Read [DESIGN.md](DESIGN.md)
+for the full requirements; ADRs record explicit amendments. ADR 0014 supersedes
+the design's historical submodule setup; follow [the reference guide](../references/README.md).
+The user authorized
 implementation through M7, but each milestone must pass its gate before work starts
 on the next one.
 
@@ -99,3 +103,15 @@ hibernation between steps. Coverage includes grant rejection, replay/reset,
 presence, durable timer retries, private targeted history, oversized payloads,
 failed writes, reconnect, and disposal. Fallow checks dead code, duplication, and complexity before push. The expanded real channel-client fixture measures
 310,351 instantiations and 0.47 seconds locally; CI verification is pending.
+
+## M3 local acceptance
+
+The complete local quality gate passes with 204 root tests, 13 Cloudflare unit
+tests, and 50 workerd tests with 2 expected native socket-send-fault skips.
+The workerd suite imports the built Cloudflare entry and runs shared conformance
+through forced Durable Object eviction. The chat integration smoke starts an
+isolated local Worker and verifies two-client delivery, presence, history,
+global RPC, and HTTP host fallback. The TanStack Start example builds both its
+client and SSR output. The type-performance programs measure 310,351 client
+instantiations in 0.46 seconds and 235,460 edge instantiations in 0.31 seconds.
+CI confirmation is pending.

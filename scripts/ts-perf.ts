@@ -44,17 +44,18 @@ export function withinBudget(diagnostics: Diagnostics): boolean {
   return diagnostics.instantiations < 500_000 && diagnostics.checkSeconds < 2.5;
 }
 
-async function main(): Promise<void> {
-  const root = fileURLToPath(new URL("../", import.meta.url));
-  if (baseline.status === "scaffold") {
-    console.log(
-      "TS performance: NOT BASELINED. M1 must exercise the real contract/client APIs (200 procedures, 40 channels).",
-    );
-    if (process.argv.includes("--require-baseline")) process.exitCode = 1;
-    return;
-  }
-  if (baseline.status !== "active") throw new Error("Unknown performance baseline status.");
-  const fileList = spawnSync(
+interface PerformanceProgram {
+  readonly name: string;
+  readonly project: string;
+}
+
+const programs: readonly PerformanceProgram[] = [
+  { name: "client", project: "fixtures/big-contract/tsconfig.json" },
+  { name: "edge", project: "fixtures/big-contract/edge.tsconfig.json" },
+];
+
+function runCompiler(root: string, project: string, extendedDiagnostics: boolean) {
+  return spawnSync(
     "bun",
     [
       "x",
@@ -63,54 +64,72 @@ async function main(): Promise<void> {
       "--noEmit",
       "--incremental",
       "false",
-      "--listFilesOnly",
+      ...(extendedDiagnostics ? ["--extendedDiagnostics"] : ["--listFilesOnly"]),
       "-p",
-      "fixtures/big-contract/tsconfig.json",
+      project,
     ],
     { cwd: root, encoding: "utf8" },
   );
+}
+
+async function main(): Promise<void> {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  if (!hasActiveBaseline() || !checkClientBoundary(root)) return;
+  for (const program of programs) {
+    if (!measureProgram(root, program)) return;
+  }
+}
+
+function hasActiveBaseline(): boolean {
+  if (baseline.status === "active") return true;
+  if (baseline.status !== "scaffold") throw new Error("Unknown performance baseline status.");
+  console.log(
+    "TS performance: NOT BASELINED. M1 must exercise the real contract/client APIs (200 procedures, 40 channels).",
+  );
+  if (process.argv.includes("--require-baseline")) process.exitCode = 1;
+  return false;
+}
+
+function checkClientBoundary(root: string): boolean {
+  const client = programs[0];
+  if (client === undefined) throw new Error("Client performance program is required");
+  const fileList = runCompiler(root, client.project, false);
   if (fileList.error) throw fileList.error;
   if (fileList.status !== 0) {
     process.stdout.write(fileList.stdout);
     process.stderr.write(fileList.stderr);
     process.exitCode = fileList.status ?? 1;
-    return;
+    return false;
   }
   const leaks = clientProgramLeaks(fileList.stdout, root);
   if (leaks.length > 0) {
     console.error(`Client type program includes implementation-only files:\n${leaks.join("\n")}`);
     process.exitCode = 1;
-    return;
+    return false;
   }
   console.log("Client type program excludes backend, core source, and memory-adapter source.");
-  const result = spawnSync(
-    "bun",
-    [
-      "x",
-      "--no-install",
-      "tsc",
-      "--noEmit",
-      "--incremental",
-      "false",
-      "--extendedDiagnostics",
-      "-p",
-      "fixtures/big-contract/tsconfig.json",
-    ],
-    { cwd: root, encoding: "utf8" },
-  );
+  return true;
+}
+
+function measureProgram(root: string, program: PerformanceProgram): boolean {
+  const result = runCompiler(root, program.project, true);
   if (result.error) throw result.error;
   process.stdout.write(result.stdout);
   process.stderr.write(result.stderr);
   if (result.status !== 0) {
     process.exitCode = result.status ?? 1;
-    return;
+    return false;
   }
-  if (!withinBudget(parseDiagnostics(result.stdout))) {
-    console.error(
-      "TypeScript performance budget exceeded: require <500k instantiations and <2.5s check time.",
-    );
-    process.exitCode = 1;
-  }
+  const diagnostics = parseDiagnostics(result.stdout);
+  console.log(
+    `${program.name} type performance: ${diagnostics.instantiations} instantiations, ${diagnostics.checkSeconds}s check time.`,
+  );
+  if (withinBudget(diagnostics)) return true;
+  console.error(
+    `${program.name} type performance budget exceeded: require <500k instantiations and <2.5s check time.`,
+  );
+  process.exitCode = 1;
+  return false;
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url))

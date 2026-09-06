@@ -9,6 +9,7 @@
     ".cursor/**",
     ".fallow/**",
     "coverage/**",
+    "packages/cloudflare/worker-configuration.d.ts",
     "references/**",
     "tools/oxlint/anti-slop/**",
     "**/dist/**",

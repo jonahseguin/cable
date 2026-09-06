@@ -1,0 +1,10 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "cable-cloudflare-conformance",
+  "main": "workerd/worker.ts",
+  "compatibility_date": "2026-09-05",
+  "durable_objects": {
+    "bindings": [{ "name": "CABLE_HOSTS", "class_name": "ConformanceHost" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ConformanceHost"] }],
+}

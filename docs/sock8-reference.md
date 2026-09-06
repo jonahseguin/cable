@@ -45,7 +45,7 @@ events as unhandled. The source contains SDK tests, but no Durable Object runtim
 forced-hibernation conformance suite. Treat each behavior as an implementation lead
 to verify, not proof of delivery, ordering, replay, or hibernation safety.
 
-The staged snapshot has no repository-level license file or declaration;
+The snapshot has no repository-level license file or declaration;
 `packages/typescript-config/package.json` declares `PROPRIETARY`. Do not copy code
 from it. If a later port becomes appropriate, settle licensing first and attribute
 the exact source path and license.
