@@ -40,6 +40,40 @@ when handlers already return the output schema's parsed type. Unknown thrown
 values and undeclared error codes are reported to `onError` and sent as a
 sanitized `INTERNAL` failure.
 
+## Reusable procedure middleware
+
+`builder.procedure` resolves one explicit global contract leaf. Its `.use()`
+method captures middleware for leaves resolved through that value. Keep the
+complete contract-shaped object in the existing `.procedures()` call.
+
+```ts
+const builder = implement(api).context<{
+  identity: { role: "admin" | "member" } | null;
+}>();
+
+const publicProcedure = builder.procedure;
+const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  if (ctx.identity === null) throw new CableError("UNAUTHORIZED");
+  return next({ ctx: { identity: ctx.identity } });
+});
+const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  if (ctx.identity.role !== "admin") throw new CableError("FORBIDDEN");
+  return next({ ctx });
+});
+
+export const procedures = builder.procedures({
+  health: publicProcedure(api.health, () => ({ ok: true })),
+  posts: {
+    create: protectedProcedure(api.posts.create, ({ ctx, input }) => ctx.posts.create(input)),
+  },
+  users: { remove: adminProcedure(api.users.remove, ({ ctx, input }) => ctx.users.remove(input)) },
+});
+```
+
+The resolver accepts a global procedure leaf, not a channel. It preserves that
+leaf's input, output, and declared errors. A resolved leaf runs its captured
+middleware once; plain handlers run the builder middleware once.
+
 `POST /_cable/rpc` accepts independent batches. Queries explicitly configured
 for GET are also available at `GET /_cable/rpc/<path>?input=<json>` and apply
 their cache policy only to successful responses. The handler limits POST bodies

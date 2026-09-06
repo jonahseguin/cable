@@ -1,6 +1,4 @@
-import { cloudflareHost, createHandler } from "@cable/cloudflare";
-import type { PeerMessage } from "@cable/core";
-import type { DurableObject } from "cloudflare:workers";
+import { cloudflareHost, createHandler, type CloudflareHostInstance } from "@cable/cloudflare";
 
 import { api } from "./api.js";
 import {
@@ -10,13 +8,8 @@ import {
   type Identity,
 } from "./chat-server.js";
 
-interface ChatDurableObject extends DurableObject<Env> {
-  // oxlint-disable-next-line anti-slop/no-unknown-returns -- The core peer caller parses each operation's structured-clone result.
-  __cable_peer(message: PeerMessage): Promise<unknown>;
-}
-
 interface Env {
-  readonly CHAT: DurableObjectNamespace<ChatDurableObject>;
+  readonly CHAT: DurableObjectNamespace<CloudflareHostInstance<Env>>;
   readonly CABLE_GRANT_SECRET: string;
 }
 

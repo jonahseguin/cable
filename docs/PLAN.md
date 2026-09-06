@@ -143,3 +143,19 @@ pass. The full local gate passed 258 root tests with 1 expected skip, 13
 Cloudflare unit tests, 46 workerd tests with 2 expected skips, both chat
 integration smokes, Fallow, and type-performance baselines. CI verification
 passed at `a24545cf3f` in run `34023046798`; M6 is active.
+
+## Accepted follow-up: composable server procedure groups
+
+This accepted scope is implemented and remains pending the full M6 gate. ADR
+0028 defines reusable application `public`, protected, and admin procedure
+resolvers inside the existing complete `.procedures({ ... })` assembly. Each
+resolver applies its middleware to one explicit contract leaf, with context
+refinement through the current middleware `next({ ctx })` rule.
+Authentication remains adapter context setup and authorization remains
+application middleware; the contract does not acquire server policy.
+
+Implementation must retain complete global-procedure coverage, reject duplicate
+or channel paths, preserve leaf input/output/error inference, and keep the
+existing 200-procedure/40-channel type fixture and limits unchanged. Type and
+runtime regressions plus `bun run ts-perf` have passed; the feature does not
+advance M6 until its full gate passes.

@@ -88,6 +88,8 @@ export {
   type ProcedureHandler,
   type ProcedureHandlerOptions,
   type ProcedureImplementations,
+  type ProcedureResolver,
+  type ResolvedProcedure,
   type ProcedureOptions,
   type MaybePromise,
 } from "./implementation.js";

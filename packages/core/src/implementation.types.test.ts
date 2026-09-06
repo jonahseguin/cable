@@ -21,6 +21,12 @@ const contract = c.contract({
   },
 });
 
+const accessContract = c.contract({
+  admin: c.query({ input: z.void(), output: z.string() }),
+  public: c.query({ input: z.void(), output: z.string() }),
+  room: c.channel("room.{id}", { client: {}, procedures: {}, server: {} }),
+});
+
 function compileAssertions(): void {
   implement(contract)
     .context<{ readonly seed: number }>()
@@ -56,6 +62,47 @@ function compileAssertions(): void {
         transform: () => "already transformed",
       },
     });
+
+  const builder = implement(accessContract).context<{
+    readonly identity: { readonly role: "admin" } | { readonly role: "member" } | null;
+  }>();
+  const protectedProcedure = builder.procedure.use(async ({ ctx, next }) => {
+    if (ctx.identity === null) throw new Error("unauthorized");
+    return next({ ctx: { identity: ctx.identity } });
+  });
+  const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+    const identity = ctx.identity;
+    if (identity.role !== "admin") throw new Error("forbidden");
+    return next({ ctx: { identity } });
+  });
+  builder.procedures({
+    admin: adminProcedure(accessContract.admin, ({ ctx }) => {
+      const role: "admin" = ctx.identity.role;
+      return role;
+    }),
+    public: builder.procedure(accessContract.public, () => "ok"),
+  });
+  // @ts-expect-error Channel contracts cannot resolve as global procedures.
+  builder.procedure(accessContract.room, () => "no");
+
+  const taggedBuilder = builder.use(async ({ ctx, next }) =>
+    next({ ctx: { identity: ctx.identity, requestTag: "tagged" } }),
+  );
+  const taggedProcedure = taggedBuilder.procedure;
+  taggedBuilder.procedures({
+    admin: taggedProcedure(accessContract.admin, ({ ctx }) => {
+      const tag: string = ctx.requestTag;
+      return tag;
+    }),
+    public: taggedProcedure(accessContract.public, ({ ctx }) => ctx.requestTag),
+  });
+
+  const stronger = implement(accessContract).context<{
+    readonly identity: { readonly id: string };
+  }>();
+  const strongerLeaf = stronger.procedure(accessContract.public, ({ ctx }) => ctx.identity.id);
+  // @ts-expect-error A resolver requiring identity cannot mount on a builder whose initial context lacks it.
+  builder.procedures({ admin: () => "admin", public: strongerLeaf });
 }
 
 /** Proves that code checks retain the payload paired with each declared error. */

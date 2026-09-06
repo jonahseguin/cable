@@ -34,6 +34,14 @@ export interface CloudflareRuntimeOptions<TEnv> extends CloudflareHostOptions<TE
   readonly now: () => number;
 }
 
+/**
+ * Instance contract implemented by a class returned from {@link cloudflareHost}.
+ *
+ * Use this type for a `DurableObjectNamespace` binding when the generated class
+ * needs its environment to refer back to that namespace.
+ */
+export type CloudflareHostInstance<TEnv> = DurableObject<TEnv> & CableDurableObject;
+
 /** A Durable Object class generated for one channel contract. */
 export type CloudflareDurableObjectClass<TEnv> = new (
   state: DurableObjectState,
