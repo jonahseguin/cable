@@ -84,6 +84,15 @@ watch mode, enable telemetry, or apply a fix before reviewing a dry run.
   the same change. Public package behavior changes require a changeset; setup,
   tests, and internal refactors do not need an empty one.
 
+## Agent quality gate
+
+The tracked native hooks run `bun run check` before a changed Claude or Codex
+session completes. A successful result applies only to the exact repository
+content checked. If the hook reports an unverified state, report that failed
+check as the blocker and do not call the work verified. See
+[`docs/agent-quality-gate.md`](docs/agent-quality-gate.md) for activation and
+scope.
+
 ## Milestone gates
 
 - M0 creates tooling, references, empty packages, ADRs, and the performance
