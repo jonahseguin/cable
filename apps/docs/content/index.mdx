@@ -1,0 +1,31 @@
+# Introduction
+
+[removed] provides a fully typed realtime platform with pub/sub messaging and optional presence synchronization over WebSockets.
+
+The [removed] SDK is how you define, emit, and subscribe to your application's realtime channels. It models realtime events as structured, typesafe channels, shared across server and client with full TypeScript support — without requiring any manual WebSocket management.
+
+In [removed], every channel is declared upfront. A channel can define:
+
+- A typed message schema (required).
+- Dynamic parameters (for user- or room-specific channels).
+- Presence metadata (for tracking online users and custom presence states).
+
+This approach treats realtime as a **first-class domain model**, not just as network plumbing. Realtime is statically typed, validated at runtime, and fully integrated into your application's structure.
+
+## Design Principles
+
+[removed] is designed around a few key ideas:
+
+- **Typed first.** All events, payloads, and parameters are typed at build time and validated at runtime.
+- **Declarative modeling.** Channels are defined explicitly, composed hierarchically, and shared across client and server.
+- **Infrastructure abstraction.** [removed] handles connection, scaling, presence tracking, and delivery — you model your application logic, not the transport.
+
+## Features
+
+- Typed channel definitions with optional parameters and presence
+- End-to-end type sharing (server ↔ client)
+- Runtime validation for all messages
+- Presence synchronization with customizable schemas
+- Next.js-first server-side authorization tooling
+- No code generation or manual type syncing
+- Region-aware, cloud-native backend

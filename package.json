@@ -1,0 +1,57 @@
+{
+  "name": "shadcn-ui-monorepo",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "turbo build --filter='!apps/docs'",
+    "dev": "turbo run dev --filter=./apps/** --filter=./packages/db",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md,js,jsx,json,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,js,jsx,json,css}\"",
+    "prepare": "husky",
+    "test": "turbo test",
+    "build:packages": "turbo build --filter=./packages/**"
+  },
+  "devDependencies": {
+    "@[removed]/eslint-config": "workspace:*",
+    "@[removed]/typescript-config": "workspace:*",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
+    "prettier": "^3.5.1",
+    "turbo": "^2.4.2",
+    "typescript": "5.7.3",
+    "eslint": "^9.20.1"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/sdk/*"
+  ],
+  "packageManager": "bun@1.2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "lint-staged": {
+    "apps/web/**/*.{js,jsx,ts,tsx}": [
+      "cd apps/web && bun next lint --fix",
+      "prettier --write"
+    ],
+    "apps/api/**/*.{js,jsx,ts,tsx}": [
+      "cd apps/api && bun run lint:fix",
+      "prettier --write"
+    ],
+    "packages/**/*.{js,jsx,ts,tsx}": [
+      "prettier --write"
+    ],
+    "*.{js,jsx,ts,tsx}": [
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
+  },
+  "overrides": {
+    "nanoid": "3.3.6"
+  }
+}

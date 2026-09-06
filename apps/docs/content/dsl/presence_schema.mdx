@@ -1,0 +1,84 @@
+# Presence Schema
+
+[removed] supports **optional presence tracking** per channel.
+
+Presence allows you to attach structured metadata to each connected client —  
+such as online status, cursor position, typing indicators, etc.
+
+---
+
+## Defining Presence
+
+Presence is defined as part of the channel configuration.
+
+You specify a presence Zod schema inside the `config.presence` object.
+
+Example:
+
+```ts
+{
+  'chat.global.messages': {
+    schema: z.object({
+      sender: z.string(),
+      text: z.string(),
+    }),
+    config: {
+      presence: z.object({
+        typing: z.boolean(),
+        cursor: z.object({
+          x: z.number(),
+          y: z.number(),
+        }).optional(),
+      }),
+    },
+  },
+}
+```
+
+Here:
+
+- The **message payload** has a sender and text.
+- The **presence metadata** tracks whether a user is typing, and their optional cursor position.
+
+---
+
+## Presence Data Behavior
+
+When a user connects to a channel with presence:
+
+- [removed] automatically tracks a lightweight presence record for that connection.
+- You can **update** your presence data (e.g., cursor moves, typing status) without resubscribing.
+- Other clients receive **reactive updates** when presence data changes.
+
+Presence is scoped **per channel** —  
+different channels can have entirely different presence schemas.
+
+---
+
+## Why Define a Schema?
+
+Presence data is:
+
+- **Type-safe** — you get full TypeScript inference when reading or updating presence.
+- **Validated** at runtime against the schema you define.
+- **Predictable** — all clients see a consistent shape for presence records.
+
+If you don't define a `presence` schema for a channel,  
+then presence APIs are not available for that channel.
+
+---
+
+## Examples of Presence Use Cases
+
+- Typing indicators in chat apps.
+- Live cursor sharing for collaboration.
+- User availability ("online", "away", "busy" states).
+- Tracking viewports or current active sections.
+
+---
+
+## Important Notes
+
+- Presence records are lightweight and designed for fast, frequent updates.
+- Presence updates **do not** persist — if a user disconnects, their presence disappears automatically.
+- [removed] presence is optimized for **realtime ephemeral state**, not long-term storage.

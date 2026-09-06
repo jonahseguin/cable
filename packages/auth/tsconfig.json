@@ -1,0 +1,9 @@
+{
+  "extends": "@[removed]/typescript-config/react-library.json",
+  "include": ["src", "migrations"],
+  "exclude": ["node_modules"],
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler"
+  }
+}

@@ -1,0 +1,86 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1. When creating code, especially when iterating or modifying an existing piece of code to accomdate a request:
+    - You **MUST ONLY** create comments if the underlying logic is complex, where otherwise it would be difficult to maintain the code.
+    - You **MUST NOT** create comments on code that is self-documenting or otherwise obvious in its purpose.
+    - You **MUST NOT** create ANY meta comments. (i.e: "Take 2", "attempting to do XYZ")
+    - You **MUST NOT** trust code comments as the source of truth as to __what__ a function or piece of code does.
+        - You should evaluate the piece of code and derive an understanding of what it does, as it's possible the comments can lead to many red herrings.
+    - If you come across a file that's relevant in your task and that file has redundant or poor/meta comments, you are expected to remove them to clean up the code.
+    - You **MUST NOT** leave hanging unused variables or linter errors. If an unused variable is relevant or necessary, prefix it with `_` to ignore the linter warning.
+ 
+2. When deleting code:
+    - You **MUST NOT** just comment out code meant for deletions.
+    - You **MUST** actually use the edit_tool to delete the code.
+
+1. COMMENTING & CODE HYGIENE
+   • Only comment when the logic is *genuinely* non‑obvious.  
+     ‑ Self‑documenting code (clear naming, small pure functions) gets **no**
+       extra comments.  
+   • Never write **meta comments** (e.g., “Take 2: trying XYZ”).  
+   • Do **not** trust existing comments as truth; reason through the code itself.  
+   • When you encounter obsolete, redundant, or meta comments, remove them.  
+   • TODO / FIXME *are allowed* but must include a ticket link and a terse,
+     objective description—otherwise they count as meta and must be deleted.
+
+4. When working within `apps/web`([package.json](mdc:apps/web/package.json)):
+    - You have access to `shadcn/ui`, which is located in `packages/ui`. 
+    - To add shadcn components, you **MUST NOT** use `bunx --bun shadcn-ui@latest`, but rather `bunx shadcn@latest`.
+    - We use bun for our package manager, so you **MUST** use `bun` commands.
+    - Components within `apps/web/components` should use folder structure to 'scope' comments to the pages they're relevant to. (See `apps/web/components/dashboard for an example of this)
+    - All new components specific to the `web` app should be created within `apps/web/components`, with the exception of shadcn components which live in `packages/ui`.
+    - Component file name conventions are: `component-name.tsx` and **NOT** `ComponentName.tsx`.
+    - It is okay to prototype within a single page when expanding or building a new design, however, before being considered done, you must prompt and ask if we should refactor/clean up the page into reusable and typed components.
+    - If you create a more design-aligned reusable wrapper over a shadcn component, it should be created in `apps/web/components/ui`.
+
+3. NAVIGATING THE CODEBASE
+   • When a file is provided as context, read it *in full* before editing.  
+   • New chats begin as discussion / brainstorming. **Do not** write code until
+     you receive explicit implementatios.  
+   • You are free to open or search any file that helps you understand the task.
+
+4. `apps/web` GUIDELINES (`package.json` in that folder)
+   • Use **bun** commands only. Example:  
+     ```bash
+     bun add @acme/foo@latest      # ✅ correct
+     npm install @acme/foo         # ❌ don’t do this
+     ```  
+   • To add Shadcn components, run `bunx shadcn@latest` (not `bunx --bun
+     shadcn-ui@latest`).  
+   • Local component location rules  
+     ‑ Page‑specific components live in `apps/web/components/<page>/`.  
+     ‑ Reusable UI wrappers around Shadcn live in `apps/web/components/ui/`.  
+   • Filenames are **kebab‑case**: `component-name.tsx`, never `ComponentName.tsx`.  
+   • Prototyping in a single page is fine, but before calling the feature
+     “done” you must ask whether to refactor it into reusable, typed components.  
+   • UX / visual changes *must* respect `globals.css` and the design system
+     (`apps/web/components/design-system.md`). If you add a new pattern, extend
+     that doc (create it if missing). Keep spacing and padding consistent.
+
+5. `apps/api` GUIDELINES (`package.json` in that folder)
+   • Before suggesting or writing code, read *all* files in `durable-objectervices/`, and `routes/`.  
+   • We use **Wrangler v4** with `wrangler.jsonc` (no `wrangler.toml`).  
+   • All code must satisfy three constraints simultaneously:  
+     ① **High throughput** ② **Extremely low latency** ③ **Maximum scalability**  
+     Easier implementations are rejected if any constraint is compromised.  
+   • Include perf sanity tests or benchmark notes for any performance‑critical
+     change.
+
+6. `packages/sdk` GUIDELINES
+   • When working in `packages/sdk/common` (`@[removed]/sdk/sdl`) modify **only** the
+     type system unless explicitly told to touch runtime code.  
+   • Do **not** introduce breaking type changes without explicit sign‑off.
+
+7. CROSS‑CUTTING RULES
+   • Any change thatr behavior or introduce regressions requires
+     prior confirmation from the user / reviewer. State the risk clearly in the
+     PR description.  
+   • Structure commits so that pure refactors, behavior changes, and perf /
+     visual tweaks are separate and easy to review.  
+   • New features and refactors must include adequate unit tests; UI changes
+     should have a visual regression test or Chromatic snapshot when possible.
+
+───────────────────────────────────────────────────────────────────────────────

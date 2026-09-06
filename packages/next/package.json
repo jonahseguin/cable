@@ -1,0 +1,31 @@
+{
+  "name": "@[removed]/next",
+  "module": "index.ts",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server/index.ts",
+    "./client": "./src/client/index.ts"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/client/index.ts --dts --format esm --out-dir dist --tsconfig tsconfig.json",
+    "dev": "bun build src/index.ts --outdir dist --watch",
+    "lint": "bunx eslint ."
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5",
+    "@[removed]/sdk": "workspace:*",
+    "react": "^18",
+    "zod": "^3.24.2"
+  },
+  "dependencies": {
+    "@[removed]/sdk": "workspace:*",
+    "valtio": "^2.1.4",
+    "zustand": "^5.0.3"
+  }
+}
