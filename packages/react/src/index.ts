@@ -9,6 +9,7 @@ export type {
   CableMutationOptions,
   CableQuery,
   CableQueryKey,
+  CableQueryNode,
   CableQueryOptions,
   MutationOptionsLeaf,
   QueryOptionsLeaf,
