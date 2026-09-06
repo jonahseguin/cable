@@ -1,7 +1,7 @@
 # Implementation plan
 
-M0 through M2 are complete. The current milestone is **M3: Cloudflare adapter**.
-M2 passed at `5bec59297b`; CI run `34006151006` confirmed its gate. No library
+M0 through M3 are complete. The current milestone is **M4: React integration**.
+M3 passed at `b24677e72d`; CI run `34011847336` confirmed its gate. No library
 API is published. Read [DESIGN.md](DESIGN.md)
 for the full requirements; ADRs record explicit amendments. ADR 0014 supersedes
 the design's historical submodule setup; follow [the reference guide](../references/README.md).
@@ -104,7 +104,7 @@ presence, durable timer retries, private targeted history, oversized payloads,
 failed writes, reconnect, and disposal. Fallow checks dead code, duplication, and complexity before push. The expanded real channel-client fixture measures
 310,351 instantiations and 0.47 seconds locally; CI verification is pending.
 
-## M3 local acceptance
+## M3 acceptance
 
 The complete local quality gate passes with 204 root tests, 13 Cloudflare unit
 tests, and 50 workerd tests with 2 expected native socket-send-fault skips.
@@ -114,4 +114,4 @@ isolated local Worker and verifies two-client delivery, presence, history,
 global RPC, and HTTP host fallback. The TanStack Start example builds both its
 client and SSR output. The type-performance programs measure 310,351 client
 instantiations in 0.46 seconds and 235,460 edge instantiations in 0.31 seconds.
-CI confirmation is pending.
+CI run `34011847336` passed the Node 22 compatibility job and full quality gate.
