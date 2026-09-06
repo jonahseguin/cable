@@ -13,6 +13,7 @@ readonly reference_names=(
   cloudflare-agents
   partyserver
   capnweb
+  sock8
 )
 usage() {
   printf 'Usage: %s <init|update <name> [ref]|status>\n' "${BASH_SOURCE[0]}" >&2
@@ -80,7 +81,7 @@ reference_status() {
   split="$(subtree_split "$path")"
   if [[ -z "$split" ]]; then
     printf '%-22s %s (subtree metadata unavailable)\n' "$path" "$expected"
-    return 0
+    return 1
   fi
 
   if [[ "$split" != "$expected" ]]; then

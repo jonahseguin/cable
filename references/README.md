@@ -42,6 +42,7 @@ on a path.
 | [`cloudflare/agents`](https://github.com/cloudflare/agents) | `ec93caf6ec1efebb521aa9ab30c0a8cb2b4d50d5` | MIT; bundled PartyServer substrate is ISC | `packages/agents/src/lifecycle/`; `packages/agents/src/websockets/`; `packages/agents/src/` | Durable Object hibernation mechanics, tags, attachments, alarms, and callable/state-sync patterns. Current Agents no longer contains a separate `packages/partyserver/` tree. |
 | [`cloudflare/partykit` (PartyServer)](https://github.com/cloudflare/partykit/tree/main/packages/partyserver) | `f0a2e97d233f24545b2648aec2ed6a191e11074e` | ISC (`packages/partyserver`) | `packages/partyserver/src/` | The standalone PartyServer Durable Object/WebSocket wrapper, retained as a separate reference after Agents moved its substrate into `agents/lifecycle`. |
 | [`cloudflare/capnweb`](https://github.com/cloudflare/capnweb) | `3edfc500a97361b1bdac97c260c9597f500748c6` | MIT | `src/` | Compare object-capability RPC and bidirectional-call framing with cable's own protocol. |
+| [`sock-8/sock8`](https://github.com/sock-8/sock8) | `87065f464c7bd8a81a8a40a2de13185b7726ad78` | No repository-level license; `packages/typescript-config` declares `PROPRIETARY` | `packages/sdk/dsl.md`; `packages/sdk/src/server/lib/channels.ts`; `packages/sdk/src/client/lib/{proxy,connection}.ts`; `packages/next/src/client/{use-presence,use-history}.ts`; `apps/api/src/durable-objects/{socket-shard,presence-channel}.ts`; `apps/api/src/services/{connection,presence,publish}-service.ts` | An unfinished predecessor of cable. Study its parameterized-channel direction and early Durable Object experiments; do not treat its behavior, tests, or implementation choices as authority. |
 
 Rivet currently ships its TypeScript implementation under
 `rivetkit-typescript/` and its public docs source under `docs/content/docs/`.
@@ -50,6 +51,12 @@ are directly available even though cable tooling excludes `references/**`.
 PartyServer currently declares ISC in its package metadata; the separate
 `references/partyserver` subtree is intentionally kept alongside Agents so
 that its implementation and license remain directly inspectable.
+
+Sock8's lock URL uses SSH, so `scripts/refs.sh update sock8` requires GitHub SSH
+access. The snapshot has no repository-level license file or declaration;
+`packages/typescript-config/package.json` declares `PROPRIETARY`. It is controlled
+reference material. Do not port its code unless its licensing is settled and the
+port is attributed.
 
 ## External documentation
 
