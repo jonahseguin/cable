@@ -161,6 +161,21 @@ describe("contract DSL", () => {
     ).toThrow("Channel procedure name 'history' is reserved");
     expect(() =>
       c.channel("chat", {
+        client: { stream: stringSchema },
+        server: {},
+      }),
+    ).toThrow("Channel client event name 'stream' is reserved");
+    expect(() =>
+      c.channel("chat", {
+        client: {},
+        procedures: {
+          stream: c.query({ input: stringSchema, output: stringSchema }),
+        },
+        server: {},
+      }),
+    ).toThrow("Channel procedure name 'stream' is reserved");
+    expect(() =>
+      c.channel("chat", {
         client: {},
         server: { reset: stringSchema },
       }),

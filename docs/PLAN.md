@@ -1,15 +1,19 @@
 # Implementation plan
 
-M0 through M5 are complete. The current milestone is **M6: Rivet adapter and
-example**. M3 passed at `b24677e72d`; CI run `34011847336` confirmed its gate.
+M0 through M5 are complete. **M6: Rivet adapter and example** remains active
+with its hibernation gate unresolved. **M7: Optional Effect integration** is
+implemented and passed its isolated local gate under the user's sequencing
+exception; it remains private and unpublished. That exception does not weaken,
+bypass, or satisfy the M6 gate. M3
+passed at `b24677e72d`; CI run `34011847336` confirmed its gate.
 M4 passed at `0d188888fa`; CI run `34020413544` confirmed its gate. M5 passed
 at `a24545cf3f`; CI run `34023046798` confirmed its gate. No library API
 is published. Read [DESIGN.md](DESIGN.md)
 for the full requirements; ADRs record explicit amendments. ADR 0014 supersedes
 the design's historical submodule setup; follow [the reference guide](../references/README.md).
-The user authorized
-implementation through M7, but each milestone must pass its gate before work starts
-on the next one.
+The user authorized implementation through M7. M6 and M7 may proceed in
+parallel under the sequencing exception above; every milestone still requires
+its own gate before it is described as complete.
 
 ## M0 sequence and acceptance
 

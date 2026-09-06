@@ -26,6 +26,10 @@ export default defineConfig({
       name: "anti-slop",
       specifier: "./tools/oxlint/anti-slop/index.ts",
     },
+    {
+      name: "anti-slop-effect",
+      specifier: "./tools/oxlint/anti-slop/effect/index.ts",
+    },
   ],
   options: {
     typeAware: true,
@@ -47,6 +51,7 @@ export default defineConfig({
     "anti-slop/no-unsafe-dictionary-type": "error",
     "anti-slop/no-widen-then-assert": "error",
     "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "anti-slop-effect/no-service-constructor-imports": "error",
     eqeqeq: "error",
     "import/first": "error",
     "import/newline-after-import": "error",

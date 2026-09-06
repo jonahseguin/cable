@@ -17,5 +17,15 @@
   "scripts": {
     "build": "tsdown src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cable/client": "workspace:*",
+    "@cable/contract": "workspace:*",
+    "@cable/core": "workspace:*",
+    "effect": "4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@cable/adapter-memory": "workspace:*",
+    "zod": "4.5.4"
   }
 }
