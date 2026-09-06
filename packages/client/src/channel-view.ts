@@ -30,11 +30,14 @@ export class ChannelView {
   private readonly pool: ChannelPool;
   private readonly contract: AnyChannelContract;
   private readonly input: RpcCall["input"];
-  private readonly offs = new Set<Unsubscribe>();
+  private readonly subscriptions = new Set<Unsubscribe>();
+  private readonly sessionOffs = new Set<Unsubscribe>();
   private readonly errors = new Set<(error: Error) => void>();
   private readonly statuses = new Set<() => void>();
   private managed: ManagedChannel | undefined;
   private acquiring: Promise<ManagedChannel> | undefined;
+  private pooled = false;
+  private leases = 0;
   private disposed = false;
   private failed = false;
   readonly presence: RuntimePresence;
@@ -53,9 +56,7 @@ export class ChannelView {
         return view.managed?.others ?? noMembers;
       },
       update(data) {
-        view.fire((managed) => {
-          managed.updatePresence(data);
-        });
+        view.fire((managed) => managed.updatePresence(data));
       },
       on(listener) {
         return view.subscribe((managed) => managed.onPresence(listener));
@@ -65,7 +66,8 @@ export class ChannelView {
 
   get status(): ChannelStatus {
     if (this.disposed || this.failed) return "closed";
-    return this.managed?.session.status ?? (this.acquiring === undefined ? "closed" : "connecting");
+    if (this.pooled) return this.managed?.session.status ?? "connecting";
+    return this.leases === 0 ? "closed" : "connecting";
   }
 
   readonly on = (event: string, listener: RpcCall["input"]): Unsubscribe => {
@@ -88,12 +90,12 @@ export class ChannelView {
 
   readonly onStatus = (listener: () => void): Unsubscribe => {
     this.statuses.add(listener);
-    this.fire((managed) => {
+    return this.subscribe((managed) => {
       managed.session.start();
+      return () => {
+        this.statuses.delete(listener);
+      };
     });
-    return () => {
-      this.statuses.delete(listener);
-    };
   };
 
   readonly onError = (listener: (error: Error) => void): Unsubscribe => {
@@ -106,9 +108,9 @@ export class ChannelView {
   readonly dispose = (): void => {
     if (this.disposed) return;
     this.disposed = true;
-    for (const off of this.offs) off();
-    this.offs.clear();
-    if (this.managed !== undefined) this.pool.release(this.managed);
+    for (const off of this.subscriptions) off();
+    this.subscriptions.clear();
+    this.releasePool();
     this.changedStatus();
     this.statuses.clear();
     this.errors.clear();
@@ -151,18 +153,15 @@ export class ChannelView {
     if (options !== undefined && !isAck(options))
       throw new TypeError("Event options must request ack: true.");
     if (isAck(options)) return this.acknowledge(event, args[0]);
-    this.fire((managed) => {
-      managed.session.send({ t: "emit", ev: event, d: args[0] });
-    });
+    this.fire((managed) => managed.session.send({ t: "emit", ev: event, d: args[0] }));
   }
 
   private async acknowledge(event: string, input: RpcCall["input"]): Promise<void> {
-    const managed = await this.acquire();
-    await managed.session.request({ t: "emit", ev: event, d: input });
+    await this.temporary((managed) => managed.session.request({ t: "emit", ev: event, d: input }));
   }
 
   private async call(procedure: string, input: RpcCall["input"]): Promise<RpcCall["input"]> {
-    return this.pool.call(await this.acquire(), procedure, input);
+    return this.temporary((managed) => this.pool.call(managed, procedure, input));
   }
 
   private acquire(): Promise<ManagedChannel> {
@@ -170,45 +169,100 @@ export class ChannelView {
       return Promise.reject(
         new CableError("UNAVAILABLE", { message: "Channel handle is disposed." }),
       );
-    this.acquiring ??= this.pool.acquire(this.contract, this.input).then((managed) => {
-      if (this.disposed) {
-        this.pool.release(managed);
-        throw new CableError("UNAVAILABLE");
-      }
-      this.managed = managed;
-      this.offs.add(managed.session.onError(this.reportError));
-      this.offs.add(managed.session.onStatus(this.changedStatus));
-      this.changedStatus();
-      return managed;
-    });
+    if (this.pooled && this.managed !== undefined) return Promise.resolve(this.managed);
+    if (this.acquiring !== undefined) return this.acquiring;
+    this.acquiring ??= this.pool
+      .acquire(this.contract, this.input)
+      .then((managed) => {
+        if (this.disposed || this.leases === 0) {
+          this.managed = managed;
+          this.pool.release(managed);
+        } else this.attach(managed);
+        this.acquiring = undefined;
+        return managed;
+      })
+      .catch((cause: unknown) => {
+        this.acquiring = undefined;
+        this.failed = true;
+        this.changedStatus();
+        throw cause;
+      });
     return this.acquiring;
   }
 
+  private attach(managed: ManagedChannel): void {
+    this.managed = managed;
+    this.pooled = true;
+    this.sessionOffs.add(managed.session.onError(this.reportError));
+    this.sessionOffs.add(managed.session.onStatus(this.changedStatus));
+    this.changedStatus();
+  }
+
+  private lease(): Unsubscribe {
+    if (this.disposed) return () => undefined;
+    this.failed = false;
+    this.leases += 1;
+    return () => {
+      if (this.leases === 0) return;
+      this.leases -= 1;
+      if (this.leases === 0) this.releasePool();
+    };
+  }
+
+  private releasePool(): void {
+    if (!this.pooled || this.managed === undefined) return;
+    const managed = this.managed;
+    this.pooled = false;
+    for (const off of this.sessionOffs) off();
+    this.sessionOffs.clear();
+    this.pool.release(managed);
+    this.changedStatus();
+  }
+
+  private async temporary<Result>(
+    operation: (managed: ManagedChannel) => Result | Promise<Result>,
+  ): Promise<Result> {
+    const release = this.lease();
+    try {
+      const managed = await this.acquire();
+      if (this.disposed) throw new CableError("UNAVAILABLE");
+      return await operation(managed);
+    } finally {
+      release();
+    }
+  }
+
   private subscribe(attach: (managed: ManagedChannel) => Unsubscribe): Unsubscribe {
+    const release = this.lease();
     let active = true;
     let detach: Unsubscribe | undefined;
     const off = (): void => {
+      if (!active) return;
       active = false;
       detach?.();
-      this.offs.delete(off);
+      release();
+      this.subscriptions.delete(off);
     };
-    this.offs.add(off);
-    this.fire((managed) => {
-      if (!active) return;
-      detach = attach(managed);
-      managed.session.start();
-    });
+    this.subscriptions.add(off);
+    void this.acquire()
+      .then((managed) => {
+        if (!active || this.disposed) return undefined;
+        detach = attach(managed);
+        managed.session.start();
+        return undefined;
+      })
+      .catch((cause: unknown) => {
+        if (active && !this.disposed)
+          this.reportError(cause instanceof Error ? cause : new CableError("UNAVAILABLE"));
+      });
     return off;
   }
 
-  private fire(operation: (managed: ManagedChannel) => void): void {
-    void this.acquire()
-      .then(operation)
-      .catch((cause: unknown) => {
-        this.failed = this.managed === undefined;
+  private fire(operation: (managed: ManagedChannel) => void | Promise<void>): void {
+    void this.temporary(operation).catch((cause: unknown) => {
+      if (!this.disposed)
         this.reportError(cause instanceof Error ? cause : new CableError("UNAVAILABLE"));
-        this.changedStatus();
-      });
+    });
   }
 
   private readonly reportError = (error: Error): void => {

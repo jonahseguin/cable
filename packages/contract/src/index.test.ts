@@ -230,6 +230,26 @@ describe("contract DSL", () => {
     const definition = { [name]: c.query({ input: stringSchema, output: stringSchema }) };
     expect(() => c.contract(definition)).toThrow("contains a path separator");
   });
+
+  it("keeps nested dot paths distinct by rejecting dotted router segments", () => {
+    expect(() =>
+      c.contract({
+        nested: { procedure: c.query({ input: stringSchema, output: stringSchema }) },
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      c.contract({
+        nested: { "with.dot": c.query({ input: stringSchema, output: stringSchema }) },
+      }),
+    ).toThrow("Contract key 'nested.with.dot' contains a path separator");
+
+    expect(() =>
+      c.contract({
+        "channel.parent": c.channel("chat.{id}", { client: {}, server: {} }),
+      }),
+    ).toThrow("Contract key 'channel.parent' contains a path separator");
+  });
 });
 
 describe("node inference", () => {

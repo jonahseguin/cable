@@ -134,6 +134,11 @@ function procedureExercise(index: number): string {
   const path = `api.group${Math.floor(index / 40)}.section${Math.floor(index / 10) % 4}.procedure${index}`;
   const clientPath = `client.group${Math.floor(index / 40)}.section${Math.floor(index / 10) % 4}.procedure${index}`;
   const operation = index % 2 === 0 ? "query" : "mutate";
+  const options =
+    index % 2 === 0
+      ? `const queryKey${index} = cable.group${Math.floor(index / 40)}.section${Math.floor(index / 10) % 4}.procedure${index}.queryKey(input${index});
+const queryOptions${index} = cable.group${Math.floor(index / 40)}.section${Math.floor(index / 10) % 4}.procedure${index}.queryOptions(input${index});`
+      : `const mutationOptions${index} = cable.group${Math.floor(index / 40)}.section${Math.floor(index / 10) % 4}.procedure${index}.mutationOptions();`;
   return `const input${index}: InferInput<typeof ${path}> = {
   id: "item-${index}",
   cursor: ${index},
@@ -143,7 +148,8 @@ const call${index}: Promise<InferOutput<typeof ${path}>> = ${clientPath}.${opera
 const error${index}: InferErrors<typeof ${path}> = {
   code: "${index % 2 === 0 ? "FORBIDDEN" : "RATE_LIMITED"}",
   data: ${index % 2 === 0 ? `{ resource: "procedure${index}" }` : `{ retryAfter: ${index + 1} }`},
-};`;
+};
+${options}`;
 }
 
 function channelExercise(index: number): string {
@@ -278,6 +284,18 @@ function clientSource(): string {
   const inputs = Array.from({ length: procedureCount }, (_, index) => `input${index}`).join(", ");
   const calls = Array.from({ length: procedureCount }, (_, index) => `call${index}`).join(", ");
   const errors = Array.from({ length: procedureCount }, (_, index) => `error${index}`).join(", ");
+  const queryKeys = Array.from(
+    { length: procedureCount / 2 },
+    (_, index) => `queryKey${index * 2}`,
+  ).join(", ");
+  const queryOptions = Array.from(
+    { length: procedureCount / 2 },
+    (_, index) => `queryOptions${index * 2}`,
+  ).join(", ");
+  const mutationOptions = Array.from(
+    { length: procedureCount / 2 },
+    (_, index) => `mutationOptions${index * 2 + 1}`,
+  ).join(", ");
   const channels = Array.from({ length: channelCount }, (_, index) => channelExercise(index)).join(
     "\n\n",
   );
@@ -292,17 +310,25 @@ function clientSource(): string {
 } from "@cable/contract";
 import { createClient } from "@cable/client";
 import type { ChannelStatus, Link, PresenceMember } from "@cable/client";
+import { createCableQuery } from "@cable/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { api, type Api } from "./contract.js";
 
 const memoryLink: Link = () => async (call) => ({ id: call.id, ok: true, data: undefined });
 const client = createClient<Api>({ contract: api, links: [memoryLink] });
+const cable = createCableQuery(client);
 
 ${exercises}
 
 export const procedureInputs = [${inputs}] as const;
 export const procedureCalls = [${calls}] as const;
 export const procedureErrors = [${errors}] as const;
+export const cableQueryKeys = [${queryKeys}] as const;
+export const cableQueryOptions = [${queryOptions}] as const;
+export const cableMutationOptions = [${mutationOptions}] as const;
+export const nativeQuery = useQuery(queryOptions0);
+export const nativeMutation = useMutation(mutationOptions1);
 
 ${channels}
 `;

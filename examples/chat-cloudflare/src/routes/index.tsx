@@ -1,110 +1,19 @@
-import { createClient } from "@cable/client";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
+import type { ReactNode } from "react";
 
-import { api } from "../api.js";
-
-const identityKey = "cable-chat-name";
-const browserStorage = typeof window === "undefined" ? undefined : window.sessionStorage;
-const cable = createClient({
-  auth: {
-    token: () => browserStorage?.getItem(identityKey) ?? undefined,
-  },
-  contract: api,
-  url: "/_cable",
-  ws: { cursors: browserStorage, idleClose: 1_000 },
-});
-
-interface Message {
-  readonly id: number;
-  readonly text: string;
-  readonly user: string;
-}
+import { ChatSession } from "../chat-session.js";
+import { RoomConversation, RoomStatus } from "../room-conversation.js";
 
 export const Route = createFileRoute("/")({ component: Chat });
 
-function Chat() {
+function Chat(): ReactNode {
   const [name, setName] = useState("Guest");
   const [roomId, setRoomId] = useState("lobby");
-  const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<readonly Message[]>([]);
-  const [status, setStatus] = useState("closed");
-  const [members, setMembers] = useState<readonly string[]>([]);
   const [error, setError] = useState<string>();
-  const [identity, setIdentity] = useState<string>();
-  const room = useMemo(() => cable.chat({ roomId }), [roomId, name]);
-
-  useEffect(() => {
-    browserStorage?.setItem(identityKey, name);
-  }, [name]);
-
-  useEffect(() => {
-    let live = true;
-    setMessages([]);
-    setError(undefined);
-    const sync = () => {
-      if (!live) return;
-      setStatus(room.status);
-      setMembers(room.presence.others.map((member) => member.d.name));
-    };
-    const append = (message: { readonly text: string; readonly user: string }, id: number) => {
-      if (live) setMessages((current) => [...current, { ...message, id }]);
-    };
-    const offMessage = room.on("message", (message) => {
-      append(message, Date.now());
-    });
-    const offStatus = room.onStatus(sync);
-    const offPresence = room.presence.on(sync);
-    const offError = room.onError((cause) => {
-      setError(cause.message);
-    });
-    room.presence.update({ name });
-    void room.history
-      .load({ limit: 100 })
-      .then((page) => {
-        if (!live) return undefined;
-        setMessages(page.events.map((event) => ({ ...event.d, id: event.seq })));
-        return undefined;
-      })
-      .catch((cause: unknown) => {
-        if (live) setError(cause instanceof Error ? cause.message : "Could not load history.");
-        return undefined;
-      });
-    void cable.session.whoami
-      .query({})
-      .then((session) => {
-        if (live) setIdentity(session.name);
-        return undefined;
-      })
-      .catch((cause: unknown) => {
-        if (live) setError(cause instanceof Error ? cause.message : "Could not authenticate.");
-        return undefined;
-      });
-    return () => {
-      live = false;
-      offMessage();
-      offStatus();
-      offPresence();
-      offError();
-      room.dispose();
-    };
-  }, [name, room]);
-
-  function send(event: { preventDefault(): void }): void {
-    event.preventDefault();
-    const text = draft.trim();
-    if (text.length === 0) return;
-    void room
-      .send({ text }, { ack: true })
-      .then(() => {
-        setDraft("");
-        return undefined;
-      })
-      .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : "Message failed to send.");
-        return undefined;
-      });
-  }
+  const reportError = useCallback((message: string) => {
+    setError(message);
+  }, []);
 
   return (
     <main className="shell">
@@ -114,7 +23,7 @@ function Chat() {
             <p className="eyebrow">Cable on Cloudflare</p>
             <h1>Room {roomId}</h1>
           </div>
-          <span className={`status status-${status}`}>{status}</span>
+          <RoomStatus roomId={roomId} />
         </header>
         <div className="controls">
           <label>
@@ -137,33 +46,9 @@ function Chat() {
             />
           </label>
         </div>
-        <p className="identity">Signed in locally as {identity ?? name}</p>
+        <ChatSession name={name} reportError={reportError} />
         {error === undefined ? undefined : <p className="error">{error}</p>}
-        <ol className="messages" aria-live="polite">
-          {messages.map((message) => (
-            <li key={message.id}>
-              <strong>{message.user}</strong>
-              <span>{message.text}</span>
-            </li>
-          ))}
-        </ol>
-        <form onSubmit={send}>
-          <input
-            aria-label="Message"
-            value={draft}
-            maxLength={2_000}
-            onChange={(event) => {
-              setDraft(event.target.value);
-            }}
-            placeholder="Write a message"
-          />
-          <button type="submit" disabled={status !== "open"}>
-            Send
-          </button>
-        </form>
-        <footer>
-          {members.length === 0 ? "Nobody else is here." : `${members.join(", ")} online`}
-        </footer>
+        <RoomConversation name={name} reportError={reportError} roomId={roomId} />
       </section>
       <style>{styles}</style>
     </main>

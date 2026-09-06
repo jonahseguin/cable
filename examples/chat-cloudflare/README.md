@@ -1,7 +1,8 @@
 # Cloudflare chat
 
-This M3 example uses TanStack Start with `@cable/client` directly. The M4 React
-package will add hooks; it is intentionally not a dependency here.
+This M4 example uses `@cable/react` channel hooks and native TanStack Query
+options. Its root creates a QueryClient per server render and browser root, so
+request data never escapes into another SSR response.
 
 Run `bun install`, then copy `.dev.vars.example` to `.dev.vars` and replace its
 secret with at least 32 random characters. Start the Worker with

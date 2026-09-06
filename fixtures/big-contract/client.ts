@@ -9,11 +9,14 @@ import type {
   InferPresence,
   InferServerEvent,
 } from "@cable/contract";
+import { createCableQuery } from "@cable/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { api, type Api } from "./contract.js";
 
 const memoryLink: Link = () => async (call) => ({ id: call.id, ok: true, data: undefined });
 const client = createClient<Api>({ contract: api, links: [memoryLink] });
+const cable = createCableQuery(client);
 
 const input0: InferInput<typeof api.group0.section0.procedure0> = {
   id: "item-0",
@@ -26,6 +29,8 @@ const error0: InferErrors<typeof api.group0.section0.procedure0> = {
   code: "FORBIDDEN",
   data: { resource: "procedure0" },
 };
+const queryKey0 = cable.group0.section0.procedure0.queryKey(input0);
+const queryOptions0 = cable.group0.section0.procedure0.queryOptions(input0);
 
 const input1: InferInput<typeof api.group0.section0.procedure1> = {
   id: "item-1",
@@ -38,6 +43,7 @@ const error1: InferErrors<typeof api.group0.section0.procedure1> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 2 },
 };
+const mutationOptions1 = cable.group0.section0.procedure1.mutationOptions();
 
 const input2: InferInput<typeof api.group0.section0.procedure2> = {
   id: "item-2",
@@ -50,6 +56,8 @@ const error2: InferErrors<typeof api.group0.section0.procedure2> = {
   code: "FORBIDDEN",
   data: { resource: "procedure2" },
 };
+const queryKey2 = cable.group0.section0.procedure2.queryKey(input2);
+const queryOptions2 = cable.group0.section0.procedure2.queryOptions(input2);
 
 const input3: InferInput<typeof api.group0.section0.procedure3> = {
   id: "item-3",
@@ -62,6 +70,7 @@ const error3: InferErrors<typeof api.group0.section0.procedure3> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 4 },
 };
+const mutationOptions3 = cable.group0.section0.procedure3.mutationOptions();
 
 const input4: InferInput<typeof api.group0.section0.procedure4> = {
   id: "item-4",
@@ -74,6 +83,8 @@ const error4: InferErrors<typeof api.group0.section0.procedure4> = {
   code: "FORBIDDEN",
   data: { resource: "procedure4" },
 };
+const queryKey4 = cable.group0.section0.procedure4.queryKey(input4);
+const queryOptions4 = cable.group0.section0.procedure4.queryOptions(input4);
 
 const input5: InferInput<typeof api.group0.section0.procedure5> = {
   id: "item-5",
@@ -86,6 +97,7 @@ const error5: InferErrors<typeof api.group0.section0.procedure5> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 6 },
 };
+const mutationOptions5 = cable.group0.section0.procedure5.mutationOptions();
 
 const input6: InferInput<typeof api.group0.section0.procedure6> = {
   id: "item-6",
@@ -98,6 +110,8 @@ const error6: InferErrors<typeof api.group0.section0.procedure6> = {
   code: "FORBIDDEN",
   data: { resource: "procedure6" },
 };
+const queryKey6 = cable.group0.section0.procedure6.queryKey(input6);
+const queryOptions6 = cable.group0.section0.procedure6.queryOptions(input6);
 
 const input7: InferInput<typeof api.group0.section0.procedure7> = {
   id: "item-7",
@@ -110,6 +124,7 @@ const error7: InferErrors<typeof api.group0.section0.procedure7> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 8 },
 };
+const mutationOptions7 = cable.group0.section0.procedure7.mutationOptions();
 
 const input8: InferInput<typeof api.group0.section0.procedure8> = {
   id: "item-8",
@@ -122,6 +137,8 @@ const error8: InferErrors<typeof api.group0.section0.procedure8> = {
   code: "FORBIDDEN",
   data: { resource: "procedure8" },
 };
+const queryKey8 = cable.group0.section0.procedure8.queryKey(input8);
+const queryOptions8 = cable.group0.section0.procedure8.queryOptions(input8);
 
 const input9: InferInput<typeof api.group0.section0.procedure9> = {
   id: "item-9",
@@ -134,6 +151,7 @@ const error9: InferErrors<typeof api.group0.section0.procedure9> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 10 },
 };
+const mutationOptions9 = cable.group0.section0.procedure9.mutationOptions();
 
 const input10: InferInput<typeof api.group0.section1.procedure10> = {
   id: "item-10",
@@ -146,6 +164,8 @@ const error10: InferErrors<typeof api.group0.section1.procedure10> = {
   code: "FORBIDDEN",
   data: { resource: "procedure10" },
 };
+const queryKey10 = cable.group0.section1.procedure10.queryKey(input10);
+const queryOptions10 = cable.group0.section1.procedure10.queryOptions(input10);
 
 const input11: InferInput<typeof api.group0.section1.procedure11> = {
   id: "item-11",
@@ -158,6 +178,7 @@ const error11: InferErrors<typeof api.group0.section1.procedure11> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 12 },
 };
+const mutationOptions11 = cable.group0.section1.procedure11.mutationOptions();
 
 const input12: InferInput<typeof api.group0.section1.procedure12> = {
   id: "item-12",
@@ -170,6 +191,8 @@ const error12: InferErrors<typeof api.group0.section1.procedure12> = {
   code: "FORBIDDEN",
   data: { resource: "procedure12" },
 };
+const queryKey12 = cable.group0.section1.procedure12.queryKey(input12);
+const queryOptions12 = cable.group0.section1.procedure12.queryOptions(input12);
 
 const input13: InferInput<typeof api.group0.section1.procedure13> = {
   id: "item-13",
@@ -182,6 +205,7 @@ const error13: InferErrors<typeof api.group0.section1.procedure13> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 14 },
 };
+const mutationOptions13 = cable.group0.section1.procedure13.mutationOptions();
 
 const input14: InferInput<typeof api.group0.section1.procedure14> = {
   id: "item-14",
@@ -194,6 +218,8 @@ const error14: InferErrors<typeof api.group0.section1.procedure14> = {
   code: "FORBIDDEN",
   data: { resource: "procedure14" },
 };
+const queryKey14 = cable.group0.section1.procedure14.queryKey(input14);
+const queryOptions14 = cable.group0.section1.procedure14.queryOptions(input14);
 
 const input15: InferInput<typeof api.group0.section1.procedure15> = {
   id: "item-15",
@@ -206,6 +232,7 @@ const error15: InferErrors<typeof api.group0.section1.procedure15> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 16 },
 };
+const mutationOptions15 = cable.group0.section1.procedure15.mutationOptions();
 
 const input16: InferInput<typeof api.group0.section1.procedure16> = {
   id: "item-16",
@@ -218,6 +245,8 @@ const error16: InferErrors<typeof api.group0.section1.procedure16> = {
   code: "FORBIDDEN",
   data: { resource: "procedure16" },
 };
+const queryKey16 = cable.group0.section1.procedure16.queryKey(input16);
+const queryOptions16 = cable.group0.section1.procedure16.queryOptions(input16);
 
 const input17: InferInput<typeof api.group0.section1.procedure17> = {
   id: "item-17",
@@ -230,6 +259,7 @@ const error17: InferErrors<typeof api.group0.section1.procedure17> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 18 },
 };
+const mutationOptions17 = cable.group0.section1.procedure17.mutationOptions();
 
 const input18: InferInput<typeof api.group0.section1.procedure18> = {
   id: "item-18",
@@ -242,6 +272,8 @@ const error18: InferErrors<typeof api.group0.section1.procedure18> = {
   code: "FORBIDDEN",
   data: { resource: "procedure18" },
 };
+const queryKey18 = cable.group0.section1.procedure18.queryKey(input18);
+const queryOptions18 = cable.group0.section1.procedure18.queryOptions(input18);
 
 const input19: InferInput<typeof api.group0.section1.procedure19> = {
   id: "item-19",
@@ -254,6 +286,7 @@ const error19: InferErrors<typeof api.group0.section1.procedure19> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 20 },
 };
+const mutationOptions19 = cable.group0.section1.procedure19.mutationOptions();
 
 const input20: InferInput<typeof api.group0.section2.procedure20> = {
   id: "item-20",
@@ -266,6 +299,8 @@ const error20: InferErrors<typeof api.group0.section2.procedure20> = {
   code: "FORBIDDEN",
   data: { resource: "procedure20" },
 };
+const queryKey20 = cable.group0.section2.procedure20.queryKey(input20);
+const queryOptions20 = cable.group0.section2.procedure20.queryOptions(input20);
 
 const input21: InferInput<typeof api.group0.section2.procedure21> = {
   id: "item-21",
@@ -278,6 +313,7 @@ const error21: InferErrors<typeof api.group0.section2.procedure21> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 22 },
 };
+const mutationOptions21 = cable.group0.section2.procedure21.mutationOptions();
 
 const input22: InferInput<typeof api.group0.section2.procedure22> = {
   id: "item-22",
@@ -290,6 +326,8 @@ const error22: InferErrors<typeof api.group0.section2.procedure22> = {
   code: "FORBIDDEN",
   data: { resource: "procedure22" },
 };
+const queryKey22 = cable.group0.section2.procedure22.queryKey(input22);
+const queryOptions22 = cable.group0.section2.procedure22.queryOptions(input22);
 
 const input23: InferInput<typeof api.group0.section2.procedure23> = {
   id: "item-23",
@@ -302,6 +340,7 @@ const error23: InferErrors<typeof api.group0.section2.procedure23> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 24 },
 };
+const mutationOptions23 = cable.group0.section2.procedure23.mutationOptions();
 
 const input24: InferInput<typeof api.group0.section2.procedure24> = {
   id: "item-24",
@@ -314,6 +353,8 @@ const error24: InferErrors<typeof api.group0.section2.procedure24> = {
   code: "FORBIDDEN",
   data: { resource: "procedure24" },
 };
+const queryKey24 = cable.group0.section2.procedure24.queryKey(input24);
+const queryOptions24 = cable.group0.section2.procedure24.queryOptions(input24);
 
 const input25: InferInput<typeof api.group0.section2.procedure25> = {
   id: "item-25",
@@ -326,6 +367,7 @@ const error25: InferErrors<typeof api.group0.section2.procedure25> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 26 },
 };
+const mutationOptions25 = cable.group0.section2.procedure25.mutationOptions();
 
 const input26: InferInput<typeof api.group0.section2.procedure26> = {
   id: "item-26",
@@ -338,6 +380,8 @@ const error26: InferErrors<typeof api.group0.section2.procedure26> = {
   code: "FORBIDDEN",
   data: { resource: "procedure26" },
 };
+const queryKey26 = cable.group0.section2.procedure26.queryKey(input26);
+const queryOptions26 = cable.group0.section2.procedure26.queryOptions(input26);
 
 const input27: InferInput<typeof api.group0.section2.procedure27> = {
   id: "item-27",
@@ -350,6 +394,7 @@ const error27: InferErrors<typeof api.group0.section2.procedure27> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 28 },
 };
+const mutationOptions27 = cable.group0.section2.procedure27.mutationOptions();
 
 const input28: InferInput<typeof api.group0.section2.procedure28> = {
   id: "item-28",
@@ -362,6 +407,8 @@ const error28: InferErrors<typeof api.group0.section2.procedure28> = {
   code: "FORBIDDEN",
   data: { resource: "procedure28" },
 };
+const queryKey28 = cable.group0.section2.procedure28.queryKey(input28);
+const queryOptions28 = cable.group0.section2.procedure28.queryOptions(input28);
 
 const input29: InferInput<typeof api.group0.section2.procedure29> = {
   id: "item-29",
@@ -374,6 +421,7 @@ const error29: InferErrors<typeof api.group0.section2.procedure29> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 30 },
 };
+const mutationOptions29 = cable.group0.section2.procedure29.mutationOptions();
 
 const input30: InferInput<typeof api.group0.section3.procedure30> = {
   id: "item-30",
@@ -386,6 +434,8 @@ const error30: InferErrors<typeof api.group0.section3.procedure30> = {
   code: "FORBIDDEN",
   data: { resource: "procedure30" },
 };
+const queryKey30 = cable.group0.section3.procedure30.queryKey(input30);
+const queryOptions30 = cable.group0.section3.procedure30.queryOptions(input30);
 
 const input31: InferInput<typeof api.group0.section3.procedure31> = {
   id: "item-31",
@@ -398,6 +448,7 @@ const error31: InferErrors<typeof api.group0.section3.procedure31> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 32 },
 };
+const mutationOptions31 = cable.group0.section3.procedure31.mutationOptions();
 
 const input32: InferInput<typeof api.group0.section3.procedure32> = {
   id: "item-32",
@@ -410,6 +461,8 @@ const error32: InferErrors<typeof api.group0.section3.procedure32> = {
   code: "FORBIDDEN",
   data: { resource: "procedure32" },
 };
+const queryKey32 = cable.group0.section3.procedure32.queryKey(input32);
+const queryOptions32 = cable.group0.section3.procedure32.queryOptions(input32);
 
 const input33: InferInput<typeof api.group0.section3.procedure33> = {
   id: "item-33",
@@ -422,6 +475,7 @@ const error33: InferErrors<typeof api.group0.section3.procedure33> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 34 },
 };
+const mutationOptions33 = cable.group0.section3.procedure33.mutationOptions();
 
 const input34: InferInput<typeof api.group0.section3.procedure34> = {
   id: "item-34",
@@ -434,6 +488,8 @@ const error34: InferErrors<typeof api.group0.section3.procedure34> = {
   code: "FORBIDDEN",
   data: { resource: "procedure34" },
 };
+const queryKey34 = cable.group0.section3.procedure34.queryKey(input34);
+const queryOptions34 = cable.group0.section3.procedure34.queryOptions(input34);
 
 const input35: InferInput<typeof api.group0.section3.procedure35> = {
   id: "item-35",
@@ -446,6 +502,7 @@ const error35: InferErrors<typeof api.group0.section3.procedure35> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 36 },
 };
+const mutationOptions35 = cable.group0.section3.procedure35.mutationOptions();
 
 const input36: InferInput<typeof api.group0.section3.procedure36> = {
   id: "item-36",
@@ -458,6 +515,8 @@ const error36: InferErrors<typeof api.group0.section3.procedure36> = {
   code: "FORBIDDEN",
   data: { resource: "procedure36" },
 };
+const queryKey36 = cable.group0.section3.procedure36.queryKey(input36);
+const queryOptions36 = cable.group0.section3.procedure36.queryOptions(input36);
 
 const input37: InferInput<typeof api.group0.section3.procedure37> = {
   id: "item-37",
@@ -470,6 +529,7 @@ const error37: InferErrors<typeof api.group0.section3.procedure37> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 38 },
 };
+const mutationOptions37 = cable.group0.section3.procedure37.mutationOptions();
 
 const input38: InferInput<typeof api.group0.section3.procedure38> = {
   id: "item-38",
@@ -482,6 +542,8 @@ const error38: InferErrors<typeof api.group0.section3.procedure38> = {
   code: "FORBIDDEN",
   data: { resource: "procedure38" },
 };
+const queryKey38 = cable.group0.section3.procedure38.queryKey(input38);
+const queryOptions38 = cable.group0.section3.procedure38.queryOptions(input38);
 
 const input39: InferInput<typeof api.group0.section3.procedure39> = {
   id: "item-39",
@@ -494,6 +556,7 @@ const error39: InferErrors<typeof api.group0.section3.procedure39> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 40 },
 };
+const mutationOptions39 = cable.group0.section3.procedure39.mutationOptions();
 
 const input40: InferInput<typeof api.group1.section0.procedure40> = {
   id: "item-40",
@@ -506,6 +569,8 @@ const error40: InferErrors<typeof api.group1.section0.procedure40> = {
   code: "FORBIDDEN",
   data: { resource: "procedure40" },
 };
+const queryKey40 = cable.group1.section0.procedure40.queryKey(input40);
+const queryOptions40 = cable.group1.section0.procedure40.queryOptions(input40);
 
 const input41: InferInput<typeof api.group1.section0.procedure41> = {
   id: "item-41",
@@ -518,6 +583,7 @@ const error41: InferErrors<typeof api.group1.section0.procedure41> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 42 },
 };
+const mutationOptions41 = cable.group1.section0.procedure41.mutationOptions();
 
 const input42: InferInput<typeof api.group1.section0.procedure42> = {
   id: "item-42",
@@ -530,6 +596,8 @@ const error42: InferErrors<typeof api.group1.section0.procedure42> = {
   code: "FORBIDDEN",
   data: { resource: "procedure42" },
 };
+const queryKey42 = cable.group1.section0.procedure42.queryKey(input42);
+const queryOptions42 = cable.group1.section0.procedure42.queryOptions(input42);
 
 const input43: InferInput<typeof api.group1.section0.procedure43> = {
   id: "item-43",
@@ -542,6 +610,7 @@ const error43: InferErrors<typeof api.group1.section0.procedure43> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 44 },
 };
+const mutationOptions43 = cable.group1.section0.procedure43.mutationOptions();
 
 const input44: InferInput<typeof api.group1.section0.procedure44> = {
   id: "item-44",
@@ -554,6 +623,8 @@ const error44: InferErrors<typeof api.group1.section0.procedure44> = {
   code: "FORBIDDEN",
   data: { resource: "procedure44" },
 };
+const queryKey44 = cable.group1.section0.procedure44.queryKey(input44);
+const queryOptions44 = cable.group1.section0.procedure44.queryOptions(input44);
 
 const input45: InferInput<typeof api.group1.section0.procedure45> = {
   id: "item-45",
@@ -566,6 +637,7 @@ const error45: InferErrors<typeof api.group1.section0.procedure45> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 46 },
 };
+const mutationOptions45 = cable.group1.section0.procedure45.mutationOptions();
 
 const input46: InferInput<typeof api.group1.section0.procedure46> = {
   id: "item-46",
@@ -578,6 +650,8 @@ const error46: InferErrors<typeof api.group1.section0.procedure46> = {
   code: "FORBIDDEN",
   data: { resource: "procedure46" },
 };
+const queryKey46 = cable.group1.section0.procedure46.queryKey(input46);
+const queryOptions46 = cable.group1.section0.procedure46.queryOptions(input46);
 
 const input47: InferInput<typeof api.group1.section0.procedure47> = {
   id: "item-47",
@@ -590,6 +664,7 @@ const error47: InferErrors<typeof api.group1.section0.procedure47> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 48 },
 };
+const mutationOptions47 = cable.group1.section0.procedure47.mutationOptions();
 
 const input48: InferInput<typeof api.group1.section0.procedure48> = {
   id: "item-48",
@@ -602,6 +677,8 @@ const error48: InferErrors<typeof api.group1.section0.procedure48> = {
   code: "FORBIDDEN",
   data: { resource: "procedure48" },
 };
+const queryKey48 = cable.group1.section0.procedure48.queryKey(input48);
+const queryOptions48 = cable.group1.section0.procedure48.queryOptions(input48);
 
 const input49: InferInput<typeof api.group1.section0.procedure49> = {
   id: "item-49",
@@ -614,6 +691,7 @@ const error49: InferErrors<typeof api.group1.section0.procedure49> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 50 },
 };
+const mutationOptions49 = cable.group1.section0.procedure49.mutationOptions();
 
 const input50: InferInput<typeof api.group1.section1.procedure50> = {
   id: "item-50",
@@ -626,6 +704,8 @@ const error50: InferErrors<typeof api.group1.section1.procedure50> = {
   code: "FORBIDDEN",
   data: { resource: "procedure50" },
 };
+const queryKey50 = cable.group1.section1.procedure50.queryKey(input50);
+const queryOptions50 = cable.group1.section1.procedure50.queryOptions(input50);
 
 const input51: InferInput<typeof api.group1.section1.procedure51> = {
   id: "item-51",
@@ -638,6 +718,7 @@ const error51: InferErrors<typeof api.group1.section1.procedure51> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 52 },
 };
+const mutationOptions51 = cable.group1.section1.procedure51.mutationOptions();
 
 const input52: InferInput<typeof api.group1.section1.procedure52> = {
   id: "item-52",
@@ -650,6 +731,8 @@ const error52: InferErrors<typeof api.group1.section1.procedure52> = {
   code: "FORBIDDEN",
   data: { resource: "procedure52" },
 };
+const queryKey52 = cable.group1.section1.procedure52.queryKey(input52);
+const queryOptions52 = cable.group1.section1.procedure52.queryOptions(input52);
 
 const input53: InferInput<typeof api.group1.section1.procedure53> = {
   id: "item-53",
@@ -662,6 +745,7 @@ const error53: InferErrors<typeof api.group1.section1.procedure53> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 54 },
 };
+const mutationOptions53 = cable.group1.section1.procedure53.mutationOptions();
 
 const input54: InferInput<typeof api.group1.section1.procedure54> = {
   id: "item-54",
@@ -674,6 +758,8 @@ const error54: InferErrors<typeof api.group1.section1.procedure54> = {
   code: "FORBIDDEN",
   data: { resource: "procedure54" },
 };
+const queryKey54 = cable.group1.section1.procedure54.queryKey(input54);
+const queryOptions54 = cable.group1.section1.procedure54.queryOptions(input54);
 
 const input55: InferInput<typeof api.group1.section1.procedure55> = {
   id: "item-55",
@@ -686,6 +772,7 @@ const error55: InferErrors<typeof api.group1.section1.procedure55> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 56 },
 };
+const mutationOptions55 = cable.group1.section1.procedure55.mutationOptions();
 
 const input56: InferInput<typeof api.group1.section1.procedure56> = {
   id: "item-56",
@@ -698,6 +785,8 @@ const error56: InferErrors<typeof api.group1.section1.procedure56> = {
   code: "FORBIDDEN",
   data: { resource: "procedure56" },
 };
+const queryKey56 = cable.group1.section1.procedure56.queryKey(input56);
+const queryOptions56 = cable.group1.section1.procedure56.queryOptions(input56);
 
 const input57: InferInput<typeof api.group1.section1.procedure57> = {
   id: "item-57",
@@ -710,6 +799,7 @@ const error57: InferErrors<typeof api.group1.section1.procedure57> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 58 },
 };
+const mutationOptions57 = cable.group1.section1.procedure57.mutationOptions();
 
 const input58: InferInput<typeof api.group1.section1.procedure58> = {
   id: "item-58",
@@ -722,6 +812,8 @@ const error58: InferErrors<typeof api.group1.section1.procedure58> = {
   code: "FORBIDDEN",
   data: { resource: "procedure58" },
 };
+const queryKey58 = cable.group1.section1.procedure58.queryKey(input58);
+const queryOptions58 = cable.group1.section1.procedure58.queryOptions(input58);
 
 const input59: InferInput<typeof api.group1.section1.procedure59> = {
   id: "item-59",
@@ -734,6 +826,7 @@ const error59: InferErrors<typeof api.group1.section1.procedure59> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 60 },
 };
+const mutationOptions59 = cable.group1.section1.procedure59.mutationOptions();
 
 const input60: InferInput<typeof api.group1.section2.procedure60> = {
   id: "item-60",
@@ -746,6 +839,8 @@ const error60: InferErrors<typeof api.group1.section2.procedure60> = {
   code: "FORBIDDEN",
   data: { resource: "procedure60" },
 };
+const queryKey60 = cable.group1.section2.procedure60.queryKey(input60);
+const queryOptions60 = cable.group1.section2.procedure60.queryOptions(input60);
 
 const input61: InferInput<typeof api.group1.section2.procedure61> = {
   id: "item-61",
@@ -758,6 +853,7 @@ const error61: InferErrors<typeof api.group1.section2.procedure61> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 62 },
 };
+const mutationOptions61 = cable.group1.section2.procedure61.mutationOptions();
 
 const input62: InferInput<typeof api.group1.section2.procedure62> = {
   id: "item-62",
@@ -770,6 +866,8 @@ const error62: InferErrors<typeof api.group1.section2.procedure62> = {
   code: "FORBIDDEN",
   data: { resource: "procedure62" },
 };
+const queryKey62 = cable.group1.section2.procedure62.queryKey(input62);
+const queryOptions62 = cable.group1.section2.procedure62.queryOptions(input62);
 
 const input63: InferInput<typeof api.group1.section2.procedure63> = {
   id: "item-63",
@@ -782,6 +880,7 @@ const error63: InferErrors<typeof api.group1.section2.procedure63> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 64 },
 };
+const mutationOptions63 = cable.group1.section2.procedure63.mutationOptions();
 
 const input64: InferInput<typeof api.group1.section2.procedure64> = {
   id: "item-64",
@@ -794,6 +893,8 @@ const error64: InferErrors<typeof api.group1.section2.procedure64> = {
   code: "FORBIDDEN",
   data: { resource: "procedure64" },
 };
+const queryKey64 = cable.group1.section2.procedure64.queryKey(input64);
+const queryOptions64 = cable.group1.section2.procedure64.queryOptions(input64);
 
 const input65: InferInput<typeof api.group1.section2.procedure65> = {
   id: "item-65",
@@ -806,6 +907,7 @@ const error65: InferErrors<typeof api.group1.section2.procedure65> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 66 },
 };
+const mutationOptions65 = cable.group1.section2.procedure65.mutationOptions();
 
 const input66: InferInput<typeof api.group1.section2.procedure66> = {
   id: "item-66",
@@ -818,6 +920,8 @@ const error66: InferErrors<typeof api.group1.section2.procedure66> = {
   code: "FORBIDDEN",
   data: { resource: "procedure66" },
 };
+const queryKey66 = cable.group1.section2.procedure66.queryKey(input66);
+const queryOptions66 = cable.group1.section2.procedure66.queryOptions(input66);
 
 const input67: InferInput<typeof api.group1.section2.procedure67> = {
   id: "item-67",
@@ -830,6 +934,7 @@ const error67: InferErrors<typeof api.group1.section2.procedure67> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 68 },
 };
+const mutationOptions67 = cable.group1.section2.procedure67.mutationOptions();
 
 const input68: InferInput<typeof api.group1.section2.procedure68> = {
   id: "item-68",
@@ -842,6 +947,8 @@ const error68: InferErrors<typeof api.group1.section2.procedure68> = {
   code: "FORBIDDEN",
   data: { resource: "procedure68" },
 };
+const queryKey68 = cable.group1.section2.procedure68.queryKey(input68);
+const queryOptions68 = cable.group1.section2.procedure68.queryOptions(input68);
 
 const input69: InferInput<typeof api.group1.section2.procedure69> = {
   id: "item-69",
@@ -854,6 +961,7 @@ const error69: InferErrors<typeof api.group1.section2.procedure69> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 70 },
 };
+const mutationOptions69 = cable.group1.section2.procedure69.mutationOptions();
 
 const input70: InferInput<typeof api.group1.section3.procedure70> = {
   id: "item-70",
@@ -866,6 +974,8 @@ const error70: InferErrors<typeof api.group1.section3.procedure70> = {
   code: "FORBIDDEN",
   data: { resource: "procedure70" },
 };
+const queryKey70 = cable.group1.section3.procedure70.queryKey(input70);
+const queryOptions70 = cable.group1.section3.procedure70.queryOptions(input70);
 
 const input71: InferInput<typeof api.group1.section3.procedure71> = {
   id: "item-71",
@@ -878,6 +988,7 @@ const error71: InferErrors<typeof api.group1.section3.procedure71> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 72 },
 };
+const mutationOptions71 = cable.group1.section3.procedure71.mutationOptions();
 
 const input72: InferInput<typeof api.group1.section3.procedure72> = {
   id: "item-72",
@@ -890,6 +1001,8 @@ const error72: InferErrors<typeof api.group1.section3.procedure72> = {
   code: "FORBIDDEN",
   data: { resource: "procedure72" },
 };
+const queryKey72 = cable.group1.section3.procedure72.queryKey(input72);
+const queryOptions72 = cable.group1.section3.procedure72.queryOptions(input72);
 
 const input73: InferInput<typeof api.group1.section3.procedure73> = {
   id: "item-73",
@@ -902,6 +1015,7 @@ const error73: InferErrors<typeof api.group1.section3.procedure73> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 74 },
 };
+const mutationOptions73 = cable.group1.section3.procedure73.mutationOptions();
 
 const input74: InferInput<typeof api.group1.section3.procedure74> = {
   id: "item-74",
@@ -914,6 +1028,8 @@ const error74: InferErrors<typeof api.group1.section3.procedure74> = {
   code: "FORBIDDEN",
   data: { resource: "procedure74" },
 };
+const queryKey74 = cable.group1.section3.procedure74.queryKey(input74);
+const queryOptions74 = cable.group1.section3.procedure74.queryOptions(input74);
 
 const input75: InferInput<typeof api.group1.section3.procedure75> = {
   id: "item-75",
@@ -926,6 +1042,7 @@ const error75: InferErrors<typeof api.group1.section3.procedure75> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 76 },
 };
+const mutationOptions75 = cable.group1.section3.procedure75.mutationOptions();
 
 const input76: InferInput<typeof api.group1.section3.procedure76> = {
   id: "item-76",
@@ -938,6 +1055,8 @@ const error76: InferErrors<typeof api.group1.section3.procedure76> = {
   code: "FORBIDDEN",
   data: { resource: "procedure76" },
 };
+const queryKey76 = cable.group1.section3.procedure76.queryKey(input76);
+const queryOptions76 = cable.group1.section3.procedure76.queryOptions(input76);
 
 const input77: InferInput<typeof api.group1.section3.procedure77> = {
   id: "item-77",
@@ -950,6 +1069,7 @@ const error77: InferErrors<typeof api.group1.section3.procedure77> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 78 },
 };
+const mutationOptions77 = cable.group1.section3.procedure77.mutationOptions();
 
 const input78: InferInput<typeof api.group1.section3.procedure78> = {
   id: "item-78",
@@ -962,6 +1082,8 @@ const error78: InferErrors<typeof api.group1.section3.procedure78> = {
   code: "FORBIDDEN",
   data: { resource: "procedure78" },
 };
+const queryKey78 = cable.group1.section3.procedure78.queryKey(input78);
+const queryOptions78 = cable.group1.section3.procedure78.queryOptions(input78);
 
 const input79: InferInput<typeof api.group1.section3.procedure79> = {
   id: "item-79",
@@ -974,6 +1096,7 @@ const error79: InferErrors<typeof api.group1.section3.procedure79> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 80 },
 };
+const mutationOptions79 = cable.group1.section3.procedure79.mutationOptions();
 
 const input80: InferInput<typeof api.group2.section0.procedure80> = {
   id: "item-80",
@@ -986,6 +1109,8 @@ const error80: InferErrors<typeof api.group2.section0.procedure80> = {
   code: "FORBIDDEN",
   data: { resource: "procedure80" },
 };
+const queryKey80 = cable.group2.section0.procedure80.queryKey(input80);
+const queryOptions80 = cable.group2.section0.procedure80.queryOptions(input80);
 
 const input81: InferInput<typeof api.group2.section0.procedure81> = {
   id: "item-81",
@@ -998,6 +1123,7 @@ const error81: InferErrors<typeof api.group2.section0.procedure81> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 82 },
 };
+const mutationOptions81 = cable.group2.section0.procedure81.mutationOptions();
 
 const input82: InferInput<typeof api.group2.section0.procedure82> = {
   id: "item-82",
@@ -1010,6 +1136,8 @@ const error82: InferErrors<typeof api.group2.section0.procedure82> = {
   code: "FORBIDDEN",
   data: { resource: "procedure82" },
 };
+const queryKey82 = cable.group2.section0.procedure82.queryKey(input82);
+const queryOptions82 = cable.group2.section0.procedure82.queryOptions(input82);
 
 const input83: InferInput<typeof api.group2.section0.procedure83> = {
   id: "item-83",
@@ -1022,6 +1150,7 @@ const error83: InferErrors<typeof api.group2.section0.procedure83> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 84 },
 };
+const mutationOptions83 = cable.group2.section0.procedure83.mutationOptions();
 
 const input84: InferInput<typeof api.group2.section0.procedure84> = {
   id: "item-84",
@@ -1034,6 +1163,8 @@ const error84: InferErrors<typeof api.group2.section0.procedure84> = {
   code: "FORBIDDEN",
   data: { resource: "procedure84" },
 };
+const queryKey84 = cable.group2.section0.procedure84.queryKey(input84);
+const queryOptions84 = cable.group2.section0.procedure84.queryOptions(input84);
 
 const input85: InferInput<typeof api.group2.section0.procedure85> = {
   id: "item-85",
@@ -1046,6 +1177,7 @@ const error85: InferErrors<typeof api.group2.section0.procedure85> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 86 },
 };
+const mutationOptions85 = cable.group2.section0.procedure85.mutationOptions();
 
 const input86: InferInput<typeof api.group2.section0.procedure86> = {
   id: "item-86",
@@ -1058,6 +1190,8 @@ const error86: InferErrors<typeof api.group2.section0.procedure86> = {
   code: "FORBIDDEN",
   data: { resource: "procedure86" },
 };
+const queryKey86 = cable.group2.section0.procedure86.queryKey(input86);
+const queryOptions86 = cable.group2.section0.procedure86.queryOptions(input86);
 
 const input87: InferInput<typeof api.group2.section0.procedure87> = {
   id: "item-87",
@@ -1070,6 +1204,7 @@ const error87: InferErrors<typeof api.group2.section0.procedure87> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 88 },
 };
+const mutationOptions87 = cable.group2.section0.procedure87.mutationOptions();
 
 const input88: InferInput<typeof api.group2.section0.procedure88> = {
   id: "item-88",
@@ -1082,6 +1217,8 @@ const error88: InferErrors<typeof api.group2.section0.procedure88> = {
   code: "FORBIDDEN",
   data: { resource: "procedure88" },
 };
+const queryKey88 = cable.group2.section0.procedure88.queryKey(input88);
+const queryOptions88 = cable.group2.section0.procedure88.queryOptions(input88);
 
 const input89: InferInput<typeof api.group2.section0.procedure89> = {
   id: "item-89",
@@ -1094,6 +1231,7 @@ const error89: InferErrors<typeof api.group2.section0.procedure89> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 90 },
 };
+const mutationOptions89 = cable.group2.section0.procedure89.mutationOptions();
 
 const input90: InferInput<typeof api.group2.section1.procedure90> = {
   id: "item-90",
@@ -1106,6 +1244,8 @@ const error90: InferErrors<typeof api.group2.section1.procedure90> = {
   code: "FORBIDDEN",
   data: { resource: "procedure90" },
 };
+const queryKey90 = cable.group2.section1.procedure90.queryKey(input90);
+const queryOptions90 = cable.group2.section1.procedure90.queryOptions(input90);
 
 const input91: InferInput<typeof api.group2.section1.procedure91> = {
   id: "item-91",
@@ -1118,6 +1258,7 @@ const error91: InferErrors<typeof api.group2.section1.procedure91> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 92 },
 };
+const mutationOptions91 = cable.group2.section1.procedure91.mutationOptions();
 
 const input92: InferInput<typeof api.group2.section1.procedure92> = {
   id: "item-92",
@@ -1130,6 +1271,8 @@ const error92: InferErrors<typeof api.group2.section1.procedure92> = {
   code: "FORBIDDEN",
   data: { resource: "procedure92" },
 };
+const queryKey92 = cable.group2.section1.procedure92.queryKey(input92);
+const queryOptions92 = cable.group2.section1.procedure92.queryOptions(input92);
 
 const input93: InferInput<typeof api.group2.section1.procedure93> = {
   id: "item-93",
@@ -1142,6 +1285,7 @@ const error93: InferErrors<typeof api.group2.section1.procedure93> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 94 },
 };
+const mutationOptions93 = cable.group2.section1.procedure93.mutationOptions();
 
 const input94: InferInput<typeof api.group2.section1.procedure94> = {
   id: "item-94",
@@ -1154,6 +1298,8 @@ const error94: InferErrors<typeof api.group2.section1.procedure94> = {
   code: "FORBIDDEN",
   data: { resource: "procedure94" },
 };
+const queryKey94 = cable.group2.section1.procedure94.queryKey(input94);
+const queryOptions94 = cable.group2.section1.procedure94.queryOptions(input94);
 
 const input95: InferInput<typeof api.group2.section1.procedure95> = {
   id: "item-95",
@@ -1166,6 +1312,7 @@ const error95: InferErrors<typeof api.group2.section1.procedure95> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 96 },
 };
+const mutationOptions95 = cable.group2.section1.procedure95.mutationOptions();
 
 const input96: InferInput<typeof api.group2.section1.procedure96> = {
   id: "item-96",
@@ -1178,6 +1325,8 @@ const error96: InferErrors<typeof api.group2.section1.procedure96> = {
   code: "FORBIDDEN",
   data: { resource: "procedure96" },
 };
+const queryKey96 = cable.group2.section1.procedure96.queryKey(input96);
+const queryOptions96 = cable.group2.section1.procedure96.queryOptions(input96);
 
 const input97: InferInput<typeof api.group2.section1.procedure97> = {
   id: "item-97",
@@ -1190,6 +1339,7 @@ const error97: InferErrors<typeof api.group2.section1.procedure97> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 98 },
 };
+const mutationOptions97 = cable.group2.section1.procedure97.mutationOptions();
 
 const input98: InferInput<typeof api.group2.section1.procedure98> = {
   id: "item-98",
@@ -1202,6 +1352,8 @@ const error98: InferErrors<typeof api.group2.section1.procedure98> = {
   code: "FORBIDDEN",
   data: { resource: "procedure98" },
 };
+const queryKey98 = cable.group2.section1.procedure98.queryKey(input98);
+const queryOptions98 = cable.group2.section1.procedure98.queryOptions(input98);
 
 const input99: InferInput<typeof api.group2.section1.procedure99> = {
   id: "item-99",
@@ -1214,6 +1366,7 @@ const error99: InferErrors<typeof api.group2.section1.procedure99> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 100 },
 };
+const mutationOptions99 = cable.group2.section1.procedure99.mutationOptions();
 
 const input100: InferInput<typeof api.group2.section2.procedure100> = {
   id: "item-100",
@@ -1226,6 +1379,8 @@ const error100: InferErrors<typeof api.group2.section2.procedure100> = {
   code: "FORBIDDEN",
   data: { resource: "procedure100" },
 };
+const queryKey100 = cable.group2.section2.procedure100.queryKey(input100);
+const queryOptions100 = cable.group2.section2.procedure100.queryOptions(input100);
 
 const input101: InferInput<typeof api.group2.section2.procedure101> = {
   id: "item-101",
@@ -1238,6 +1393,7 @@ const error101: InferErrors<typeof api.group2.section2.procedure101> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 102 },
 };
+const mutationOptions101 = cable.group2.section2.procedure101.mutationOptions();
 
 const input102: InferInput<typeof api.group2.section2.procedure102> = {
   id: "item-102",
@@ -1250,6 +1406,8 @@ const error102: InferErrors<typeof api.group2.section2.procedure102> = {
   code: "FORBIDDEN",
   data: { resource: "procedure102" },
 };
+const queryKey102 = cable.group2.section2.procedure102.queryKey(input102);
+const queryOptions102 = cable.group2.section2.procedure102.queryOptions(input102);
 
 const input103: InferInput<typeof api.group2.section2.procedure103> = {
   id: "item-103",
@@ -1262,6 +1420,7 @@ const error103: InferErrors<typeof api.group2.section2.procedure103> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 104 },
 };
+const mutationOptions103 = cable.group2.section2.procedure103.mutationOptions();
 
 const input104: InferInput<typeof api.group2.section2.procedure104> = {
   id: "item-104",
@@ -1274,6 +1433,8 @@ const error104: InferErrors<typeof api.group2.section2.procedure104> = {
   code: "FORBIDDEN",
   data: { resource: "procedure104" },
 };
+const queryKey104 = cable.group2.section2.procedure104.queryKey(input104);
+const queryOptions104 = cable.group2.section2.procedure104.queryOptions(input104);
 
 const input105: InferInput<typeof api.group2.section2.procedure105> = {
   id: "item-105",
@@ -1286,6 +1447,7 @@ const error105: InferErrors<typeof api.group2.section2.procedure105> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 106 },
 };
+const mutationOptions105 = cable.group2.section2.procedure105.mutationOptions();
 
 const input106: InferInput<typeof api.group2.section2.procedure106> = {
   id: "item-106",
@@ -1298,6 +1460,8 @@ const error106: InferErrors<typeof api.group2.section2.procedure106> = {
   code: "FORBIDDEN",
   data: { resource: "procedure106" },
 };
+const queryKey106 = cable.group2.section2.procedure106.queryKey(input106);
+const queryOptions106 = cable.group2.section2.procedure106.queryOptions(input106);
 
 const input107: InferInput<typeof api.group2.section2.procedure107> = {
   id: "item-107",
@@ -1310,6 +1474,7 @@ const error107: InferErrors<typeof api.group2.section2.procedure107> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 108 },
 };
+const mutationOptions107 = cable.group2.section2.procedure107.mutationOptions();
 
 const input108: InferInput<typeof api.group2.section2.procedure108> = {
   id: "item-108",
@@ -1322,6 +1487,8 @@ const error108: InferErrors<typeof api.group2.section2.procedure108> = {
   code: "FORBIDDEN",
   data: { resource: "procedure108" },
 };
+const queryKey108 = cable.group2.section2.procedure108.queryKey(input108);
+const queryOptions108 = cable.group2.section2.procedure108.queryOptions(input108);
 
 const input109: InferInput<typeof api.group2.section2.procedure109> = {
   id: "item-109",
@@ -1334,6 +1501,7 @@ const error109: InferErrors<typeof api.group2.section2.procedure109> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 110 },
 };
+const mutationOptions109 = cable.group2.section2.procedure109.mutationOptions();
 
 const input110: InferInput<typeof api.group2.section3.procedure110> = {
   id: "item-110",
@@ -1346,6 +1514,8 @@ const error110: InferErrors<typeof api.group2.section3.procedure110> = {
   code: "FORBIDDEN",
   data: { resource: "procedure110" },
 };
+const queryKey110 = cable.group2.section3.procedure110.queryKey(input110);
+const queryOptions110 = cable.group2.section3.procedure110.queryOptions(input110);
 
 const input111: InferInput<typeof api.group2.section3.procedure111> = {
   id: "item-111",
@@ -1358,6 +1528,7 @@ const error111: InferErrors<typeof api.group2.section3.procedure111> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 112 },
 };
+const mutationOptions111 = cable.group2.section3.procedure111.mutationOptions();
 
 const input112: InferInput<typeof api.group2.section3.procedure112> = {
   id: "item-112",
@@ -1370,6 +1541,8 @@ const error112: InferErrors<typeof api.group2.section3.procedure112> = {
   code: "FORBIDDEN",
   data: { resource: "procedure112" },
 };
+const queryKey112 = cable.group2.section3.procedure112.queryKey(input112);
+const queryOptions112 = cable.group2.section3.procedure112.queryOptions(input112);
 
 const input113: InferInput<typeof api.group2.section3.procedure113> = {
   id: "item-113",
@@ -1382,6 +1555,7 @@ const error113: InferErrors<typeof api.group2.section3.procedure113> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 114 },
 };
+const mutationOptions113 = cable.group2.section3.procedure113.mutationOptions();
 
 const input114: InferInput<typeof api.group2.section3.procedure114> = {
   id: "item-114",
@@ -1394,6 +1568,8 @@ const error114: InferErrors<typeof api.group2.section3.procedure114> = {
   code: "FORBIDDEN",
   data: { resource: "procedure114" },
 };
+const queryKey114 = cable.group2.section3.procedure114.queryKey(input114);
+const queryOptions114 = cable.group2.section3.procedure114.queryOptions(input114);
 
 const input115: InferInput<typeof api.group2.section3.procedure115> = {
   id: "item-115",
@@ -1406,6 +1582,7 @@ const error115: InferErrors<typeof api.group2.section3.procedure115> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 116 },
 };
+const mutationOptions115 = cable.group2.section3.procedure115.mutationOptions();
 
 const input116: InferInput<typeof api.group2.section3.procedure116> = {
   id: "item-116",
@@ -1418,6 +1595,8 @@ const error116: InferErrors<typeof api.group2.section3.procedure116> = {
   code: "FORBIDDEN",
   data: { resource: "procedure116" },
 };
+const queryKey116 = cable.group2.section3.procedure116.queryKey(input116);
+const queryOptions116 = cable.group2.section3.procedure116.queryOptions(input116);
 
 const input117: InferInput<typeof api.group2.section3.procedure117> = {
   id: "item-117",
@@ -1430,6 +1609,7 @@ const error117: InferErrors<typeof api.group2.section3.procedure117> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 118 },
 };
+const mutationOptions117 = cable.group2.section3.procedure117.mutationOptions();
 
 const input118: InferInput<typeof api.group2.section3.procedure118> = {
   id: "item-118",
@@ -1442,6 +1622,8 @@ const error118: InferErrors<typeof api.group2.section3.procedure118> = {
   code: "FORBIDDEN",
   data: { resource: "procedure118" },
 };
+const queryKey118 = cable.group2.section3.procedure118.queryKey(input118);
+const queryOptions118 = cable.group2.section3.procedure118.queryOptions(input118);
 
 const input119: InferInput<typeof api.group2.section3.procedure119> = {
   id: "item-119",
@@ -1454,6 +1636,7 @@ const error119: InferErrors<typeof api.group2.section3.procedure119> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 120 },
 };
+const mutationOptions119 = cable.group2.section3.procedure119.mutationOptions();
 
 const input120: InferInput<typeof api.group3.section0.procedure120> = {
   id: "item-120",
@@ -1466,6 +1649,8 @@ const error120: InferErrors<typeof api.group3.section0.procedure120> = {
   code: "FORBIDDEN",
   data: { resource: "procedure120" },
 };
+const queryKey120 = cable.group3.section0.procedure120.queryKey(input120);
+const queryOptions120 = cable.group3.section0.procedure120.queryOptions(input120);
 
 const input121: InferInput<typeof api.group3.section0.procedure121> = {
   id: "item-121",
@@ -1478,6 +1663,7 @@ const error121: InferErrors<typeof api.group3.section0.procedure121> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 122 },
 };
+const mutationOptions121 = cable.group3.section0.procedure121.mutationOptions();
 
 const input122: InferInput<typeof api.group3.section0.procedure122> = {
   id: "item-122",
@@ -1490,6 +1676,8 @@ const error122: InferErrors<typeof api.group3.section0.procedure122> = {
   code: "FORBIDDEN",
   data: { resource: "procedure122" },
 };
+const queryKey122 = cable.group3.section0.procedure122.queryKey(input122);
+const queryOptions122 = cable.group3.section0.procedure122.queryOptions(input122);
 
 const input123: InferInput<typeof api.group3.section0.procedure123> = {
   id: "item-123",
@@ -1502,6 +1690,7 @@ const error123: InferErrors<typeof api.group3.section0.procedure123> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 124 },
 };
+const mutationOptions123 = cable.group3.section0.procedure123.mutationOptions();
 
 const input124: InferInput<typeof api.group3.section0.procedure124> = {
   id: "item-124",
@@ -1514,6 +1703,8 @@ const error124: InferErrors<typeof api.group3.section0.procedure124> = {
   code: "FORBIDDEN",
   data: { resource: "procedure124" },
 };
+const queryKey124 = cable.group3.section0.procedure124.queryKey(input124);
+const queryOptions124 = cable.group3.section0.procedure124.queryOptions(input124);
 
 const input125: InferInput<typeof api.group3.section0.procedure125> = {
   id: "item-125",
@@ -1526,6 +1717,7 @@ const error125: InferErrors<typeof api.group3.section0.procedure125> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 126 },
 };
+const mutationOptions125 = cable.group3.section0.procedure125.mutationOptions();
 
 const input126: InferInput<typeof api.group3.section0.procedure126> = {
   id: "item-126",
@@ -1538,6 +1730,8 @@ const error126: InferErrors<typeof api.group3.section0.procedure126> = {
   code: "FORBIDDEN",
   data: { resource: "procedure126" },
 };
+const queryKey126 = cable.group3.section0.procedure126.queryKey(input126);
+const queryOptions126 = cable.group3.section0.procedure126.queryOptions(input126);
 
 const input127: InferInput<typeof api.group3.section0.procedure127> = {
   id: "item-127",
@@ -1550,6 +1744,7 @@ const error127: InferErrors<typeof api.group3.section0.procedure127> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 128 },
 };
+const mutationOptions127 = cable.group3.section0.procedure127.mutationOptions();
 
 const input128: InferInput<typeof api.group3.section0.procedure128> = {
   id: "item-128",
@@ -1562,6 +1757,8 @@ const error128: InferErrors<typeof api.group3.section0.procedure128> = {
   code: "FORBIDDEN",
   data: { resource: "procedure128" },
 };
+const queryKey128 = cable.group3.section0.procedure128.queryKey(input128);
+const queryOptions128 = cable.group3.section0.procedure128.queryOptions(input128);
 
 const input129: InferInput<typeof api.group3.section0.procedure129> = {
   id: "item-129",
@@ -1574,6 +1771,7 @@ const error129: InferErrors<typeof api.group3.section0.procedure129> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 130 },
 };
+const mutationOptions129 = cable.group3.section0.procedure129.mutationOptions();
 
 const input130: InferInput<typeof api.group3.section1.procedure130> = {
   id: "item-130",
@@ -1586,6 +1784,8 @@ const error130: InferErrors<typeof api.group3.section1.procedure130> = {
   code: "FORBIDDEN",
   data: { resource: "procedure130" },
 };
+const queryKey130 = cable.group3.section1.procedure130.queryKey(input130);
+const queryOptions130 = cable.group3.section1.procedure130.queryOptions(input130);
 
 const input131: InferInput<typeof api.group3.section1.procedure131> = {
   id: "item-131",
@@ -1598,6 +1798,7 @@ const error131: InferErrors<typeof api.group3.section1.procedure131> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 132 },
 };
+const mutationOptions131 = cable.group3.section1.procedure131.mutationOptions();
 
 const input132: InferInput<typeof api.group3.section1.procedure132> = {
   id: "item-132",
@@ -1610,6 +1811,8 @@ const error132: InferErrors<typeof api.group3.section1.procedure132> = {
   code: "FORBIDDEN",
   data: { resource: "procedure132" },
 };
+const queryKey132 = cable.group3.section1.procedure132.queryKey(input132);
+const queryOptions132 = cable.group3.section1.procedure132.queryOptions(input132);
 
 const input133: InferInput<typeof api.group3.section1.procedure133> = {
   id: "item-133",
@@ -1622,6 +1825,7 @@ const error133: InferErrors<typeof api.group3.section1.procedure133> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 134 },
 };
+const mutationOptions133 = cable.group3.section1.procedure133.mutationOptions();
 
 const input134: InferInput<typeof api.group3.section1.procedure134> = {
   id: "item-134",
@@ -1634,6 +1838,8 @@ const error134: InferErrors<typeof api.group3.section1.procedure134> = {
   code: "FORBIDDEN",
   data: { resource: "procedure134" },
 };
+const queryKey134 = cable.group3.section1.procedure134.queryKey(input134);
+const queryOptions134 = cable.group3.section1.procedure134.queryOptions(input134);
 
 const input135: InferInput<typeof api.group3.section1.procedure135> = {
   id: "item-135",
@@ -1646,6 +1852,7 @@ const error135: InferErrors<typeof api.group3.section1.procedure135> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 136 },
 };
+const mutationOptions135 = cable.group3.section1.procedure135.mutationOptions();
 
 const input136: InferInput<typeof api.group3.section1.procedure136> = {
   id: "item-136",
@@ -1658,6 +1865,8 @@ const error136: InferErrors<typeof api.group3.section1.procedure136> = {
   code: "FORBIDDEN",
   data: { resource: "procedure136" },
 };
+const queryKey136 = cable.group3.section1.procedure136.queryKey(input136);
+const queryOptions136 = cable.group3.section1.procedure136.queryOptions(input136);
 
 const input137: InferInput<typeof api.group3.section1.procedure137> = {
   id: "item-137",
@@ -1670,6 +1879,7 @@ const error137: InferErrors<typeof api.group3.section1.procedure137> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 138 },
 };
+const mutationOptions137 = cable.group3.section1.procedure137.mutationOptions();
 
 const input138: InferInput<typeof api.group3.section1.procedure138> = {
   id: "item-138",
@@ -1682,6 +1892,8 @@ const error138: InferErrors<typeof api.group3.section1.procedure138> = {
   code: "FORBIDDEN",
   data: { resource: "procedure138" },
 };
+const queryKey138 = cable.group3.section1.procedure138.queryKey(input138);
+const queryOptions138 = cable.group3.section1.procedure138.queryOptions(input138);
 
 const input139: InferInput<typeof api.group3.section1.procedure139> = {
   id: "item-139",
@@ -1694,6 +1906,7 @@ const error139: InferErrors<typeof api.group3.section1.procedure139> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 140 },
 };
+const mutationOptions139 = cable.group3.section1.procedure139.mutationOptions();
 
 const input140: InferInput<typeof api.group3.section2.procedure140> = {
   id: "item-140",
@@ -1706,6 +1919,8 @@ const error140: InferErrors<typeof api.group3.section2.procedure140> = {
   code: "FORBIDDEN",
   data: { resource: "procedure140" },
 };
+const queryKey140 = cable.group3.section2.procedure140.queryKey(input140);
+const queryOptions140 = cable.group3.section2.procedure140.queryOptions(input140);
 
 const input141: InferInput<typeof api.group3.section2.procedure141> = {
   id: "item-141",
@@ -1718,6 +1933,7 @@ const error141: InferErrors<typeof api.group3.section2.procedure141> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 142 },
 };
+const mutationOptions141 = cable.group3.section2.procedure141.mutationOptions();
 
 const input142: InferInput<typeof api.group3.section2.procedure142> = {
   id: "item-142",
@@ -1730,6 +1946,8 @@ const error142: InferErrors<typeof api.group3.section2.procedure142> = {
   code: "FORBIDDEN",
   data: { resource: "procedure142" },
 };
+const queryKey142 = cable.group3.section2.procedure142.queryKey(input142);
+const queryOptions142 = cable.group3.section2.procedure142.queryOptions(input142);
 
 const input143: InferInput<typeof api.group3.section2.procedure143> = {
   id: "item-143",
@@ -1742,6 +1960,7 @@ const error143: InferErrors<typeof api.group3.section2.procedure143> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 144 },
 };
+const mutationOptions143 = cable.group3.section2.procedure143.mutationOptions();
 
 const input144: InferInput<typeof api.group3.section2.procedure144> = {
   id: "item-144",
@@ -1754,6 +1973,8 @@ const error144: InferErrors<typeof api.group3.section2.procedure144> = {
   code: "FORBIDDEN",
   data: { resource: "procedure144" },
 };
+const queryKey144 = cable.group3.section2.procedure144.queryKey(input144);
+const queryOptions144 = cable.group3.section2.procedure144.queryOptions(input144);
 
 const input145: InferInput<typeof api.group3.section2.procedure145> = {
   id: "item-145",
@@ -1766,6 +1987,7 @@ const error145: InferErrors<typeof api.group3.section2.procedure145> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 146 },
 };
+const mutationOptions145 = cable.group3.section2.procedure145.mutationOptions();
 
 const input146: InferInput<typeof api.group3.section2.procedure146> = {
   id: "item-146",
@@ -1778,6 +2000,8 @@ const error146: InferErrors<typeof api.group3.section2.procedure146> = {
   code: "FORBIDDEN",
   data: { resource: "procedure146" },
 };
+const queryKey146 = cable.group3.section2.procedure146.queryKey(input146);
+const queryOptions146 = cable.group3.section2.procedure146.queryOptions(input146);
 
 const input147: InferInput<typeof api.group3.section2.procedure147> = {
   id: "item-147",
@@ -1790,6 +2014,7 @@ const error147: InferErrors<typeof api.group3.section2.procedure147> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 148 },
 };
+const mutationOptions147 = cable.group3.section2.procedure147.mutationOptions();
 
 const input148: InferInput<typeof api.group3.section2.procedure148> = {
   id: "item-148",
@@ -1802,6 +2027,8 @@ const error148: InferErrors<typeof api.group3.section2.procedure148> = {
   code: "FORBIDDEN",
   data: { resource: "procedure148" },
 };
+const queryKey148 = cable.group3.section2.procedure148.queryKey(input148);
+const queryOptions148 = cable.group3.section2.procedure148.queryOptions(input148);
 
 const input149: InferInput<typeof api.group3.section2.procedure149> = {
   id: "item-149",
@@ -1814,6 +2041,7 @@ const error149: InferErrors<typeof api.group3.section2.procedure149> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 150 },
 };
+const mutationOptions149 = cable.group3.section2.procedure149.mutationOptions();
 
 const input150: InferInput<typeof api.group3.section3.procedure150> = {
   id: "item-150",
@@ -1826,6 +2054,8 @@ const error150: InferErrors<typeof api.group3.section3.procedure150> = {
   code: "FORBIDDEN",
   data: { resource: "procedure150" },
 };
+const queryKey150 = cable.group3.section3.procedure150.queryKey(input150);
+const queryOptions150 = cable.group3.section3.procedure150.queryOptions(input150);
 
 const input151: InferInput<typeof api.group3.section3.procedure151> = {
   id: "item-151",
@@ -1838,6 +2068,7 @@ const error151: InferErrors<typeof api.group3.section3.procedure151> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 152 },
 };
+const mutationOptions151 = cable.group3.section3.procedure151.mutationOptions();
 
 const input152: InferInput<typeof api.group3.section3.procedure152> = {
   id: "item-152",
@@ -1850,6 +2081,8 @@ const error152: InferErrors<typeof api.group3.section3.procedure152> = {
   code: "FORBIDDEN",
   data: { resource: "procedure152" },
 };
+const queryKey152 = cable.group3.section3.procedure152.queryKey(input152);
+const queryOptions152 = cable.group3.section3.procedure152.queryOptions(input152);
 
 const input153: InferInput<typeof api.group3.section3.procedure153> = {
   id: "item-153",
@@ -1862,6 +2095,7 @@ const error153: InferErrors<typeof api.group3.section3.procedure153> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 154 },
 };
+const mutationOptions153 = cable.group3.section3.procedure153.mutationOptions();
 
 const input154: InferInput<typeof api.group3.section3.procedure154> = {
   id: "item-154",
@@ -1874,6 +2108,8 @@ const error154: InferErrors<typeof api.group3.section3.procedure154> = {
   code: "FORBIDDEN",
   data: { resource: "procedure154" },
 };
+const queryKey154 = cable.group3.section3.procedure154.queryKey(input154);
+const queryOptions154 = cable.group3.section3.procedure154.queryOptions(input154);
 
 const input155: InferInput<typeof api.group3.section3.procedure155> = {
   id: "item-155",
@@ -1886,6 +2122,7 @@ const error155: InferErrors<typeof api.group3.section3.procedure155> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 156 },
 };
+const mutationOptions155 = cable.group3.section3.procedure155.mutationOptions();
 
 const input156: InferInput<typeof api.group3.section3.procedure156> = {
   id: "item-156",
@@ -1898,6 +2135,8 @@ const error156: InferErrors<typeof api.group3.section3.procedure156> = {
   code: "FORBIDDEN",
   data: { resource: "procedure156" },
 };
+const queryKey156 = cable.group3.section3.procedure156.queryKey(input156);
+const queryOptions156 = cable.group3.section3.procedure156.queryOptions(input156);
 
 const input157: InferInput<typeof api.group3.section3.procedure157> = {
   id: "item-157",
@@ -1910,6 +2149,7 @@ const error157: InferErrors<typeof api.group3.section3.procedure157> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 158 },
 };
+const mutationOptions157 = cable.group3.section3.procedure157.mutationOptions();
 
 const input158: InferInput<typeof api.group3.section3.procedure158> = {
   id: "item-158",
@@ -1922,6 +2162,8 @@ const error158: InferErrors<typeof api.group3.section3.procedure158> = {
   code: "FORBIDDEN",
   data: { resource: "procedure158" },
 };
+const queryKey158 = cable.group3.section3.procedure158.queryKey(input158);
+const queryOptions158 = cable.group3.section3.procedure158.queryOptions(input158);
 
 const input159: InferInput<typeof api.group3.section3.procedure159> = {
   id: "item-159",
@@ -1934,6 +2176,7 @@ const error159: InferErrors<typeof api.group3.section3.procedure159> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 160 },
 };
+const mutationOptions159 = cable.group3.section3.procedure159.mutationOptions();
 
 const input160: InferInput<typeof api.group4.section0.procedure160> = {
   id: "item-160",
@@ -1946,6 +2189,8 @@ const error160: InferErrors<typeof api.group4.section0.procedure160> = {
   code: "FORBIDDEN",
   data: { resource: "procedure160" },
 };
+const queryKey160 = cable.group4.section0.procedure160.queryKey(input160);
+const queryOptions160 = cable.group4.section0.procedure160.queryOptions(input160);
 
 const input161: InferInput<typeof api.group4.section0.procedure161> = {
   id: "item-161",
@@ -1958,6 +2203,7 @@ const error161: InferErrors<typeof api.group4.section0.procedure161> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 162 },
 };
+const mutationOptions161 = cable.group4.section0.procedure161.mutationOptions();
 
 const input162: InferInput<typeof api.group4.section0.procedure162> = {
   id: "item-162",
@@ -1970,6 +2216,8 @@ const error162: InferErrors<typeof api.group4.section0.procedure162> = {
   code: "FORBIDDEN",
   data: { resource: "procedure162" },
 };
+const queryKey162 = cable.group4.section0.procedure162.queryKey(input162);
+const queryOptions162 = cable.group4.section0.procedure162.queryOptions(input162);
 
 const input163: InferInput<typeof api.group4.section0.procedure163> = {
   id: "item-163",
@@ -1982,6 +2230,7 @@ const error163: InferErrors<typeof api.group4.section0.procedure163> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 164 },
 };
+const mutationOptions163 = cable.group4.section0.procedure163.mutationOptions();
 
 const input164: InferInput<typeof api.group4.section0.procedure164> = {
   id: "item-164",
@@ -1994,6 +2243,8 @@ const error164: InferErrors<typeof api.group4.section0.procedure164> = {
   code: "FORBIDDEN",
   data: { resource: "procedure164" },
 };
+const queryKey164 = cable.group4.section0.procedure164.queryKey(input164);
+const queryOptions164 = cable.group4.section0.procedure164.queryOptions(input164);
 
 const input165: InferInput<typeof api.group4.section0.procedure165> = {
   id: "item-165",
@@ -2006,6 +2257,7 @@ const error165: InferErrors<typeof api.group4.section0.procedure165> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 166 },
 };
+const mutationOptions165 = cable.group4.section0.procedure165.mutationOptions();
 
 const input166: InferInput<typeof api.group4.section0.procedure166> = {
   id: "item-166",
@@ -2018,6 +2270,8 @@ const error166: InferErrors<typeof api.group4.section0.procedure166> = {
   code: "FORBIDDEN",
   data: { resource: "procedure166" },
 };
+const queryKey166 = cable.group4.section0.procedure166.queryKey(input166);
+const queryOptions166 = cable.group4.section0.procedure166.queryOptions(input166);
 
 const input167: InferInput<typeof api.group4.section0.procedure167> = {
   id: "item-167",
@@ -2030,6 +2284,7 @@ const error167: InferErrors<typeof api.group4.section0.procedure167> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 168 },
 };
+const mutationOptions167 = cable.group4.section0.procedure167.mutationOptions();
 
 const input168: InferInput<typeof api.group4.section0.procedure168> = {
   id: "item-168",
@@ -2042,6 +2297,8 @@ const error168: InferErrors<typeof api.group4.section0.procedure168> = {
   code: "FORBIDDEN",
   data: { resource: "procedure168" },
 };
+const queryKey168 = cable.group4.section0.procedure168.queryKey(input168);
+const queryOptions168 = cable.group4.section0.procedure168.queryOptions(input168);
 
 const input169: InferInput<typeof api.group4.section0.procedure169> = {
   id: "item-169",
@@ -2054,6 +2311,7 @@ const error169: InferErrors<typeof api.group4.section0.procedure169> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 170 },
 };
+const mutationOptions169 = cable.group4.section0.procedure169.mutationOptions();
 
 const input170: InferInput<typeof api.group4.section1.procedure170> = {
   id: "item-170",
@@ -2066,6 +2324,8 @@ const error170: InferErrors<typeof api.group4.section1.procedure170> = {
   code: "FORBIDDEN",
   data: { resource: "procedure170" },
 };
+const queryKey170 = cable.group4.section1.procedure170.queryKey(input170);
+const queryOptions170 = cable.group4.section1.procedure170.queryOptions(input170);
 
 const input171: InferInput<typeof api.group4.section1.procedure171> = {
   id: "item-171",
@@ -2078,6 +2338,7 @@ const error171: InferErrors<typeof api.group4.section1.procedure171> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 172 },
 };
+const mutationOptions171 = cable.group4.section1.procedure171.mutationOptions();
 
 const input172: InferInput<typeof api.group4.section1.procedure172> = {
   id: "item-172",
@@ -2090,6 +2351,8 @@ const error172: InferErrors<typeof api.group4.section1.procedure172> = {
   code: "FORBIDDEN",
   data: { resource: "procedure172" },
 };
+const queryKey172 = cable.group4.section1.procedure172.queryKey(input172);
+const queryOptions172 = cable.group4.section1.procedure172.queryOptions(input172);
 
 const input173: InferInput<typeof api.group4.section1.procedure173> = {
   id: "item-173",
@@ -2102,6 +2365,7 @@ const error173: InferErrors<typeof api.group4.section1.procedure173> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 174 },
 };
+const mutationOptions173 = cable.group4.section1.procedure173.mutationOptions();
 
 const input174: InferInput<typeof api.group4.section1.procedure174> = {
   id: "item-174",
@@ -2114,6 +2378,8 @@ const error174: InferErrors<typeof api.group4.section1.procedure174> = {
   code: "FORBIDDEN",
   data: { resource: "procedure174" },
 };
+const queryKey174 = cable.group4.section1.procedure174.queryKey(input174);
+const queryOptions174 = cable.group4.section1.procedure174.queryOptions(input174);
 
 const input175: InferInput<typeof api.group4.section1.procedure175> = {
   id: "item-175",
@@ -2126,6 +2392,7 @@ const error175: InferErrors<typeof api.group4.section1.procedure175> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 176 },
 };
+const mutationOptions175 = cable.group4.section1.procedure175.mutationOptions();
 
 const input176: InferInput<typeof api.group4.section1.procedure176> = {
   id: "item-176",
@@ -2138,6 +2405,8 @@ const error176: InferErrors<typeof api.group4.section1.procedure176> = {
   code: "FORBIDDEN",
   data: { resource: "procedure176" },
 };
+const queryKey176 = cable.group4.section1.procedure176.queryKey(input176);
+const queryOptions176 = cable.group4.section1.procedure176.queryOptions(input176);
 
 const input177: InferInput<typeof api.group4.section1.procedure177> = {
   id: "item-177",
@@ -2150,6 +2419,7 @@ const error177: InferErrors<typeof api.group4.section1.procedure177> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 178 },
 };
+const mutationOptions177 = cable.group4.section1.procedure177.mutationOptions();
 
 const input178: InferInput<typeof api.group4.section1.procedure178> = {
   id: "item-178",
@@ -2162,6 +2432,8 @@ const error178: InferErrors<typeof api.group4.section1.procedure178> = {
   code: "FORBIDDEN",
   data: { resource: "procedure178" },
 };
+const queryKey178 = cable.group4.section1.procedure178.queryKey(input178);
+const queryOptions178 = cable.group4.section1.procedure178.queryOptions(input178);
 
 const input179: InferInput<typeof api.group4.section1.procedure179> = {
   id: "item-179",
@@ -2174,6 +2446,7 @@ const error179: InferErrors<typeof api.group4.section1.procedure179> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 180 },
 };
+const mutationOptions179 = cable.group4.section1.procedure179.mutationOptions();
 
 const input180: InferInput<typeof api.group4.section2.procedure180> = {
   id: "item-180",
@@ -2186,6 +2459,8 @@ const error180: InferErrors<typeof api.group4.section2.procedure180> = {
   code: "FORBIDDEN",
   data: { resource: "procedure180" },
 };
+const queryKey180 = cable.group4.section2.procedure180.queryKey(input180);
+const queryOptions180 = cable.group4.section2.procedure180.queryOptions(input180);
 
 const input181: InferInput<typeof api.group4.section2.procedure181> = {
   id: "item-181",
@@ -2198,6 +2473,7 @@ const error181: InferErrors<typeof api.group4.section2.procedure181> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 182 },
 };
+const mutationOptions181 = cable.group4.section2.procedure181.mutationOptions();
 
 const input182: InferInput<typeof api.group4.section2.procedure182> = {
   id: "item-182",
@@ -2210,6 +2486,8 @@ const error182: InferErrors<typeof api.group4.section2.procedure182> = {
   code: "FORBIDDEN",
   data: { resource: "procedure182" },
 };
+const queryKey182 = cable.group4.section2.procedure182.queryKey(input182);
+const queryOptions182 = cable.group4.section2.procedure182.queryOptions(input182);
 
 const input183: InferInput<typeof api.group4.section2.procedure183> = {
   id: "item-183",
@@ -2222,6 +2500,7 @@ const error183: InferErrors<typeof api.group4.section2.procedure183> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 184 },
 };
+const mutationOptions183 = cable.group4.section2.procedure183.mutationOptions();
 
 const input184: InferInput<typeof api.group4.section2.procedure184> = {
   id: "item-184",
@@ -2234,6 +2513,8 @@ const error184: InferErrors<typeof api.group4.section2.procedure184> = {
   code: "FORBIDDEN",
   data: { resource: "procedure184" },
 };
+const queryKey184 = cable.group4.section2.procedure184.queryKey(input184);
+const queryOptions184 = cable.group4.section2.procedure184.queryOptions(input184);
 
 const input185: InferInput<typeof api.group4.section2.procedure185> = {
   id: "item-185",
@@ -2246,6 +2527,7 @@ const error185: InferErrors<typeof api.group4.section2.procedure185> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 186 },
 };
+const mutationOptions185 = cable.group4.section2.procedure185.mutationOptions();
 
 const input186: InferInput<typeof api.group4.section2.procedure186> = {
   id: "item-186",
@@ -2258,6 +2540,8 @@ const error186: InferErrors<typeof api.group4.section2.procedure186> = {
   code: "FORBIDDEN",
   data: { resource: "procedure186" },
 };
+const queryKey186 = cable.group4.section2.procedure186.queryKey(input186);
+const queryOptions186 = cable.group4.section2.procedure186.queryOptions(input186);
 
 const input187: InferInput<typeof api.group4.section2.procedure187> = {
   id: "item-187",
@@ -2270,6 +2554,7 @@ const error187: InferErrors<typeof api.group4.section2.procedure187> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 188 },
 };
+const mutationOptions187 = cable.group4.section2.procedure187.mutationOptions();
 
 const input188: InferInput<typeof api.group4.section2.procedure188> = {
   id: "item-188",
@@ -2282,6 +2567,8 @@ const error188: InferErrors<typeof api.group4.section2.procedure188> = {
   code: "FORBIDDEN",
   data: { resource: "procedure188" },
 };
+const queryKey188 = cable.group4.section2.procedure188.queryKey(input188);
+const queryOptions188 = cable.group4.section2.procedure188.queryOptions(input188);
 
 const input189: InferInput<typeof api.group4.section2.procedure189> = {
   id: "item-189",
@@ -2294,6 +2581,7 @@ const error189: InferErrors<typeof api.group4.section2.procedure189> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 190 },
 };
+const mutationOptions189 = cable.group4.section2.procedure189.mutationOptions();
 
 const input190: InferInput<typeof api.group4.section3.procedure190> = {
   id: "item-190",
@@ -2306,6 +2594,8 @@ const error190: InferErrors<typeof api.group4.section3.procedure190> = {
   code: "FORBIDDEN",
   data: { resource: "procedure190" },
 };
+const queryKey190 = cable.group4.section3.procedure190.queryKey(input190);
+const queryOptions190 = cable.group4.section3.procedure190.queryOptions(input190);
 
 const input191: InferInput<typeof api.group4.section3.procedure191> = {
   id: "item-191",
@@ -2318,6 +2608,7 @@ const error191: InferErrors<typeof api.group4.section3.procedure191> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 192 },
 };
+const mutationOptions191 = cable.group4.section3.procedure191.mutationOptions();
 
 const input192: InferInput<typeof api.group4.section3.procedure192> = {
   id: "item-192",
@@ -2330,6 +2621,8 @@ const error192: InferErrors<typeof api.group4.section3.procedure192> = {
   code: "FORBIDDEN",
   data: { resource: "procedure192" },
 };
+const queryKey192 = cable.group4.section3.procedure192.queryKey(input192);
+const queryOptions192 = cable.group4.section3.procedure192.queryOptions(input192);
 
 const input193: InferInput<typeof api.group4.section3.procedure193> = {
   id: "item-193",
@@ -2342,6 +2635,7 @@ const error193: InferErrors<typeof api.group4.section3.procedure193> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 194 },
 };
+const mutationOptions193 = cable.group4.section3.procedure193.mutationOptions();
 
 const input194: InferInput<typeof api.group4.section3.procedure194> = {
   id: "item-194",
@@ -2354,6 +2648,8 @@ const error194: InferErrors<typeof api.group4.section3.procedure194> = {
   code: "FORBIDDEN",
   data: { resource: "procedure194" },
 };
+const queryKey194 = cable.group4.section3.procedure194.queryKey(input194);
+const queryOptions194 = cable.group4.section3.procedure194.queryOptions(input194);
 
 const input195: InferInput<typeof api.group4.section3.procedure195> = {
   id: "item-195",
@@ -2366,6 +2662,7 @@ const error195: InferErrors<typeof api.group4.section3.procedure195> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 196 },
 };
+const mutationOptions195 = cable.group4.section3.procedure195.mutationOptions();
 
 const input196: InferInput<typeof api.group4.section3.procedure196> = {
   id: "item-196",
@@ -2378,6 +2675,8 @@ const error196: InferErrors<typeof api.group4.section3.procedure196> = {
   code: "FORBIDDEN",
   data: { resource: "procedure196" },
 };
+const queryKey196 = cable.group4.section3.procedure196.queryKey(input196);
+const queryOptions196 = cable.group4.section3.procedure196.queryOptions(input196);
 
 const input197: InferInput<typeof api.group4.section3.procedure197> = {
   id: "item-197",
@@ -2390,6 +2689,7 @@ const error197: InferErrors<typeof api.group4.section3.procedure197> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 198 },
 };
+const mutationOptions197 = cable.group4.section3.procedure197.mutationOptions();
 
 const input198: InferInput<typeof api.group4.section3.procedure198> = {
   id: "item-198",
@@ -2402,6 +2702,8 @@ const error198: InferErrors<typeof api.group4.section3.procedure198> = {
   code: "FORBIDDEN",
   data: { resource: "procedure198" },
 };
+const queryKey198 = cable.group4.section3.procedure198.queryKey(input198);
+const queryOptions198 = cable.group4.section3.procedure198.queryOptions(input198);
 
 const input199: InferInput<typeof api.group4.section3.procedure199> = {
   id: "item-199",
@@ -2414,6 +2716,7 @@ const error199: InferErrors<typeof api.group4.section3.procedure199> = {
   code: "RATE_LIMITED",
   data: { retryAfter: 200 },
 };
+const mutationOptions199 = cable.group4.section3.procedure199.mutationOptions();
 
 export const procedureInputs = [
   input0,
@@ -3021,6 +3324,314 @@ export const procedureErrors = [
   error198,
   error199,
 ] as const;
+export const cableQueryKeys = [
+  queryKey0,
+  queryKey2,
+  queryKey4,
+  queryKey6,
+  queryKey8,
+  queryKey10,
+  queryKey12,
+  queryKey14,
+  queryKey16,
+  queryKey18,
+  queryKey20,
+  queryKey22,
+  queryKey24,
+  queryKey26,
+  queryKey28,
+  queryKey30,
+  queryKey32,
+  queryKey34,
+  queryKey36,
+  queryKey38,
+  queryKey40,
+  queryKey42,
+  queryKey44,
+  queryKey46,
+  queryKey48,
+  queryKey50,
+  queryKey52,
+  queryKey54,
+  queryKey56,
+  queryKey58,
+  queryKey60,
+  queryKey62,
+  queryKey64,
+  queryKey66,
+  queryKey68,
+  queryKey70,
+  queryKey72,
+  queryKey74,
+  queryKey76,
+  queryKey78,
+  queryKey80,
+  queryKey82,
+  queryKey84,
+  queryKey86,
+  queryKey88,
+  queryKey90,
+  queryKey92,
+  queryKey94,
+  queryKey96,
+  queryKey98,
+  queryKey100,
+  queryKey102,
+  queryKey104,
+  queryKey106,
+  queryKey108,
+  queryKey110,
+  queryKey112,
+  queryKey114,
+  queryKey116,
+  queryKey118,
+  queryKey120,
+  queryKey122,
+  queryKey124,
+  queryKey126,
+  queryKey128,
+  queryKey130,
+  queryKey132,
+  queryKey134,
+  queryKey136,
+  queryKey138,
+  queryKey140,
+  queryKey142,
+  queryKey144,
+  queryKey146,
+  queryKey148,
+  queryKey150,
+  queryKey152,
+  queryKey154,
+  queryKey156,
+  queryKey158,
+  queryKey160,
+  queryKey162,
+  queryKey164,
+  queryKey166,
+  queryKey168,
+  queryKey170,
+  queryKey172,
+  queryKey174,
+  queryKey176,
+  queryKey178,
+  queryKey180,
+  queryKey182,
+  queryKey184,
+  queryKey186,
+  queryKey188,
+  queryKey190,
+  queryKey192,
+  queryKey194,
+  queryKey196,
+  queryKey198,
+] as const;
+export const cableQueryOptions = [
+  queryOptions0,
+  queryOptions2,
+  queryOptions4,
+  queryOptions6,
+  queryOptions8,
+  queryOptions10,
+  queryOptions12,
+  queryOptions14,
+  queryOptions16,
+  queryOptions18,
+  queryOptions20,
+  queryOptions22,
+  queryOptions24,
+  queryOptions26,
+  queryOptions28,
+  queryOptions30,
+  queryOptions32,
+  queryOptions34,
+  queryOptions36,
+  queryOptions38,
+  queryOptions40,
+  queryOptions42,
+  queryOptions44,
+  queryOptions46,
+  queryOptions48,
+  queryOptions50,
+  queryOptions52,
+  queryOptions54,
+  queryOptions56,
+  queryOptions58,
+  queryOptions60,
+  queryOptions62,
+  queryOptions64,
+  queryOptions66,
+  queryOptions68,
+  queryOptions70,
+  queryOptions72,
+  queryOptions74,
+  queryOptions76,
+  queryOptions78,
+  queryOptions80,
+  queryOptions82,
+  queryOptions84,
+  queryOptions86,
+  queryOptions88,
+  queryOptions90,
+  queryOptions92,
+  queryOptions94,
+  queryOptions96,
+  queryOptions98,
+  queryOptions100,
+  queryOptions102,
+  queryOptions104,
+  queryOptions106,
+  queryOptions108,
+  queryOptions110,
+  queryOptions112,
+  queryOptions114,
+  queryOptions116,
+  queryOptions118,
+  queryOptions120,
+  queryOptions122,
+  queryOptions124,
+  queryOptions126,
+  queryOptions128,
+  queryOptions130,
+  queryOptions132,
+  queryOptions134,
+  queryOptions136,
+  queryOptions138,
+  queryOptions140,
+  queryOptions142,
+  queryOptions144,
+  queryOptions146,
+  queryOptions148,
+  queryOptions150,
+  queryOptions152,
+  queryOptions154,
+  queryOptions156,
+  queryOptions158,
+  queryOptions160,
+  queryOptions162,
+  queryOptions164,
+  queryOptions166,
+  queryOptions168,
+  queryOptions170,
+  queryOptions172,
+  queryOptions174,
+  queryOptions176,
+  queryOptions178,
+  queryOptions180,
+  queryOptions182,
+  queryOptions184,
+  queryOptions186,
+  queryOptions188,
+  queryOptions190,
+  queryOptions192,
+  queryOptions194,
+  queryOptions196,
+  queryOptions198,
+] as const;
+export const cableMutationOptions = [
+  mutationOptions1,
+  mutationOptions3,
+  mutationOptions5,
+  mutationOptions7,
+  mutationOptions9,
+  mutationOptions11,
+  mutationOptions13,
+  mutationOptions15,
+  mutationOptions17,
+  mutationOptions19,
+  mutationOptions21,
+  mutationOptions23,
+  mutationOptions25,
+  mutationOptions27,
+  mutationOptions29,
+  mutationOptions31,
+  mutationOptions33,
+  mutationOptions35,
+  mutationOptions37,
+  mutationOptions39,
+  mutationOptions41,
+  mutationOptions43,
+  mutationOptions45,
+  mutationOptions47,
+  mutationOptions49,
+  mutationOptions51,
+  mutationOptions53,
+  mutationOptions55,
+  mutationOptions57,
+  mutationOptions59,
+  mutationOptions61,
+  mutationOptions63,
+  mutationOptions65,
+  mutationOptions67,
+  mutationOptions69,
+  mutationOptions71,
+  mutationOptions73,
+  mutationOptions75,
+  mutationOptions77,
+  mutationOptions79,
+  mutationOptions81,
+  mutationOptions83,
+  mutationOptions85,
+  mutationOptions87,
+  mutationOptions89,
+  mutationOptions91,
+  mutationOptions93,
+  mutationOptions95,
+  mutationOptions97,
+  mutationOptions99,
+  mutationOptions101,
+  mutationOptions103,
+  mutationOptions105,
+  mutationOptions107,
+  mutationOptions109,
+  mutationOptions111,
+  mutationOptions113,
+  mutationOptions115,
+  mutationOptions117,
+  mutationOptions119,
+  mutationOptions121,
+  mutationOptions123,
+  mutationOptions125,
+  mutationOptions127,
+  mutationOptions129,
+  mutationOptions131,
+  mutationOptions133,
+  mutationOptions135,
+  mutationOptions137,
+  mutationOptions139,
+  mutationOptions141,
+  mutationOptions143,
+  mutationOptions145,
+  mutationOptions147,
+  mutationOptions149,
+  mutationOptions151,
+  mutationOptions153,
+  mutationOptions155,
+  mutationOptions157,
+  mutationOptions159,
+  mutationOptions161,
+  mutationOptions163,
+  mutationOptions165,
+  mutationOptions167,
+  mutationOptions169,
+  mutationOptions171,
+  mutationOptions173,
+  mutationOptions175,
+  mutationOptions177,
+  mutationOptions179,
+  mutationOptions181,
+  mutationOptions183,
+  mutationOptions185,
+  mutationOptions187,
+  mutationOptions189,
+  mutationOptions191,
+  mutationOptions193,
+  mutationOptions195,
+  mutationOptions197,
+  mutationOptions199,
+] as const;
+export const nativeQuery = useQuery(queryOptions0);
+export const nativeMutation = useMutation(mutationOptions1);
 
 const channel0Params: InferChannelParams<typeof api.channels.channel0> = { roomId: "room-0" };
 const channel0 = client.channels.channel0(channel0Params);

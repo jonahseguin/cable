@@ -19,6 +19,17 @@ interface PendingRequest {
   sent: boolean;
 }
 
+interface PendingWrite {
+  readonly frame: ClientFrame;
+  readonly resolve: () => void;
+  readonly reject: (error: Error) => void;
+}
+
+interface WriteResult {
+  readonly settled: Promise<void>;
+  readonly wrote: boolean;
+}
+
 function textMessage(event: MessageEvent): event is MessageEvent<string> {
   return typeof event.data === "string";
 }
@@ -30,7 +41,7 @@ export class SocketSession {
   private readonly statuses = new Set<() => void>();
   private readonly errors = new Set<(error: Error) => void>();
   private readonly pending = new Map<string, PendingRequest>();
-  private readonly queued: ClientFrame[] = [];
+  private readonly queued: PendingWrite[] = [];
   private socket: ChannelSocket | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private handshakeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -97,15 +108,18 @@ export class SocketSession {
     void this.connect(++this.epoch);
   }
 
-  send(frame: ClientFrame): void {
-    if (this.stopped) throw new CableError("UNAVAILABLE", { message: "Channel is disposed." });
+  send(frame: ClientFrame): Promise<void> {
+    if (this.stopped)
+      return Promise.reject(new CableError("UNAVAILABLE", { message: "Channel is disposed." }));
     if (this.currentStatus === "open") {
-      this.write(frame);
-      return;
+      return this.write(frame).settled;
     }
-    if (this.queued.length >= 256) throw new CableError("TOO_MANY_REQUESTS");
-    this.queued.push(frame);
+    if (this.queued.length >= 256) return Promise.reject(new CableError("TOO_MANY_REQUESTS"));
+    const written = new Promise<void>((resolve, reject) => {
+      this.queued.push({ frame, resolve, reject });
+    });
     this.start();
+    return written;
   }
 
   request(
@@ -125,7 +139,7 @@ export class SocketSession {
       this.pending.set(id, request);
       if (this.currentStatus === "open") {
         request.sent = true;
-        this.write(request.frame);
+        void this.write(request.frame).settled.catch(() => undefined);
       } else this.start();
     });
   }
@@ -169,7 +183,7 @@ export class SocketSession {
           this.cursor === undefined
             ? { t: "hello", v: 1 }
             : { t: "hello", v: 1, since: this.cursor };
-        this.write(hello);
+        void this.write(hello).settled.catch(() => undefined);
       });
       socket.addEventListener("message", (event) => {
         if (this.socket !== socket) return;
@@ -274,11 +288,15 @@ export class SocketSession {
     for (const pending of this.pending.values()) {
       if (!pending.sent) {
         pending.sent = true;
-        if (!this.write(pending.frame)) return;
+        const write = this.write(pending.frame);
+        void write.settled.catch(() => undefined);
+        if (!write.wrote) return;
       }
     }
     for (const queued of this.queued.splice(0)) {
-      if (!this.write(queued)) return;
+      const write = this.write(queued.frame);
+      void write.settled.then(queued.resolve, queued.reject);
+      if (!write.wrote) return;
     }
     this.pingTimer = setInterval(() => {
       this.ping();
@@ -321,14 +339,18 @@ export class SocketSession {
     }
   }
 
-  private write(frame: ClientFrame): boolean {
-    if (this.socket === undefined) return false;
+  private write(frame: ClientFrame): WriteResult {
+    if (this.socket === undefined) {
+      const error = new CableError("UNAVAILABLE");
+      return { settled: Promise.reject(error), wrote: false };
+    }
     try {
       this.socket.send(encodeClientFrame(frame));
-      return true;
+      return { settled: Promise.resolve(), wrote: true };
     } catch (cause) {
-      this.fail(cause instanceof Error ? cause : new CableError("UNAVAILABLE"));
-      return false;
+      const error = cause instanceof Error ? cause : new CableError("UNAVAILABLE");
+      this.fail(error);
+      return { settled: Promise.reject(error), wrote: false };
     }
   }
 
@@ -347,7 +369,7 @@ export class SocketSession {
       pending.reject(error);
     }
     this.pending.clear();
-    this.queued.length = 0;
+    for (const queued of this.queued.splice(0)) queued.reject(error);
   }
 
   private clearConnectionTimers(): void {

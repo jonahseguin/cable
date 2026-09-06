@@ -8,12 +8,21 @@ export type {
   ClientOptions,
   ProcedureArguments,
   ProcedureClient,
+  ProcedureError,
 } from "./client.js";
+export type {
+  AnyChannelContract,
+  AnyContract,
+  AnyProcedureContract,
+  InferInput,
+  InferOutput,
+} from "@cable/contract";
 export type { Link, LinkContext, LinkHandler, NextLink } from "./link.js";
 export type {
   ChannelHandle,
   ChannelHistoryEvent,
   ChannelHistoryPage,
+  InferChannel,
   ChannelPresence,
   ChannelProcedures,
   ChannelSenders,
