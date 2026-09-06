@@ -1,0 +1,3 @@
+{
+  "extends": "@sock8/typescript-config/base.json"
+}

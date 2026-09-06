@@ -1,0 +1,47 @@
+TOKEN api_append APPEND
+
+DESCRIPTION >
+    Datasource to ingest raw analytics events from the sock8 API Cloudflare Worker.
+
+SCHEMA >
+    timestamp DateTime64(3) `json:$.timestamp` CODEC(DoubleDelta, ZSTD(1)),
+    event_type String `json:$.event_type`,
+    organization_id Nullable(String) `json:$.organization_id`,
+    environment String `json:$.environment`,
+
+    socket_id Nullable(String) `json:$.socket_id`,
+    region Nullable(String) `json:$.region`,
+    shard_id Nullable(String) `json:$.shard_id`,
+    identity Nullable(String) `json:$.identity`,
+    reason Nullable(String) `json:$.reason`,
+    token_prefix Nullable(String) `json:$.token_prefix`,
+    close_code Nullable(Int32) `json:$.close_code`,
+    duration_ms Nullable(Int64) `json:$.duration_ms`,
+
+    channel Nullable(String) `json:$.channel`,
+    payload_size Nullable(Int64) `json:$.payload_size`,
+    persist Nullable(UInt8) `json:$.persist`,
+
+    message_id Nullable(String) `json:$.message_id`,
+    r2_key Nullable(String) `json:$.r2_key`,
+    size_bytes Nullable(Int64) `json:$.size_bytes`,
+
+    limit Nullable(Int32) `json:$.limit`,
+    has_cursor Nullable(UInt8) `json:$.has_cursor`,
+
+    router_id Nullable(String) `json:$.router_id`,
+
+    context Nullable(String) `json:$.context`,
+    error Nullable(String) `json:$.error`,
+    details Nullable(String) `json:$.details`,
+
+    interval_start_ts Nullable(DateTime64(3)) `json:$.interval_start_ts`,
+    interval_duration_s Nullable(Int32) `json:$.interval_duration_s`,
+    message_count Nullable(Int64) `json:$.message_count`,
+    total_bytes Nullable(Int64) `json:$.total_bytes`,
+
+    presence_channel_id Nullable(String) `json:$.presence_channel_id`,
+    joins Nullable(Int64) `json:$.joins`,
+    leaves Nullable(Int64) `json:$.leaves`
+
+ENGINE MergeTree

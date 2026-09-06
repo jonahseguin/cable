@@ -1,0 +1,32 @@
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Misc
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.turbo/
+.vercel/
+
+# Generated files
+**/next-env.d.ts
+
+# Lock files
+bun.lock
+*lock.json
+
+# Public directories
+**/public/ 
