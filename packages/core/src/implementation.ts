@@ -67,18 +67,49 @@ export type ProcedureHandler<
     : InferSchemaOutput<TProcedure["output"]>
 >;
 
+declare const resolvedProcedureBrand: unique symbol;
+
+/** One handler resolved through a context-specific procedure resolver. */
+export interface ResolvedProcedure<
+  TProcedure extends AnyProcedureContract,
+  TInitialContext extends object,
+  TValidateOutput extends boolean = true,
+> {
+  readonly [resolvedProcedureBrand]: (
+    context: TInitialContext,
+  ) => readonly [TProcedure, TValidateOutput];
+}
+
+/** Resolve one explicit global procedure leaf with a captured middleware chain. */
+export interface ProcedureResolver<
+  TInitialContext extends object,
+  TContext extends object,
+  TValidateOutput extends boolean = true,
+> {
+  <TProcedure extends AnyProcedureContract>(
+    contract: TProcedure,
+    handler: ProcedureHandler<TProcedure, TContext, TValidateOutput>,
+  ): ResolvedProcedure<TProcedure, TInitialContext, TValidateOutput>;
+  use<TMiddleware extends Middleware<TContext>>(
+    middleware: TMiddleware,
+  ): ProcedureResolver<TInitialContext, MiddlewareContext<TMiddleware>, TValidateOutput>;
+}
+
 /** The complete global-procedure implementation corresponding to a contract tree. */
 export type ProcedureImplementations<
   TTree,
+  TInitialContext extends object,
   TContext extends object,
   TValidateOutput extends boolean = true,
 > = {
   readonly [
     TKey in keyof TTree as TTree[TKey] extends AnyChannelContract ? never : TKey
   ]: TTree[TKey] extends AnyProcedureContract
-    ? ProcedureHandler<TTree[TKey], TContext, TValidateOutput>
+    ?
+        | ProcedureHandler<TTree[TKey], TContext, TValidateOutput>
+        | ResolvedProcedure<TTree[TKey], TInitialContext, TValidateOutput>
     : TTree[TKey] extends object
-      ? ProcedureImplementations<TTree[TKey], TContext, TValidateOutput>
+      ? ProcedureImplementations<TTree[TKey], TInitialContext, TContext, TValidateOutput>
       : never;
 };
 
@@ -171,6 +202,8 @@ export interface ProcedureBuilder<
   TContext extends object,
   TValidateOutput extends boolean = true,
 > {
+  /** Resolve one explicit contract leaf with this builder's middleware chain. */
+  readonly procedure: ProcedureResolver<TInitialContext, TContext, TValidateOutput>;
   /** Add middleware and use the context it passes to `next` downstream. */
   use<TMiddleware extends Middleware<TContext>>(
     middleware: TMiddleware,
@@ -178,7 +211,7 @@ export interface ProcedureBuilder<
 
   /** Supply every global procedure handler and create an executable runtime. */
   procedures(
-    handlers: ProcedureImplementations<TTree, TContext, TValidateOutput>,
+    handlers: ProcedureImplementations<TTree, TInitialContext, TContext, TValidateOutput>,
     options?: ProcedureOptions<TInitialContext>,
   ): ImplementedProcedures<TTree, TInitialContext>;
 }
@@ -195,6 +228,13 @@ interface RuntimeMiddleware {
 interface RuntimeProcedure {
   readonly contract: AnyProcedureContract;
   readonly handler: ProcedureHandler<AnyProcedureContract, RuntimeContext>;
+  readonly middleware: readonly RuntimeMiddleware[];
+}
+
+interface ResolvedProcedureData {
+  readonly contract: AnyProcedureContract;
+  readonly handler: ProcedureHandler<AnyProcedureContract, RuntimeContext>;
+  readonly middleware: readonly RuntimeMiddleware[];
 }
 
 interface RuntimeContext {
@@ -221,6 +261,7 @@ interface CallerTree {
 }
 
 const BUILTIN_CODE_SET: ReadonlySet<string> = new Set(BUILTIN_CODES);
+const resolvedProcedureData = new WeakMap<object, ResolvedProcedureData>();
 
 /** Begin implementing the global procedures with output validation enabled. */
 export function implement<TTree extends ContractTree>(
@@ -257,8 +298,9 @@ function createBuilder<
   middleware: readonly RuntimeMiddleware[],
 ): ProcedureBuilder<TTree, TInitialContext, TContext, TValidateOutput> {
   return {
+    procedure: createResolver(middleware),
     procedures(
-      handlers: ProcedureImplementations<TTree, TContext, TValidateOutput>,
+      handlers: ProcedureImplementations<TTree, TInitialContext, TContext, TValidateOutput>,
       options: ProcedureOptions<TInitialContext> = {},
     ): ImplementedProcedures<TTree, TInitialContext> {
       return createProcedures(
@@ -285,13 +327,13 @@ function createProcedures<
   TValidateOutput extends boolean,
 >(
   contract: Contract<TTree>,
-  handlers: ProcedureImplementations<TTree, THandlerContext, TValidateOutput>,
+  handlers: ProcedureImplementations<TTree, TInitialContext, THandlerContext, TValidateOutput>,
   middleware: readonly RuntimeMiddleware[],
   validateOutput: boolean,
   options: ProcedureOptions<TInitialContext>,
 ): ImplementedProcedures<TTree, TInitialContext> {
   const registry = new Map<string, RuntimeProcedure>();
-  collectProcedures(contract, handlers, [], registry);
+  collectProcedures(contract, handlers, [], registry, middleware);
 
   const runtime: ImplementedProcedures<TTree, TInitialContext> = {
     caller(context: TInitialContext): ProcedureCaller<TTree> {
@@ -321,7 +363,7 @@ function createProcedures<
       }
 
       try {
-        const result = await invokeMiddleware(middleware, 0, context, procedure, input);
+        const result = await invokeMiddleware(procedure.middleware, 0, context, procedure, input);
         if (!validateOutput) {
           assertJsonData(result.data, "INTERNAL");
           return { data: result.data, id: call.id, ok: true };
@@ -350,6 +392,36 @@ function createProcedures<
     },
   };
   return runtime;
+}
+
+function createResolver<
+  TInitialContext extends object,
+  TContext extends object,
+  TValidateOutput extends boolean,
+>(
+  middleware: readonly RuntimeMiddleware[],
+): ProcedureResolver<TInitialContext, TContext, TValidateOutput> {
+  const resolve = <TProcedure extends AnyProcedureContract>(
+    contract: TProcedure,
+    handler: ProcedureHandler<TProcedure, TContext, TValidateOutput>,
+  ): ResolvedProcedure<TProcedure, TInitialContext, TValidateOutput> => {
+    // SAFETY: Resolver construction fixes this wrapper's initial context type.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The opaque wrapper carries only its context brand in public declarations.
+    const resolved = {} as ResolvedProcedure<TProcedure, TInitialContext, TValidateOutput>;
+    resolvedProcedureData.set(resolved, {
+      contract,
+      handler: eraseResolvedHandler(handler),
+      middleware,
+    });
+    return resolved;
+  };
+  return Object.assign(resolve, {
+    use<TMiddleware extends Middleware<TContext>>(
+      nextMiddleware: TMiddleware,
+    ): ProcedureResolver<TInitialContext, MiddlewareContext<TMiddleware>, TValidateOutput> {
+      return createResolver([...middleware, eraseMiddleware(nextMiddleware)]);
+    },
+  });
 }
 
 async function invokeMiddleware(
@@ -383,33 +455,82 @@ function collectProcedures(
   handlerNode: object,
   path: readonly string[],
   registry: Map<string, RuntimeProcedure>,
+  middleware: readonly RuntimeMiddleware[],
 ): void {
   for (const [key, node] of Object.entries(contractNode)) {
-    if (isChannelContract(node)) {
-      continue;
-    }
+    if (isChannelContract(node)) continue;
     const nextPath = [...path, key];
     const handler = readProperty(handlerNode, key);
     if (isProcedureContract(node)) {
-      // oxlint-disable-next-line anti-slop/no-known-value-widening -- readProperty is the dynamic handler-tree boundary and this guard establishes the procedure domain.
-      if (!isProcedureHandler(handler)) {
-        throw new CableError("INTERNAL", {
-          message: `Missing procedure implementation: ${nextPath.join(".")}`,
-        });
-      }
-      registry.set(nextPath.join("."), { contract: node, handler });
+      collectProcedure(node, handler, nextPath, registry, middleware);
       continue;
     }
-    if (isRecordNode(node)) {
-      // oxlint-disable-next-line anti-slop/no-known-value-widening -- readProperty is the dynamic handler-tree boundary and this guard establishes the branch domain.
-      if (!isRecordNode(handler)) {
-        throw new CableError("INTERNAL", {
-          message: `Missing procedure group: ${nextPath.join(".")}`,
-        });
-      }
-      collectProcedures(node, handler, nextPath, registry);
-    }
+    if (isRecordNode(node)) collectProcedureGroup(node, handler, nextPath, registry, middleware);
   }
+}
+
+function collectProcedure(
+  contract: AnyProcedureContract,
+  handler: RpcCall["input"],
+  path: readonly string[],
+  registry: Map<string, RuntimeProcedure>,
+  middleware: readonly RuntimeMiddleware[],
+): void {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- readProperty is the dynamic handler-tree boundary and this guard establishes the procedure domain.
+  if (!isProcedureHandler(handler) && !isResolvedProcedure(handler)) {
+    throw new CableError("INTERNAL", {
+      message: `Missing procedure implementation: ${path.join(".")}`,
+    });
+  }
+  const resolved = resolvedProcedureData.get(handler);
+  if (resolved !== undefined && resolved.contract !== contract) {
+    throw new CableError("INTERNAL", {
+      message: `Procedure resolver contract does not match ${path.join(".")}`,
+    });
+  }
+  registry.set(path.join("."), {
+    contract,
+    handler: resolvedProcedureHandler(handler, resolved, path),
+    middleware: resolved === undefined ? middleware : resolved.middleware,
+  });
+}
+
+function resolvedProcedureHandler(
+  handler: RpcCall["input"],
+  resolved: ResolvedProcedureData | undefined,
+  path: readonly string[],
+): ProcedureHandler<AnyProcedureContract, RuntimeContext> {
+  if (resolved !== undefined) return resolved.handler;
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- collectProcedure validates this dynamic handler-tree boundary before execution.
+  if (isProcedureHandler(handler)) return handler;
+  throw new CableError("INTERNAL", { message: `Invalid resolved procedure ${path.join(".")}` });
+}
+
+function collectProcedureGroup(
+  contract: ContractTree,
+  handler: RpcCall["input"],
+  path: readonly string[],
+  registry: Map<string, RuntimeProcedure>,
+  middleware: readonly RuntimeMiddleware[],
+): void {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- readProperty is the dynamic handler-tree boundary and this guard establishes the branch domain.
+  if (!isRecordNode(handler)) {
+    throw new CableError("INTERNAL", { message: `Missing procedure group: ${path.join(".")}` });
+  }
+  collectProcedures(contract, handler, path, registry, middleware);
+}
+
+function eraseResolvedHandler<
+  TProcedure extends AnyProcedureContract,
+  TContext extends object,
+  TValidateOutput extends boolean,
+>(
+  handler: ProcedureHandler<TProcedure, TContext, TValidateOutput>,
+): ProcedureHandler<AnyProcedureContract, RuntimeContext> {
+  // SAFETY: `collectProcedures` checks the captured contract identity before this
+  // erased handler is invoked, and its resolver middleware reconstructs TContext.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions -- The shared executor erases leaf-specific handler evidence only after identity validation.
+  return handler as unknown as ProcedureHandler<AnyProcedureContract, RuntimeContext>;
 }
 
 function createCallerTree<TContext extends object>(
@@ -568,4 +689,13 @@ function isProcedureHandler(
   value: unknown,
 ): value is ProcedureHandler<AnyProcedureContract, object> {
   return typeof value === "function";
+}
+
+function isResolvedProcedure(
+  value: RpcCall["input"],
+): value is ResolvedProcedure<AnyProcedureContract, object> {
+  return (
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- RPC data is the shared dynamic procedure-tree boundary.
+    isRecordNode(value) && resolvedProcedureData.has(value)
+  );
 }

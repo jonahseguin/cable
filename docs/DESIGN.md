@@ -558,6 +558,33 @@ export const procedures = implement(api)
   })
 ```
 
+Reusable application middleware can name public, protected, and admin
+resolvers while retaining that one complete `.procedures()` object:
+
+```ts
+const builder = implement(api).context<{ identity: Identity | null }>()
+const publicProcedure = builder.procedure
+const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  if (ctx.identity === null) throw new CableError('UNAUTHORIZED')
+  return next({ ctx: { identity: ctx.identity } })
+})
+const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  if (ctx.identity.role !== 'admin') throw new CableError('FORBIDDEN')
+  return next({ ctx })
+})
+
+export const procedures = builder.procedures({
+  health: publicProcedure(api.health, () => ({ ok: true })),
+  posts: { create: protectedProcedure(api.posts.create, ({ ctx, input }) => ctx.posts.create(input)) },
+  users: { remove: adminProcedure(api.users.remove, ({ ctx, input }) => ctx.users.remove(input)) },
+})
+```
+
+Each resolver captures its own middleware chain and accepts one explicit global
+contract leaf. It preserves the leaf's input, output, and declared errors. A
+resolved leaf does not add a second dispatcher: the existing runtime invokes
+its captured chain once.
+
 - Middleware typing mirrors tRPC's `next({ ctx })` pattern but implemented
   with the shallowest generics that work. Study tRPC's middleware builder for
   the DX, not the implementation.

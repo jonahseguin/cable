@@ -181,20 +181,18 @@ describe("implement", () => {
 
   it("prevents middleware from invoking a handler more than once", async () => {
     let calls = 0;
-    const procedures = implement(
-      c.contract({ mutation: c.mutation({ input: z.void(), output: z.number() }) }),
-    )
-      .context<object>()
-      .use(async ({ ctx, next }) => {
-        await next({ ctx });
-        return next({ ctx });
-      })
-      .procedures({
-        mutation: () => {
-          calls += 1;
-          return calls;
-        },
-      });
+    const once = c.contract({ mutation: c.mutation({ input: z.void(), output: z.number() }) });
+    const builder = implement(once).context<object>();
+    const repeated = builder.procedure.use(async ({ ctx, next }) => {
+      await next({ ctx });
+      return next({ ctx });
+    });
+    const procedures = builder.procedures({
+      mutation: repeated(once.mutation, () => {
+        calls += 1;
+        return calls;
+      }),
+    });
 
     await expect(
       procedures.execute({ id: "once", input: undefined, path: "mutation" }, {}),
@@ -204,6 +202,43 @@ describe("implement", () => {
       ok: false,
     });
     expect(calls).toBe(1);
+  });
+
+  it("runs a resolved leaf's captured middleware once", async () => {
+    const order: string[] = [];
+    const builder = implement(testContract).context<InitialContext>();
+    const protectedProcedure = builder.procedure.use(async ({ ctx, next }) => {
+      order.push("protected");
+      return next({ ctx: { ...ctx, requestTag: "resolved" } });
+    });
+    const procedures = builder.procedures({
+      explode: () => undefined,
+      invalidOutput: () => "valid",
+      unsupportedOutput: () => new Date(0),
+      nested: {
+        convert: protectedProcedure(testContract.nested.convert, ({ ctx, input }) => {
+          order.push(ctx.requestTag);
+          return input + 1;
+        }),
+        declaredFailure: () => "ready",
+      },
+    });
+    await expect(
+      procedures.execute({ id: "resolved", input: "1", path: "nested.convert" }, { tenant: "a" }),
+    ).resolves.toEqual({ data: "#2", id: "resolved", ok: true });
+    expect(order).toEqual(["protected", "resolved"]);
+  });
+
+  it("rejects a resolved handler mounted at a different same-shaped contract leaf", () => {
+    const twin = c.contract({
+      first: c.query({ input: z.void(), output: z.string() }),
+      second: c.query({ input: z.void(), output: z.string() }),
+    });
+    const builder = implement(twin).context<{}>();
+    const first = builder.procedure(twin.first, () => "first");
+    expect(() => builder.procedures({ first, second: first })).toThrow(
+      "Procedure resolver contract does not match second",
+    );
   });
 
   it("keeps successful calls in a mixed HTTP batch independent", async () => {

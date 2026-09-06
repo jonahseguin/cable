@@ -1,9 +1,25 @@
 import type { InferChannelParams, InferOutput } from "@cable/contract";
-import type { EdgeHosts } from "@cable/core";
+import { implement, type EdgeHosts } from "@cable/core";
 
-import type { api, Api } from "./contract.js";
+import { api, type Api } from "./contract.js";
 
 declare const hosts: EdgeHosts<Api>;
+
+const procedureBuilder = implement(api).context<{
+  readonly identity: { readonly role: "admin" | "member" } | null;
+}>();
+const protectedProcedure = procedureBuilder.procedure.use(async ({ ctx, next }) => {
+  if (ctx.identity === null) throw new Error("unauthorized");
+  return next({ ctx: { identity: ctx.identity } });
+});
+export const protectedPerfProcedure = protectedProcedure(
+  api.group0.section0.procedure0,
+  ({ ctx, input }) => ({
+    accepted: ctx.identity.role === "admin",
+    id: input.id,
+    marker: input.marker,
+  }),
+);
 
 const edgeChannel0Params: InferChannelParams<typeof api.channels.channel0> = { roomId: "room-0" };
 const edgeChannel0 = hosts.channels.channel0(edgeChannel0Params);

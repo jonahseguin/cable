@@ -1,6 +1,7 @@
 export {
   cloudflareHost,
   type CloudflareDurableObjectClass,
+  type CloudflareHostInstance,
   type CloudflareHostOptions,
 } from "./cloudflare-host.js";
 export {
