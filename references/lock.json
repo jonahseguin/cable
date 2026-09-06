@@ -26,5 +26,9 @@
   "capnweb": {
     "url": "https://github.com/cloudflare/capnweb.git",
     "commit": "3edfc500a97361b1bdac97c260c9597f500748c6"
+  },
+  "[removed]": {
+    "url": "git@github.com:sock-8/[removed].git",
+    "commit": "87065f464c7bd8a81a8a40a2de13185b7726ad78"
   }
 }
