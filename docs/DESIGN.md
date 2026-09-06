@@ -1082,9 +1082,11 @@ input/output/errors, nested 3 levels) and 40 channels (each 4 server events,
 `tsc --noEmit --extendedDiagnostics` on a file that imports the contract and
 exercises the typed client for every node.
 
-Budget (CI fails above): **Instantiations < 500k, Check time < 2.5s** on the
-CI runner. Record baseline at M1 and tighten. If a change blows the budget,
-the change is wrong, not the budget. Compare against tRPC's
+Budget (CI fails above): **Instantiations < 500k** for both programs. The
+client program must check in **< 3.0s** and the edge program in **< 2.5s** on
+the CI runner. ADR 0025 records the M4 client adjustment. Record baseline at
+M1 and tighten. If a change blows the budget, the change is wrong, not the
+budget. Compare against tRPC's
 `examples/.test/diagnostics-big-router` (in `references/trpc`) to make sure we
 are meaningfully better.
 

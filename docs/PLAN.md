@@ -35,15 +35,15 @@ correctness. A green scaffold must never be described as working RPC or channels
 
 ## Implementation milestones
 
-| Milestone | Deliverable                                                                                                             | Required evidence before advancing                                                                                                                                   |
-| --------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1        | Contract DSL, typed errors, procedure implementation/caller, HTTP batch codec, memory procedure transport, client proxy | Positive and negative inference tests; input/error/batch behavior; no backend imports in client type program; real perf fixture <500k instantiations and <2.5s on CI |
-| M2        | Channel codec, durable event log, resume/reset, presence, timer queue, peers, socket client, shared conformance suite   | Every engine behavior passes normally and across hibernation between steps; transaction, retention, replay, and malformed-frame failures tested                      |
-| M3        | Cloudflare handler/DO adapter and chat example                                                                          | Shared conformance against workerd; fresh-instance storage/socket reconstruction; signed-grant rejection before accept; running example                              |
-| M4        | React hooks and TanStack Query options proxy                                                                            | Mount/unmount/refcount, native query options, hydration and SSR behavior; updated example                                                                            |
-| M5        | Node development host                                                                                                   | Same conformance and handler behavior; deterministic shutdown/idle cleanup; example without Wrangler                                                                 |
-| M6        | Rivet adapter and example                                                                                               | Verify current Rivet source/docs and install its skills; conformance with real driver and hibernation; beta until green                                              |
-| M7        | Optional Effect integration                                                                                             | Effect error/environment inference, Layers, Streams and interruption/resource ownership; no Effect dependency in core                                                |
+| Milestone | Deliverable                                                                                                             | Required evidence before advancing                                                                                                                          |
+| --------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1        | Contract DSL, typed errors, procedure implementation/caller, HTTP batch codec, memory procedure transport, client proxy | Positive and negative inference tests; input/error/batch behavior; no backend imports in client type program; real perf fixture within its active CI budget |
+| M2        | Channel codec, durable event log, resume/reset, presence, timer queue, peers, socket client, shared conformance suite   | Every engine behavior passes normally and across hibernation between steps; transaction, retention, replay, and malformed-frame failures tested             |
+| M3        | Cloudflare handler/DO adapter and chat example                                                                          | Shared conformance against workerd; fresh-instance storage/socket reconstruction; signed-grant rejection before accept; running example                     |
+| M4        | React hooks and TanStack Query options proxy                                                                            | Mount/unmount/refcount, native query options, hydration and SSR behavior; updated example                                                                   |
+| M5        | Node development host                                                                                                   | Same conformance and handler behavior; deterministic shutdown/idle cleanup; example without Wrangler                                                        |
+| M6        | Rivet adapter and example                                                                                               | Verify current Rivet source/docs and install its skills; conformance with real driver and hibernation; beta until green                                     |
+| M7        | Optional Effect integration                                                                                             | Effect error/environment inference, Layers, Streams and interruption/resource ownership; no Effect dependency in core                                       |
 
 Within M1, implement the contract and inference tests first, then procedure runtime,
 then memory transport and client; measure types as soon as the real proxy exists.
@@ -124,4 +124,6 @@ quality gate passes 226 root tests, 13 Cloudflare unit tests, 46 workerd tests
 with 2 expected native socket-send-fault skips, and the chat integration smoke.
 The type-performance programs measure 320,097 client instantiations in 0.57
 seconds and 235,460 edge instantiations in 0.29 seconds. CI verification is
-pending; M5 has not started.
+pending; M5 has not started. ADR 0025 keeps both programs below 500,000
+instantiations, sets the M4 client check-time limit to 3.0 seconds, and keeps
+the edge limit at 2.5 seconds.

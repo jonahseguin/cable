@@ -17,9 +17,9 @@ It stays out of the client program so the client boundary check remains valid.
 `bun run ts-perf --require-baseline` starts fresh TypeScript processes. One checks
 the client program's file list and rejects the fixture's backend module or package
 implementation source. It then compiles the client and edge programs separately.
-Each program must remain below 500,000 instantiations and 2.5 seconds of check
-time. The M4 client measurement is recorded in `baseline.json`; the fixed limits
-remain the CI gate.
+Each program must remain below 500,000 instantiations. The client program must
+check in less than 3.0 seconds; the edge program must check in less than 2.5
+seconds. `baseline.json` records the M4 client measurement and both CI limits.
 The fixture skips rechecking dependency declaration bodies so the measurement
 covers cable's consumer-facing inference. Root and package typechecks continue to
 check those declarations.

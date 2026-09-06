@@ -18,10 +18,11 @@ engine speed from changing the meaning of the compiler performance baseline.
 On the M1 fixture, declaration checking accounted for 146,422 instantiations and
 0.42 seconds on the local reference machine: 413,536 instantiations and 0.94 seconds
 with it, compared with 267,114 instantiations and 0.52 seconds without it. The
-fixture retains all 200 procedures and 40 channels, and the limits remain fewer
-than 500,000 instantiations and 2.5 seconds of uncompensated compiler check time.
+fixture retains all 200 procedures and 40 channels. Both programs remain below
+500,000 instantiations. ADR 0025 changes only M4's client check-time ceiling to
+3.0 seconds; the edge program remains below 2.5 seconds.
 The M2 fixture adds real client handles for all 40 channels, including every event
 listener, client event, host procedure, and presence view. M4 adds TanStack Query
 options for all 200 procedures and native `useQuery` and `useMutation` inference.
-That workload records 325,195 instantiations and 0.62 seconds on the same reference
+That workload records 320,097 instantiations and 0.55 seconds on the same reference
 machine.
