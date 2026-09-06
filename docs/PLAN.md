@@ -93,10 +93,9 @@ channel execution and sockets are the current milestone.
 
 ## M2 local acceptance
 
-The combined local gate passes 180 tests, including 32 shared Host conformance
+The combined local test suite passes 185 tests, including 32 shared Host conformance
 cases and 10 public-client integration cases run both normally and with
 hibernation between steps. Coverage includes grant rejection, replay/reset,
 presence, durable timer retries, private targeted history, oversized payloads,
-failed writes, reconnect, and disposal. Fallow reports no dead-code, duplication,
-or complexity findings. The expanded real channel-client fixture measures
+failed writes, reconnect, and disposal. Fallow checks dead code, duplication, and complexity before push. The expanded real channel-client fixture measures
 310,351 instantiations and 0.47 seconds locally; CI verification is pending.

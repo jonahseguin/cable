@@ -643,12 +643,7 @@ class ChannelEngine<
   }
 
   private async emitNamed(event: string, input: RpcCall["input"]): Promise<number> {
-    const schema = this.channel.server[event];
-    if (schema === undefined) {
-      throw new CableError("NOT_FOUND", { message: `Server event '${event}' is not declared` });
-    }
-    const data = await validate(schema, input);
-    assertJsonData(data, "INTERNAL");
+    const data = await this.validateServerEvent(event, input);
     return this.delivery.run(async () => {
       const frame = await this.appendEvent(event, data);
       this.broadcast(frame);
@@ -662,12 +657,7 @@ class ChannelEngine<
     input: InferSchemaInput<TChannel["server"][TName]>,
     options?: EmitToOptions,
   ): Promise<void> {
-    const schema = this.channel.server[event];
-    if (schema === undefined) {
-      throw new CableError("NOT_FOUND", { message: `Server event '${event}' is not declared` });
-    }
-    const data = await validate(schema, input);
-    assertJsonData(data, "INTERNAL");
+    const data = await this.validateServerEvent(event, input);
     await this.delivery.run(async () => {
       const selector = eventTarget(target);
       if (options?.log === true) {
@@ -677,6 +667,19 @@ class ChannelEngine<
       }
       this.broadcast({ d: data, ev: event, t: "evt" }, selector);
     });
+  }
+
+  private async validateServerEvent(
+    event: string,
+    input: RpcCall["input"],
+  ): Promise<RpcCall["input"]> {
+    const schema = this.channel.server[event];
+    if (schema === undefined) {
+      throw new CableError("NOT_FOUND", { message: `Server event '${event}' is not declared` });
+    }
+    const data = await validate(schema, input);
+    assertJsonData(data, "INTERNAL");
+    return data;
   }
 
   private async appendEvent(

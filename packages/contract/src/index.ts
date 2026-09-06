@@ -4,18 +4,16 @@ const contractBrand: unique symbol = Symbol("cable.contract");
 const contractNodeBrand: unique symbol = Symbol("cable.contract-node");
 const emptyErrors: EmptyErrorMap = Object.freeze({});
 const emptyProcedures: EmptyProcedureMap = Object.freeze({});
+const reservedPropertyNames = new Set(["__proto__", "constructor", "prototype", "then"]);
 const reservedChannelMembers = new Set([
-  "__proto__",
-  "constructor",
+  ...reservedPropertyNames,
   "dispose",
   "history",
   "on",
   "onError",
   "onStatus",
   "presence",
-  "prototype",
   "status",
-  "then",
 ]);
 
 /** A Standard Schema v1 validator accepted by cable. */
@@ -791,23 +789,8 @@ function parsePattern(pattern: string): readonly string[] {
   const names: string[] = [];
   const seen = new Set<string>();
   for (const segment of pattern.split(".")) {
-    if (segment.length === 0) {
-      throw new TypeError("Channel pattern must not contain empty segments");
-    }
-    const match = /^\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(segment);
-    if (match === null) {
-      if (segment.includes("{") || segment.includes("}")) {
-        throw new TypeError(`Invalid parameter segment '${segment}' in channel pattern`);
-      }
-      continue;
-    }
-    const name = match[1];
-    if (name === undefined) {
-      throw new TypeError(`Invalid parameter segment '${segment}' in channel pattern`);
-    }
-    if (name === "then" || name === "__proto__" || name === "prototype" || name === "constructor") {
-      throw new TypeError(`Channel parameter '${name}' is reserved`);
-    }
+    const name = parsePatternSegment(segment);
+    if (name === undefined) continue;
     if (seen.has(name)) {
       throw new TypeError(`Duplicate parameter '${name}' in channel pattern`);
     }
@@ -815,6 +798,27 @@ function parsePattern(pattern: string): readonly string[] {
     names.push(name);
   }
   return Object.freeze(names);
+}
+
+function parsePatternSegment(segment: string): string | undefined {
+  if (segment.length === 0) {
+    throw new TypeError("Channel pattern must not contain empty segments");
+  }
+  const match = /^\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(segment);
+  if (match === null) {
+    if (segment.includes("{") || segment.includes("}")) {
+      throw new TypeError(`Invalid parameter segment '${segment}' in channel pattern`);
+    }
+    return undefined;
+  }
+  const name = match[1];
+  if (name === undefined) {
+    throw new TypeError(`Invalid parameter segment '${segment}' in channel pattern`);
+  }
+  if (reservedPropertyNames.has(name)) {
+    throw new TypeError(`Channel parameter '${name}' is reserved`);
+  }
+  return name;
 }
 
 function createPatternParamsSchema(
@@ -940,7 +944,7 @@ function assertContractKey(name: string, path: readonly string[]): void {
   if (name.length === 0 || name.includes(".") || name.includes("/")) {
     throw new TypeError(`Contract key '${[...path, name].join(".")}' contains a path separator`);
   }
-  if (name === "then" || name === "__proto__" || name === "prototype" || name === "constructor") {
+  if (reservedPropertyNames.has(name)) {
     throw new TypeError(`Contract key '${[...path, name].join(".")}' is reserved`);
   }
 }

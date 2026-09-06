@@ -36,7 +36,9 @@
     "minTokens": 50,
     "mode": "mild",
     "near": false,
-    "threshold": 0,
+    // Fallow treats zero as no limit. Keep the ceiling below one configured
+    // minimum-sized clone at the current repository scale so reported clones gate.
+    "threshold": 0.01,
   },
   "health": {
     "ignore": ["references/**", "tools/oxlint/anti-slop/**", "**/dist/**"],
