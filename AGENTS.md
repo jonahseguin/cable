@@ -1,7 +1,10 @@
 # Working on cable
 
 `cable` is a TypeScript library for contract-first procedures and durable,
-typed channels on actor runtimes. M0 through M5 are complete. M6 is active.
+typed channels on actor runtimes. M0 through M5 are complete. M6 remains active
+with its hibernation gate unresolved. M7 implementation passed its isolated
+local gate under the user's sequencing exception and remains private and
+unpublished.
 M3 passed at `b24677e72d`; CI run `34011847336` confirmed its gate. M4 passed
 at `0d188888fa`; CI run `34020413544` confirmed its gate.
 M5 passed at `a24545cf3f`; CI run `34023046798` confirmed its gate.
@@ -15,10 +18,11 @@ Never describe a planned API as available.
    for pinned research material. Direct user instructions have precedence. The
    design follows, as amended by accepted ADRs; the plan cannot override it.
    In particular, ADR 0014 supersedes the design's historical submodule setup.
-2. Work only in the assigned milestone from section 14. Later milestones are
-   context, not scope. Record an open decision in `docs/adr/` before relying on
-   it; one short decision with its reason is enough. Raise contradictions
-   instead of silently redesigning them.
+2. Work only in the assigned milestone from section 14. M7 work is authorized
+   alongside the unresolved M6 gate; do not weaken, bypass, or relabel that
+   gate. Later milestones remain context, not scope. Record an open decision in
+   `docs/adr/` before relying on it; one short decision with its reason is
+   enough. Raise contradictions instead of silently redesigning them.
 3. Check `git status` before editing. Preserve unrelated work. This repository
    is often changed by several agents at once.
 

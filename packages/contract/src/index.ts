@@ -14,6 +14,7 @@ const reservedChannelMembers = new Set([
   "onStatus",
   "presence",
   "status",
+  "stream",
 ]);
 
 /** A Standard Schema v1 validator accepted by cable. */
