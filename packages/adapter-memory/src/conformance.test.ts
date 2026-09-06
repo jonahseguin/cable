@@ -15,15 +15,23 @@ import {
   signGrant,
   type ClientFrame,
   type GrantClaims,
+  type GrantId,
   type HostWireFrame,
   type SignedGrant,
 } from "@cable/core";
+import { describe, expect, it } from "vitest";
 
 import { ManualClock } from "./clock.js";
 import { createMemoryHost, type MemoryHost } from "./host.js";
 import type { MemorySocket } from "./socket.js";
 
 const grantSecret = "memory-conformance-secret-material-32-bytes";
+
+interface MemoryConformanceRuntime {
+  readonly clock: ManualClock;
+  readonly connect: (kind?: ConformanceGrant) => Promise<ConformanceMemorySocket>;
+  readonly host: MemoryHost;
+}
 
 class ConformanceMemorySocket implements ConformanceSocket {
   private readonly frames: HostWireFrame[] = [];
@@ -63,7 +71,7 @@ class ConformanceMemorySocket implements ConformanceSocket {
     await this.host.flush();
   }
 
-  async terminate(): Promise<void> {
+  async lose(): Promise<void> {
     this.socket.terminate();
     await this.host.flush();
   }
@@ -86,7 +94,7 @@ async function grant(kind: ConformanceGrant, clock: ManualClock): Promise<Signed
   return kind === "invalid" ? { payload: signed.payload, sig: "invalid" } : signed;
 }
 
-async function memoryDriver(): Promise<HostConformanceDriver> {
+function createMemoryConformanceRuntime(): MemoryConformanceRuntime {
   const clock = new ManualClock(1_000);
   let nextId = 0;
   const host = createMemoryHost(conformanceChannel, createConformanceImplementation(), {
@@ -101,8 +109,7 @@ async function memoryDriver(): Promise<HostConformanceDriver> {
     timerRetryMs: CONFORMANCE_POLICY.timerRetryMs,
   });
   return {
-    host,
-    advanceTime: (milliseconds) => host.advanceTime(milliseconds),
+    clock,
     async connect(kind = "valid") {
       const socket = host.connect(
         new Request("https://memory.invalid/_cable/ws"),
@@ -110,9 +117,48 @@ async function memoryDriver(): Promise<HostConformanceDriver> {
       );
       const connection = new ConformanceMemorySocket(socket, host);
       await host.flush();
-      return socket.readyState === 1 ? { accepted: true, socket: connection } : { accepted: false };
+      if (socket.readyState !== 1) throw new Error("Conformance upgrade was rejected.");
+      return connection;
     },
-    failSends(connection) {
+    host,
+  };
+}
+
+async function memoryDriver(): Promise<HostConformanceDriver> {
+  const { clock, connect, host } = createMemoryConformanceRuntime();
+  return {
+    capabilities: { injectSendFailure: true },
+    key: host.key,
+    limits: host.limits,
+    async attachmentLimitProbe() {
+      const connection = Array.from(host.connections())[0];
+      if (connection === undefined)
+        throw new Error("Accepted socket is absent from Host.connections().");
+      const attachment = connection.attachment.get();
+      if (attachment === undefined) throw new Error("Accepted socket has no attachment.");
+      // SAFETY: This intentionally oversized brand tests the adapter attachment boundary.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- GrantId is a string brand.
+      const grantId = "g".repeat(host.limits.attachmentBytes + 1) as GrantId;
+      connection.attachment.set({ ...attachment, grantId });
+    },
+    advanceTime: (milliseconds) => host.advanceTime(milliseconds),
+    connectionCount: async () => Array.from(host.connections()).length,
+    async connect(kind = "valid") {
+      if (kind !== "valid") {
+        const socket = host.connect(
+          new Request("https://memory.invalid/_cable/ws"),
+          await grant(kind, clock),
+        );
+        await host.flush();
+        return socket.readyState === 1
+          ? { accepted: true, socket: new ConformanceMemorySocket(socket, host) }
+          : { accepted: false };
+      }
+      return { accepted: true, socket: await connect() };
+    },
+    async failOneSend() {
+      const connection = Array.from(host.connections())[0];
+      if (connection === undefined) throw new Error("Expected a connection to inject failure.");
       const descriptor = Object.getOwnPropertyDescriptor(connection, "send");
       Object.defineProperty(connection, "send", {
         configurable: true,
@@ -126,7 +172,37 @@ async function memoryDriver(): Promise<HostConformanceDriver> {
       };
     },
     hibernate: () => host.hibernate(),
+    now: async () => host.now(),
+    peerCall: (message) => host.peers.call(host.key, message),
+    scheduleGet: () => host.schedule.get(),
+    storageGet: (key) => host.storage.get(key),
+    storageList: (options) => host.storage.list(options),
   };
 }
 
 hostConformance(memoryDriver);
+
+describe.each([false, true])("MemoryHost lost socket presence", (hibernate) => {
+  it("sweeps presence only after the runtime loses the socket", async () => {
+    const { connect, host } = createMemoryConformanceRuntime();
+    const observer = await connect();
+    await observer.send({ t: "hello", v: 1 });
+    await observer.next();
+    const lost = await connect();
+    await lost.send({ t: "hello", v: 1 });
+    await lost.next();
+    await lost.send({ d: { name: "Grace", online: true }, t: "presence" });
+    const joined = await observer.next();
+    expect(joined).toMatchObject({ join: [{ d: { name: "Grace", online: true } }], t: "presence" });
+
+    await lost.lose();
+    const retainedPresence = await host.storage.list({ prefix: "pr:" });
+    expect(retainedPresence.size).toBe(1);
+    if (hibernate) await host.hibernate();
+    await host.advanceTime(60_001);
+
+    const swept = await observer.next();
+    expect(swept).toMatchObject({ leave: [expect.any(String)], t: "presence" });
+    await expect(host.storage.list({ prefix: "pr:" })).resolves.toEqual(new Map());
+  });
+});

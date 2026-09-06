@@ -15,6 +15,8 @@ export default defineConfig({
     ".cursor/**",
     ".fallow/**",
     "coverage/**",
+    "packages/cloudflare/worker-configuration.d.ts",
+    "examples/*/src/routeTree.gen.ts",
     "references/**",
     "tools/oxlint/anti-slop/**",
     "**/dist/**",

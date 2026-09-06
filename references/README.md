@@ -56,7 +56,8 @@ that its implementation and license remain directly inspectable.
 access. The snapshot has no repository-level license file or declaration;
 `packages/typescript-config/package.json` declares `PROPRIETARY`. It is controlled
 reference material. Do not port its code unless its licensing is settled and the
-port is attributed.
+port is attributed. See [the [removed] reference note](../docs/[removed]-reference.md)
+before relying on it.
 
 ## External documentation
 

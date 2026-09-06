@@ -111,6 +111,26 @@ export {
   type WireError,
 } from "./rpc.js";
 export { validate, type ValidationIssue } from "./validation.js";
+export {
+  createEdgeHandler,
+  createEdgeHosts,
+  EdgeRegistry,
+  type CreateEdgeHostsOptions,
+  type EdgeChannelFactory,
+  type EdgeChannelHost,
+  type EdgeContract,
+  type EdgeContextInput,
+  type EdgeCredentials,
+  type EdgeErrorContext,
+  type EdgeGrants,
+  type EdgeHandler,
+  type EdgeHandlerOptions,
+  type EdgeHostRegistration,
+  type EdgeHostTransport,
+  type EdgeHostTransportLimits,
+  type EdgeHosts,
+  type EdgePrincipal,
+} from "./edge/index.js";
 export { createEngine } from "./engine/engine.js";
 export type {
   ChannelAuthorizeContext,

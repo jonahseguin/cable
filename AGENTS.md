@@ -1,15 +1,18 @@
 # Working on cable
 
 `cable` is a TypeScript library for contract-first procedures and durable,
-typed channels on actor runtimes. M0 and M1 are complete. M2 is in progress.
+typed channels on actor runtimes. M0 through M2 are complete. M3 is active.
+M2 passed at `5bec59297b`; CI run `34006151006` confirmed its gate.
 Package entry points remain placeholders until their milestone is implemented.
 Never describe a planned API as available.
 
 ## Start here
 
 1. Read `docs/DESIGN.md` in full before changing code, then use `docs/PLAN.md`
-   for the current execution order. Direct user instructions have precedence.
-   The design follows, as amended by accepted ADRs; the plan cannot override it.
+   for the current execution order and [`references/README.md`](references/README.md)
+   for pinned research material. Direct user instructions have precedence. The
+   design follows, as amended by accepted ADRs; the plan cannot override it.
+   In particular, ADR 0014 supersedes the design's historical submodule setup.
 2. Work only in the assigned milestone from section 14. Later milestones are
    context, not scope. Record an open decision in `docs/adr/` before relying on
    it; one short decision with its reason is enough. Raise contradictions
@@ -25,9 +28,12 @@ Never describe a planned API as available.
   the type-only `@standard-schema/spec` dependency.
 - `@cable/core` and `@cable/client` use web APIs. Node, Cloudflare, and Rivet
   APIs belong in their adapter packages. `ws` belongs only in `adapter-node`.
-- `references/` is read-only research material. Do not import from it, include
-  it in tooling, or search it by default. Attribute any non-trivial port with
-  its source path and license.
+- `references/` is read-only research material. Follow
+  [`references/README.md`](references/README.md) for pins and updates. Do not
+  import from it, include it in tooling, or search it by default. Attribute any
+  non-trivial port with its source path and license. For [removed]'s unfinished,
+  non-authoritative snapshot and licensing caveat, read
+  [`docs/[removed]-reference.md`](docs/[removed]-reference.md).
 - Runtime state is authoritative; process memory is a cache. Channel behavior
   must survive a new engine instance over the same sockets and storage.
 - Keep public types shallow. Infer one contract node at a time; never recurse

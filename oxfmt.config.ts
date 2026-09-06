@@ -15,6 +15,7 @@ export default defineConfig({
     "dist/**",
     "docs/DESIGN.md",
     "fixtures/big-contract/workload.json",
+    "packages/cloudflare/worker-configuration.d.ts",
     "references/**",
     "tools/oxlint/anti-slop/**",
     "**/dist/**",

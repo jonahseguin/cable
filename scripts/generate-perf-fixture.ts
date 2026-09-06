@@ -209,6 +209,33 @@ export const channel${index}Dispose = (): void => {
 `;
 }
 
+function edgeChannelExercise(index: number): string {
+  const path = `typeof api.channels.channel${index}`;
+  return `const edgeChannel${index}Params: InferChannelParams<${path}> = { roomId: "room-${index}" };
+const edgeChannel${index} = hosts.channels.channel${index}(edgeChannel${index}Params);
+export const edgeChannel${index}Created: Promise<number> = edgeChannel${index}.emit("created", {
+  channel: ${index},
+  id: "item-${index}",
+});
+export const edgeChannel${index}Updated: Promise<number> = edgeChannel${index}.emit("updated", {
+  channel: ${index},
+  version: ${index},
+});
+export const edgeChannel${index}Deleted: Promise<number> = edgeChannel${index}.emit("deleted", {
+  channel: ${index},
+  id: "item-${index}",
+});
+export const edgeChannel${index}Typing: Promise<number> = edgeChannel${index}.emit("typing", {
+  channel: ${index},
+  userId: "user-${index}",
+});
+export const edgeChannel${index}Load: Promise<InferOutput<${path}["procedures"]["load"]>> =
+  edgeChannel${index}.call("load", { cursor: ${index}, channel: ${index} });
+export const edgeChannel${index}Moderate: Promise<InferOutput<${path}["procedures"]["moderate"]>> =
+  edgeChannel${index}.call("moderate", { userId: "user-${index}", channel: ${index} });
+`;
+}
+
 function workloadSource(): string {
   const procedures = workload.procedures
     .map(
@@ -292,6 +319,21 @@ export type BackendContract = Api;
 `;
 }
 
+function edgeSource(): string {
+  const channels = Array.from({ length: channelCount }, (_, index) =>
+    edgeChannelExercise(index),
+  ).join("\n\n");
+  return `import type { InferChannelParams, InferOutput } from "@cable/contract";
+import type { EdgeHosts } from "@cable/core";
+
+import type { api, Api } from "./contract.js";
+
+declare const hosts: EdgeHosts<Api>;
+
+${channels}
+`;
+}
+
 const directory = new URL("../fixtures/big-contract/", import.meta.url);
 await mkdir(directory, { recursive: true });
 await Promise.all([
@@ -299,6 +341,7 @@ await Promise.all([
   writeFile(new URL("contract.ts", directory), contractSource()),
   writeFile(new URL("client.ts", directory), clientSource()),
   writeFile(new URL("backend.ts", directory), backendSource()),
+  writeFile(new URL("edge.ts", directory), edgeSource()),
 ]);
 
 const fixturePath = fileURLToPath(directory);
@@ -313,10 +356,11 @@ const format = spawnSync(
     `${fixturePath}contract.ts`,
     `${fixturePath}client.ts`,
     `${fixturePath}backend.ts`,
+    `${fixturePath}edge.ts`,
   ],
   { encoding: "utf8" },
 );
 if (format.error) throw format.error;
 if (format.status !== 0) throw new Error(format.stderr || "Could not format performance fixture.");
 
-console.log("Generated real 200-procedure / 40-channel contract and client workload.");
+console.log("Generated real 200-procedure / 40-channel client and edge workloads.");

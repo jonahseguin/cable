@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "lib": ["ESNext"],
+    "skipLibCheck": true,
+    "types": ["@cloudflare/vitest-plugin/types"]
+  },
+  "include": ["./**/*.spec.ts", "../worker-configuration.d.ts"],
+  "exclude": ["../dist", "../node_modules", "../../../references"]
+}

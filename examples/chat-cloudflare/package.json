@@ -1,0 +1,30 @@
+{
+  "name": "@cable/example-chat-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite dev",
+    "test:integration": "bun run scripts/integration.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cable/client": "workspace:*",
+    "@cable/cloudflare": "workspace:*",
+    "@cable/contract": "workspace:*",
+    "@cable/core": "workspace:*",
+    "@tanstack/react-router": "latest",
+    "@tanstack/react-start": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "5.1.1",
+    "vite": "7.3.6",
+    "wrangler": "4.129.0"
+  }
+}

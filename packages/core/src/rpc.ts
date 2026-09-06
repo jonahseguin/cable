@@ -438,7 +438,7 @@ function isHttpStatus(value: unknown): value is number {
 }
 
 // oxlint-disable eslint/no-await-in-loop -- A byte limit must be enforced as each ordered stream chunk arrives.
-async function readRequestBody(request: Request, maxBytes: number): Promise<string> {
+export async function readRequestBody(request: Request, maxBytes: number): Promise<string> {
   const declaredLength = request.headers.get("content-length");
   if (declaredLength !== null) {
     const length = Number(declaredLength);

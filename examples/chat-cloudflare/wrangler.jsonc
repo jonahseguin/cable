@@ -1,0 +1,8 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "cable-chat-cloudflare",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-09-05",
+  "durable_objects": { "bindings": [{ "name": "CHAT", "class_name": "ChatHost" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatHost"] }],
+}

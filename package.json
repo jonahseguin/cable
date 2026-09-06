@@ -11,8 +11,9 @@
   "type": "module",
   "scripts": {
     "build": "bun run --workspaces --if-present build",
-    "check": "bun run format:check && bun run build && bun run lint && bun run typecheck && bun run check:boundaries && bun run test && bun run fallow && bun run ts-perf --require-baseline",
+    "check": "bun run format:check && bun run build && bun run lint && bun run typecheck && bun run check:boundaries && bun run check:refs && bun run test && bun run test:cloudflare && bun run test:integration && bun run fallow && bun run ts-perf --require-baseline",
     "check:boundaries": "tsx scripts/check-boundaries.ts",
+    "check:refs": "scripts/refs.sh init",
     "changeset": "changeset",
     "dead-code": "fallow dead-code --type-aware --type-aware-require complete --format json --quiet --explain",
     "duplicates": "fallow dupes --fail-on-issues --format json --quiet --explain",
@@ -25,6 +26,8 @@
     "lint:fix": "oxlint --disable-nested-config --fix --deny-warnings --report-unused-disable-directives .",
     "setup:hooks": "git config core.hooksPath .githooks",
     "test": "vitest run",
+    "test:cloudflare": "bun --filter @cable/cloudflare test && bun --filter @cable/cloudflare test:workerd",
+    "test:integration": "bun --filter @cable/example-chat-cloudflare test:integration",
     "test:watch": "vitest",
     "ts-perf": "tsx scripts/ts-perf.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && bun run --workspaces --if-present typecheck"

@@ -6,7 +6,8 @@
   "type": "module",
   "dependencies": {
     "@cable/client": "workspace:*",
-    "@cable/contract": "workspace:*"
+    "@cable/contract": "workspace:*",
+    "@cable/core": "workspace:*"
   },
   "devDependencies": {
     "zod": "4.5.4"
