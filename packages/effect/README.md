@@ -16,13 +16,47 @@ procedure.
 The package targets `effect` 4.0.0-rc.112 only. It remains private and
 unpublished. See [the implementation plan](../../docs/PLAN.md).
 
+## Consume a channel stream
+
+This client points at a running Cable host for the same contract. The finite
+`receiveNextMessage` Effect owns its subscription through `Effect.scoped`.
+When it completes, fails, or is interrupted, Cable removes that listener. A
+shared channel socket stays open for other channel users.
+
 ```ts
-const procedures = implementEffect(api)
-  .context<RequestContext>()
-  .procedures({
-    greet: ({ input }) => Effect.succeed(`Hello, ${input}`),
-  })
-  .toCore(Layer.empty);
+import { createClient } from "@cable/client";
+import { c } from "@cable/contract";
+import { effectClient } from "@cable/effect";
+import { Effect, Stream } from "effect";
+import { z } from "zod";
+
+const api = c.contract({
+  room: c.channel("rooms.{roomId}", {
+    server: { message: z.object({ text: z.string() }) },
+    client: { send: z.object({ text: z.string().min(1) }) },
+    procedures: {
+      memberCount: c.query({ input: z.void(), output: z.number() }),
+    },
+  }),
+});
+
+const rawClient = createClient({
+  contract: api,
+  url: "https://api.example.com/_cable",
+});
+const client = effectClient(api, rawClient);
+const room = client.room({ roomId: "general" });
+
+const receiveNextMessage = Effect.scoped(
+  Stream.runForEach(Stream.take(room.stream("message"), 1), ({ text }) =>
+    Effect.sync(() => console.log(text)),
+  ),
+);
+
+await Effect.runPromise(room.send({ text: "Hello" }));
+const members = await Effect.runPromise(room.memberCount());
+await Effect.runPromise(receiveNextMessage);
+console.log(`${members} members`);
 ```
 
 `toCore` owns each Effect scope for one procedure invocation. A request that
