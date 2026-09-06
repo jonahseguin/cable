@@ -120,8 +120,8 @@ CI run `34011847336` passed the Node 22 compatibility job and full quality gate.
 
 `@cable/react` provides native TanStack Query options and React channel hooks.
 The chat example uses both, including an SSR-scoped `QueryClient`. The local
-quality gate passes 224 root tests, 13 Cloudflare unit tests, 50 workerd tests
+quality gate passes 226 root tests, 13 Cloudflare unit tests, 46 workerd tests
 with 2 expected native socket-send-fault skips, and the chat integration smoke.
-The type-performance programs measure 325,199 client instantiations in 0.58
-seconds and 235,460 edge instantiations in 0.31 seconds. CI verification is
+The type-performance programs measure 320,097 client instantiations in 0.57
+seconds and 235,460 edge instantiations in 0.29 seconds. CI verification is
 pending; M5 has not started.

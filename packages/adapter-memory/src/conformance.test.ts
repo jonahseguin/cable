@@ -4,9 +4,10 @@ import {
   conformanceChannel,
   createConformanceImplementation,
   hostConformance,
+  temporalHostConformance,
   type ConformanceGrant,
   type ConformanceSocket,
-  type HostConformanceDriver,
+  type TemporalHostConformanceDriver,
 } from "@cable/conformance";
 import {
   channelKey,
@@ -124,7 +125,7 @@ function createMemoryConformanceRuntime(): MemoryConformanceRuntime {
   };
 }
 
-async function memoryDriver(): Promise<HostConformanceDriver> {
+async function memoryDriver(): Promise<TemporalHostConformanceDriver> {
   const { clock, connect, host } = createMemoryConformanceRuntime();
   return {
     capabilities: { injectSendFailure: true },
@@ -181,6 +182,7 @@ async function memoryDriver(): Promise<HostConformanceDriver> {
 }
 
 hostConformance(memoryDriver);
+temporalHostConformance(memoryDriver);
 
 describe.each([false, true])("MemoryHost lost socket presence", (hibernate) => {
   it("sweeps presence only after the runtime loses the socket", async () => {
