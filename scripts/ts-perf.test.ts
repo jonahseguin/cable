@@ -39,7 +39,9 @@ it("reads compiler diagnostics and rejects missing measurements", () => {
 });
 
 it("enforces strict limits on both instantiations and elapsed check time", () => {
-  expect(withinBudget({ instantiations: 499_999, checkSeconds: 2.49 })).toBe(true);
-  expect(withinBudget({ instantiations: 500_000, checkSeconds: 0.1 })).toBe(false);
-  expect(withinBudget({ instantiations: 1, checkSeconds: 2.5 })).toBe(false);
+  expect(withinBudget({ instantiations: 499_999, checkSeconds: 2.99 }, 3)).toBe(true);
+  expect(withinBudget({ instantiations: 1, checkSeconds: 3 }, 3)).toBe(false);
+  expect(withinBudget({ instantiations: 499_999, checkSeconds: 2.49 }, 2.5)).toBe(true);
+  expect(withinBudget({ instantiations: 1, checkSeconds: 2.5 }, 2.5)).toBe(false);
+  expect(withinBudget({ instantiations: 500_000, checkSeconds: 0.1 }, 3)).toBe(false);
 });

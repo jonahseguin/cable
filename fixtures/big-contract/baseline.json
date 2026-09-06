@@ -6,13 +6,14 @@
     "runner": "Darwin arm64, Node 24.16.0",
     "bun": "1.4.0",
     "typescript": "5.9.3",
-    "instantiations": 325195,
-    "checkSeconds": 0.62
+    "instantiations": 320097,
+    "checkSeconds": 0.55
   },
   "workload": {
     "procedures": 200,
     "channels": 40
   },
   "instantiationsBelow": 500000,
-  "checkSecondsBelow": 2.5
+  "clientCheckSecondsBelow": 3,
+  "edgeCheckSecondsBelow": 2.5
 }
