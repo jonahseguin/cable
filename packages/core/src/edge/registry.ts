@@ -9,18 +9,27 @@ import {
 import { parseChannelKey } from "../channel-key.js";
 import { CableError, isCableError } from "../errors.js";
 import type { HostKey } from "../host.js";
-import type { EdgeContract, EdgeHostRegistration } from "./types.js";
+import type { EdgeContract, EdgeHostRegistration, EdgeUpgrade } from "./types.js";
 
-export interface RegisteredChannel {
+export interface RegisteredChannel<
+  TExecution = undefined,
+  TUpgrade extends EdgeUpgrade = Response,
+> {
   readonly path: readonly string[];
-  readonly registration: EdgeHostRegistration;
+  readonly registration: EdgeHostRegistration<TExecution, TUpgrade>;
 }
 
-export class EdgeRegistry {
-  private readonly byChannel = new Map<AnyChannelContract, RegisteredChannel>();
-  private readonly byPath = new Map<string, RegisteredChannel>();
+export class EdgeRegistry<TExecution = undefined, TUpgrade extends EdgeUpgrade = Response> {
+  private readonly byChannel = new Map<
+    AnyChannelContract,
+    RegisteredChannel<TExecution, TUpgrade>
+  >();
+  private readonly byPath = new Map<string, RegisteredChannel<TExecution, TUpgrade>>();
 
-  public constructor(contract: ContractTree, registrations: readonly EdgeHostRegistration[]) {
+  public constructor(
+    contract: ContractTree,
+    registrations: readonly EdgeHostRegistration<TExecution, TUpgrade>[],
+  ) {
     const channels = collectChannels(contract);
     if (registrations.length !== channels.size) {
       throw new TypeError("Edge hosts must register every channel exactly once");
@@ -40,12 +49,12 @@ export class EdgeRegistry {
     }
   }
 
-  public channel(path: readonly string[]): RegisteredChannel | undefined {
+  public channel(path: readonly string[]): RegisteredChannel<TExecution, TUpgrade> | undefined {
     return this.byPath.get(path.join("."));
   }
 
-  public select(key: HostKey): RegisteredChannel {
-    let selected: RegisteredChannel | undefined;
+  public select(key: HostKey): RegisteredChannel<TExecution, TUpgrade> {
+    let selected: RegisteredChannel<TExecution, TUpgrade> | undefined;
     for (const registered of this.byChannel.values()) {
       try {
         parseChannelKey(registered.registration.channel, key);
@@ -99,7 +108,9 @@ function visitChannels(
   }
 }
 
-function assertTransport(registration: EdgeHostRegistration): void {
+function assertTransport<TExecution, TUpgrade extends EdgeUpgrade>(
+  registration: EdgeHostRegistration<TExecution, TUpgrade>,
+): void {
   const { maxHostKeyBytes, maxUidCharacters } = registration.transport.limits;
   if (!Number.isSafeInteger(maxHostKeyBytes) || maxHostKeyBytes <= 0) {
     throw new TypeError("maxHostKeyBytes must be a positive safe integer");

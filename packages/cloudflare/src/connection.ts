@@ -37,6 +37,7 @@ export class CloudflareConnection implements Connection {
     });
   }
 
+  // fallow-ignore-next-line code-duplication -- Cloudflare owns hibernatable socket forwarding; Node attachment state has a different native lifecycle.
   public close(code?: number, reason?: string): void {
     this.socket.close(code, reason);
   }

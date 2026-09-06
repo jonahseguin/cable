@@ -449,12 +449,17 @@ function temporalScenarios(factory: TemporalHostConformanceFactory, mode: Scenar
 /** Register the complete Host behavior matrix in ordinary and hibernating modes. */
 export function hostConformance(factory: HostConformanceFactory): void {
   describe("Host conformance", () => {
-    describe("ordinary", () => {
-      scenarios(factory, "ordinary");
-    });
+    ordinaryHostConformance(factory);
     describe("hibernate between steps", () => {
       scenarios(factory, "hibernate");
     });
+  });
+}
+
+/** Register Host behavior that does not require an adapter hibernation facility. */
+export function ordinaryHostConformance(factory: HostConformanceFactory): void {
+  describe("ordinary", () => {
+    scenarios(factory, "ordinary");
   });
 }
 

@@ -20,7 +20,7 @@ function Chat(): ReactNode {
       <section className="chat" aria-label="Cable chat">
         <header>
           <div>
-            <p className="eyebrow">Cable on Cloudflare</p>
+            <p className="eyebrow">Cable chat</p>
             <h1>Room {roomId}</h1>
           </div>
           <RoomStatus roomId={roomId} />

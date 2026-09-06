@@ -23,6 +23,7 @@ import type {
   EdgeHandlerOptions,
   EdgePrincipal,
   EdgeProcedures,
+  EdgeUpgrade,
 } from "./types.js";
 
 const DEFAULT_BASE_PATH = "/_cable";
@@ -46,11 +47,12 @@ export function createEdgeHandler<
   TEnv,
   TExecution,
   TIdentity,
+  TUpgrade extends EdgeUpgrade = Response,
 >(
   contract: EdgeContract<TTree>,
   procedures: EdgeProcedures<TTree, TContext>,
-  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity>,
-): EdgeHandler<TEnv, TExecution> {
+  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity, TUpgrade>,
+): EdgeHandler<TEnv, TExecution, TUpgrade> {
   const tree = edgeContractTree(contract);
   const policy = edgePolicy(options);
 
@@ -71,7 +73,7 @@ export function createEdgeHandler<
                   principal: authenticated.principal,
                   registrations,
                 };
-                const hosts = createEdgeHosts(
+                const hosts = createEdgeHosts<TTree, TIdentity, TExecution, TUpgrade>(
                   contract,
                   options.grants === undefined
                     ? hostOptions
@@ -95,7 +97,7 @@ export function createEdgeHandler<
           return await handler.fetch(request);
         }
         if (url.pathname === `${policy.basePath}/ws`) {
-          return await handleUpgrade(tree, request, url, env, options, policy);
+          return await handleUpgrade(tree, request, url, env, execution, options, policy);
         }
         if (url.pathname.startsWith(`${policy.basePath}/host/`)) {
           return await handleHostCall(tree, request, url, env, options, policy);
@@ -123,7 +125,8 @@ function edgePolicy<
   TEnv,
   TExecution,
   TIdentity,
->(options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity>): EdgePolicy {
+  TUpgrade extends EdgeUpgrade,
+>(options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity, TUpgrade>): EdgePolicy {
   const origins = new Set<string>();
   if (options.credentials.mode === "cookie") {
     for (const origin of options.credentials.origins) {
@@ -143,14 +146,21 @@ function edgePolicy<
   };
 }
 
-async function handleUpgrade<TTree extends ContractTree, TEnv, TExecution, TIdentity>(
+async function handleUpgrade<
+  TTree extends ContractTree,
+  TEnv,
+  TExecution,
+  TIdentity,
+  TUpgrade extends EdgeUpgrade,
+>(
   tree: ContractTree,
   request: Request,
   url: URL,
   env: TEnv,
-  options: EdgeHandlerOptions<TTree, object, TEnv, TExecution, TIdentity>,
+  execution: TExecution,
+  options: EdgeHandlerOptions<TTree, object, TEnv, TExecution, TIdentity, TUpgrade>,
   policy: EdgePolicy,
-): Promise<Response> {
+): Promise<Response | TUpgrade> {
   if (request.method !== "GET") return methodNotAllowed("GET");
   if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
     throw new CableError("BAD_REQUEST", { message: "WebSocket Upgrade header is required" });
@@ -158,7 +168,7 @@ async function handleUpgrade<TTree extends ContractTree, TEnv, TExecution, TIden
   requireAllowedOrigin(request, options, policy.origins);
   const key = parseHostKey(url.searchParams.get("ch"));
   const rawParams = parseJsonParameter(url.searchParams.get("params"), "params");
-  const registry = new EdgeRegistry(tree, options.hosts(env));
+  const registry = new EdgeRegistry<TExecution, TUpgrade>(tree, options.hosts(env));
   const registered = registry.select(key);
   const resolved = await resolveChannel(registered.registration.channel, rawParams);
   if (resolved.key !== key) {
@@ -175,22 +185,28 @@ async function handleUpgrade<TTree extends ContractTree, TEnv, TExecution, TIden
   const now = readNow(options.now);
   const claims = grantClaims(context, grants, now, policy.grantTtlMs);
   const grant = await signGrant(claims, await options.grantSecret(env));
-  return registered.registration.transport.upgrade(key, sanitizeUpgrade(request), grant);
+  return registered.registration.transport.upgrade(key, sanitizeUpgrade(request), grant, execution);
 }
 
-async function handleHostCall<TTree extends ContractTree, TEnv, TExecution, TIdentity>(
+async function handleHostCall<
+  TTree extends ContractTree,
+  TEnv,
+  TExecution,
+  TIdentity,
+  TUpgrade extends EdgeUpgrade,
+>(
   tree: ContractTree,
   request: Request,
   url: URL,
   env: TEnv,
-  options: EdgeHandlerOptions<TTree, object, TEnv, TExecution, TIdentity>,
+  options: EdgeHandlerOptions<TTree, object, TEnv, TExecution, TIdentity, TUpgrade>,
   policy: EdgePolicy,
 ): Promise<Response> {
   if (request.method !== "POST") return methodNotAllowed("POST");
   requireJsonContentType(request);
   const route = parseHostCallPath(url.pathname, policy.basePath);
   const body = parseHostCallBody(await readRequestBody(request, policy.maxBodyBytes));
-  const registry = new EdgeRegistry(tree, options.hosts(env));
+  const registry = new EdgeRegistry<TExecution, TUpgrade>(tree, options.hosts(env));
   const registered = registry.select(route.key);
   const resolved = await resolveChannel(registered.registration.channel, body.params);
   if (resolved.key !== route.key) {
@@ -219,10 +235,11 @@ async function authenticate<
   TEnv,
   TExecution,
   TIdentity,
+  TUpgrade extends EdgeUpgrade,
 >(
   request: Request,
   env: TEnv,
-  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity>,
+  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity, TUpgrade>,
 ): Promise<AuthenticatedRequest<TIdentity>> {
   const identity = await options.authenticate(request, env);
   if (identity === null) return { principal: { identity } };
@@ -230,8 +247,8 @@ async function authenticate<
   return uid === undefined ? { principal: { identity } } : { principal: { identity, uid } };
 }
 
-async function resolveGrants<TIdentity>(
-  context: ReturnType<typeof edgeOperationContext<TIdentity>>,
+async function resolveGrants<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  context: ReturnType<typeof edgeOperationContext<TIdentity, TExecution, TUpgrade>>,
 ): Promise<readonly string[]> {
   const identity = context.principal.identity;
   if (identity === null) throw new CableError("UNAUTHORIZED");
@@ -240,8 +257,8 @@ async function resolveGrants<TIdentity>(
   );
 }
 
-function grantClaims<TIdentity>(
-  context: ReturnType<typeof edgeOperationContext<TIdentity>>,
+function grantClaims<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  context: ReturnType<typeof edgeOperationContext<TIdentity, TExecution, TUpgrade>>,
   grants: readonly string[],
   now: number,
   ttl: number,
@@ -272,9 +289,10 @@ function requireAllowedOrigin<
   TEnv,
   TExecution,
   TIdentity,
+  TUpgrade extends EdgeUpgrade,
 >(
   request: Request,
-  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity>,
+  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity, TUpgrade>,
   origins: ReadonlySet<string>,
 ): void {
   if (options.credentials.mode !== "cookie") return;
@@ -355,10 +373,9 @@ function parseHostKey(value: string | null): HostKey {
   if (value === null || value.length === 0) {
     throw new CableError("BAD_REQUEST", { message: "Host key is required" });
   }
-  // SAFETY: EdgeRegistry immediately parses this opaque value against each
-  // registered channel and rejects non-canonical keys before it can be routed.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Canonical parsing establishes the brand after this boundary.
-  return value as HostKey;
+  // SAFETY: EdgeRegistry immediately parses this opaque value against each registered channel
+  // and rejects non-canonical keys before routing it.
+  return value as HostKey; // oxlint-disable-line typescript/no-unsafe-type-assertion -- Canonical parsing establishes the brand at route selection.
 }
 
 function decodeRoutePart(value: string | undefined, label: string): string {
@@ -437,8 +454,9 @@ async function report<
   TEnv,
   TExecution,
   TIdentity,
+  TUpgrade extends EdgeUpgrade,
 >(
-  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity>,
+  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity, TUpgrade>,
   error: unknown,
   operation: string,
   request: Request,

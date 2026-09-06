@@ -20,18 +20,36 @@ export interface EdgeHostTransportLimits {
   readonly maxUidCharacters: number;
 }
 
+/**
+ * A native upgrade result returned by an adapter.
+ *
+ * Node completes its upgrade by mutating the supplied socket and returns `void`;
+ * fetch-oriented adapters return a `Response`.
+ */
+// oxlint-disable-next-line typescript/no-invalid-void-type -- Node's native upgrade completes without a fetch response.
+export type EdgeUpgrade = Response | void;
+
 /** Adapter operations needed by the portable edge router. */
-export interface EdgeHostTransport {
+export interface EdgeHostTransport<TExecution, TUpgrade extends EdgeUpgrade = Response> {
   readonly limits: EdgeHostTransportLimits;
   // oxlint-disable-next-line anti-slop/no-unknown-returns -- Adapter peer RPC is parsed by the operation-specific core caller.
   peer(key: HostKey, message: PeerMessage): Promise<unknown>;
-  upgrade(key: HostKey, request: Request, grant: SignedGrant): Promise<Response>;
+  upgrade(
+    key: HostKey,
+    request: Request,
+    grant: SignedGrant,
+    execution: TExecution,
+  ): Promise<TUpgrade>;
 }
 
 /** One channel family paired with its runtime-specific host transport. */
-export interface EdgeHostRegistration<TChannel extends AnyChannelContract = AnyChannelContract> {
+export interface EdgeHostRegistration<
+  TExecution = undefined,
+  TUpgrade extends EdgeUpgrade = Response,
+  TChannel extends AnyChannelContract = AnyChannelContract,
+> {
   readonly channel: TChannel;
-  readonly transport: EdgeHostTransport;
+  readonly transport: EdgeHostTransport<TExecution, TUpgrade>;
 }
 
 /** Call arguments for one host procedure. */
@@ -82,10 +100,14 @@ export type EdgeGrants<TIdentity> = (
 ) => MaybePromise<readonly string[]>;
 
 /** Inputs used to create a lazy typed host facade. */
-export interface CreateEdgeHostsOptions<TIdentity> {
+export interface CreateEdgeHostsOptions<
+  TIdentity,
+  TExecution = undefined,
+  TUpgrade extends EdgeUpgrade = Response,
+> {
   readonly grants?: EdgeGrants<TIdentity>;
   readonly principal: EdgePrincipal<TIdentity>;
-  readonly registrations: readonly EdgeHostRegistration[];
+  readonly registrations: readonly EdgeHostRegistration<TExecution, TUpgrade>[];
 }
 
 /** Credential rules enforced before authentication or host routing. */
@@ -103,8 +125,8 @@ export interface EdgeContextInput<TTree, TEnv, TExecution, TIdentity> {
 }
 
 /** A portable handler method with adapter-owned environment and execution values. */
-export interface EdgeHandler<TEnv, TExecution> {
-  fetch(request: Request, env: TEnv, execution: TExecution): Promise<Response>;
+export interface EdgeHandler<TEnv, TExecution, TUpgrade extends EdgeUpgrade = Response> {
+  fetch(request: Request, env: TEnv, execution: TExecution): Promise<Response | TUpgrade>;
 }
 
 /** Details supplied to the best-effort edge error observer. */
@@ -120,6 +142,7 @@ export interface EdgeHandlerOptions<
   TEnv,
   TExecution,
   TIdentity,
+  TUpgrade extends EdgeUpgrade = Response,
 > {
   readonly authenticate: (request: Request, env: TEnv) => MaybePromise<TIdentity | null>;
   readonly basePath?: string;
@@ -130,7 +153,7 @@ export interface EdgeHandlerOptions<
   readonly grantSecret: (env: TEnv) => MaybePromise<GrantSecret>;
   readonly grantTtlMs?: number;
   readonly grants?: EdgeGrants<TIdentity>;
-  readonly hosts: (env: TEnv) => readonly EdgeHostRegistration[];
+  readonly hosts: (env: TEnv) => readonly EdgeHostRegistration<TExecution, TUpgrade>[];
   readonly maxBatchSize?: number;
   readonly maxBodyBytes?: number;
   readonly now?: () => number;

@@ -130,3 +130,12 @@ instantiations in 2.63 seconds and 235,460 edge instantiations in 1.62 seconds.
 ADR 0025 keeps both programs below 500,000 instantiations, sets the M4 client
 check-time limit to 3.0 seconds, and keeps the edge limit at 2.5 seconds. M5
 is active.
+
+## M5 work in progress
+
+`@cable/adapter-node` now exposes a Node HTTP and WebSocket handler with a
+per-handler in-memory registry. Its runtime evicts idle engines after five
+minutes while retaining in-memory storage and scheduled work for that handler.
+The chat example has a Node launcher and Vite proxy that run without Wrangler.
+M5 remains active until the ordinary Node conformance matrix, public handler
+checks, Node smoke, full gate, and CI are green.

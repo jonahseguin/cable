@@ -13,6 +13,7 @@ import type {
   EdgeGrants,
   EdgeHosts,
   EdgePrincipal,
+  EdgeUpgrade,
 } from "./types.js";
 
 /** @internal Authenticated identity retained while preparing a host operation. */
@@ -26,10 +27,14 @@ interface PeerResponse {
   readonly value: unknown;
 }
 
-export interface HostOperationContext<TIdentity> {
+export interface HostOperationContext<
+  TIdentity,
+  TExecution = undefined,
+  TUpgrade extends EdgeUpgrade = Response,
+> {
   readonly principal: AuthenticatedEdgePrincipal<TIdentity>;
   readonly grants?: EdgeGrants<TIdentity>;
-  readonly registered: RegisteredChannel;
+  readonly registered: RegisteredChannel<TExecution, TUpgrade>;
   readonly resolved: ResolvedChannel;
 }
 
@@ -40,12 +45,17 @@ const proxyTarget: HostFactory = () => {
 };
 
 /** Create a lazy, contract-shaped facade for edge-to-host operations. */
-export function createEdgeHosts<TTree extends ContractTree, TIdentity>(
+export function createEdgeHosts<
+  TTree extends ContractTree,
+  TIdentity,
+  TExecution,
+  TUpgrade extends EdgeUpgrade,
+>(
   contract: EdgeContract<TTree>,
-  options: CreateEdgeHostsOptions<TIdentity>,
+  options: CreateEdgeHostsOptions<TIdentity, TExecution, TUpgrade>,
 ): EdgeHosts<TTree> {
   const tree = edgeContractTree(contract);
-  const registry = new EdgeRegistry(tree, options.registrations);
+  const registry = new EdgeRegistry<TExecution, TUpgrade>(tree, options.registrations);
 
   function proxy(path: readonly string[]): HostFactory {
     return new Proxy(proxyTarget, {
@@ -70,8 +80,8 @@ export function createEdgeHosts<TTree extends ContractTree, TIdentity>(
   return proxy([]) as HostFactory & EdgeHosts<TTree>;
 }
 
-function channelHost<TIdentity>(
-  registered: RegisteredChannel,
+function channelHost<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  registered: RegisteredChannel<TExecution, TUpgrade>,
   rawParams: RpcCall["input"],
   principal: EdgePrincipal<TIdentity>,
   grants?: EdgeGrants<TIdentity>,
@@ -94,8 +104,8 @@ function channelHost<TIdentity>(
   };
 }
 
-export async function callEdgeHost<TIdentity>(
-  context: HostOperationContext<TIdentity>,
+export async function callEdgeHost<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  context: HostOperationContext<TIdentity, TExecution, TUpgrade>,
   name: string,
   input: RpcCall["input"],
 ): Promise<RpcCall["input"]> {
@@ -108,12 +118,12 @@ export async function callEdgeHost<TIdentity>(
   return parsePeerCall(response.value);
 }
 
-export function edgeOperationContext<TIdentity>(
-  registered: RegisteredChannel,
+export function edgeOperationContext<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  registered: RegisteredChannel<TExecution, TUpgrade>,
   resolved: ResolvedChannel,
   principal: EdgePrincipal<TIdentity>,
   grants?: EdgeGrants<TIdentity>,
-): HostOperationContext<TIdentity> {
+): HostOperationContext<TIdentity, TExecution, TUpgrade> {
   if (principal.identity === null) {
     throw new CableError("UNAUTHORIZED", { message: "Host access requires authentication" });
   }
@@ -126,12 +136,12 @@ export function edgeOperationContext<TIdentity>(
   return grants === undefined ? context : { ...context, grants };
 }
 
-async function operationContext<TIdentity>(
-  registered: RegisteredChannel,
+async function operationContext<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  registered: RegisteredChannel<TExecution, TUpgrade>,
   rawParams: RpcCall["input"],
   principal: EdgePrincipal<TIdentity>,
   grants?: EdgeGrants<TIdentity>,
-): Promise<HostOperationContext<TIdentity>> {
+): Promise<HostOperationContext<TIdentity, TExecution, TUpgrade>> {
   if (principal.identity === null) {
     throw new CableError("UNAUTHORIZED", { message: "Host access requires authentication" });
   }
@@ -139,8 +149,8 @@ async function operationContext<TIdentity>(
   return edgeOperationContext(registered, resolved, principal, grants);
 }
 
-function peerCallMessage<TIdentity>(
-  context: HostOperationContext<TIdentity>,
+function peerCallMessage<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  context: HostOperationContext<TIdentity, TExecution, TUpgrade>,
   procedure: string,
   input: RpcCall["input"],
 ): Promise<PeerMessage> | PeerMessage {
@@ -167,8 +177,8 @@ function peerCallMessage<TIdentity>(
   return grants instanceof Promise ? grants.then(build) : build(grants ?? []);
 }
 
-async function invokePeer<TIdentity>(
-  context: HostOperationContext<TIdentity>,
+async function invokePeer<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  context: HostOperationContext<TIdentity, TExecution, TUpgrade>,
   message: Promise<PeerMessage> | PeerMessage,
 ): Promise<PeerResponse> {
   try {
@@ -246,8 +256,8 @@ export function normalizeGrants(grants: readonly string[]): readonly string[] {
   return [...unique];
 }
 
-export function assertTargetBounds(
-  registered: RegisteredChannel,
+export function assertTargetBounds<TExecution, TUpgrade extends EdgeUpgrade>(
+  registered: RegisteredChannel<TExecution, TUpgrade>,
   key: HostKey,
   uid: string | undefined,
 ): void {
