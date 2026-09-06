@@ -1,8 +1,9 @@
 # Implementation plan
 
-M0 through M4 are complete. The current milestone is **M5: Node development
-host**. M3 passed at `b24677e72d`; CI run `34011847336` confirmed its gate. M4
-passed at `0d188888fa`; CI run `34020413544` confirmed its gate. No library API
+M0 through M5 are complete. The current milestone is **M6: Rivet adapter and
+example**. M3 passed at `b24677e72d`; CI run `34011847336` confirmed its gate.
+M4 passed at `0d188888fa`; CI run `34020413544` confirmed its gate. M5 passed
+at `a24545cf3f`; CI run `34023046798` confirmed its gate. No library API
 is published. Read [DESIGN.md](DESIGN.md)
 for the full requirements; ADRs record explicit amendments. ADR 0014 supersedes
 the design's historical submodule setup; follow [the reference guide](../references/README.md).
@@ -131,11 +132,14 @@ ADR 0025 keeps both programs below 500,000 instantiations, sets the M4 client
 check-time limit to 3.0 seconds, and keeps the edge limit at 2.5 seconds. M5
 is active.
 
-## M5 work in progress
+## M5 acceptance
 
 `@cable/adapter-node` now exposes a Node HTTP and WebSocket handler with a
 per-handler in-memory registry. Its runtime evicts idle engines after five
 minutes while retaining in-memory storage and scheduled work for that handler.
 The chat example has a Node launcher and Vite proxy that run without Wrangler.
-M5 remains active until the ordinary Node conformance matrix, public handler
-checks, Node smoke, full gate, and CI are green.
+The ordinary Node conformance matrix, public handler checks, and Node smoke
+pass. The full local gate passed 258 root tests with 1 expected skip, 13
+Cloudflare unit tests, 46 workerd tests with 2 expected skips, both chat
+integration smokes, Fallow, and type-performance baselines. CI verification
+passed at `a24545cf3f` in run `34023046798`; M6 is active.
