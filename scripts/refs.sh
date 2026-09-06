@@ -37,6 +37,7 @@ subtree_split() {
 update_lock() {
   local name="$1"
   local commit="$2"
+  local tree="$3"
   local temporary
 
   temporary="$(mktemp "${TMPDIR:-/tmp}/cable-refs-lock.XXXXXX")"
@@ -44,10 +45,13 @@ update_lock() {
     $0 ~ "^[[:space:]]*\\\"" target "\\\"[[:space:]]*:" { in_target = 1 }
     in_target && $0 ~ /^[[:space:]]*"commit"[[:space:]]*:/ {
       sub(/"commit"[[:space:]]*:[[:space:]]*"[^"]*"/, "\"commit\": \"" replacement "\"")
+    }
+    in_target && $0 ~ /^[[:space:]]*"tree"[[:space:]]*:/ {
+      sub(/"tree"[[:space:]]*:[[:space:]]*"[^"]*"/, "\"tree\": \"" tree_replacement "\"")
       in_target = 0
     }
     { print }
-  ' references/lock.json > "$temporary"
+  ' replacement="$commit" tree_replacement="$tree" references/lock.json > "$temporary"
   mv "$temporary" references/lock.json
 }
 
@@ -78,10 +82,24 @@ reference_status() {
     return 1
   fi
 
+  local expected_tree
+  expected_tree="$(lock_value "$name" tree)"
+  if [[ -z "$expected_tree" ]]; then
+    printf '%-22s missing locked tree\n' "$path"
+    return 1
+  fi
+
+  local actual_tree
+  actual_tree="$(git rev-parse "HEAD:$path")"
+  if [[ "$actual_tree" != "$expected_tree" ]]; then
+    printf '%-22s tree mismatch: expected %s, found %s\n' "$path" "$expected_tree" "$actual_tree"
+    return 1
+  fi
+
   split="$(subtree_split "$path")"
   if [[ -z "$split" ]]; then
-    printf '%-22s %s (subtree metadata unavailable)\n' "$path" "$expected"
-    return 1
+    printf '%-22s %s (tree verified; subtree metadata unavailable)\n' "$path" "$expected"
+    return 0
   fi
 
   if [[ "$split" != "$expected" ]]; then
@@ -116,6 +134,7 @@ update_references() {
   local path
   local url
   local split
+  local tree
 
   if [[ -z "$selected" ]]; then
     printf 'The update command requires one reference name.\n' >&2
@@ -139,7 +158,8 @@ update_references() {
     printf 'Could not read the new subtree pin for %s.\n' "$path" >&2
     return 1
   fi
-  update_lock "$name" "$split"
+  tree="$(git rev-parse "HEAD:$path")"
+  update_lock "$name" "$split" "$tree"
   printf 'Updated %s to %s\n' "$path" "$split"
 }
 

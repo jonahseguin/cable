@@ -14,6 +14,7 @@ export default defineConfig({
     "coverage/**",
     "dist/**",
     "docs/DESIGN.md",
+    "examples/*/src/routeTree.gen.ts",
     "fixtures/big-contract/workload.json",
     "packages/cloudflare/worker-configuration.d.ts",
     "references/**",
