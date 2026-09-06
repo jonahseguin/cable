@@ -75,6 +75,23 @@ async function welcomeSequence(
   return chunks;
 }
 
+async function publishRetainedEvents(
+  driver: HostConformanceDriver,
+  step: ScenarioStep,
+  texts: readonly string[],
+): Promise<void> {
+  const socket = await step(() => openSocket(driver));
+  for (const text of texts) {
+    // Each emit is a separate protocol step so the hibernation mode rebuilds
+    // between every durable append.
+    // eslint-disable-next-line no-await-in-loop
+    await step(() => socket.send({ d: { text }, ev: "publish", t: "emit" }));
+    // eslint-disable-next-line no-await-in-loop
+    await step(() => nextOfType(socket, "ev"));
+  }
+  await step(() => socket.terminate());
+}
+
 function peerCall(value: string): PeerMessage {
   return {
     d: { value },
@@ -156,22 +173,11 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
 
   it("replays retained events and resets a stale cursor", async () => {
     const { driver, step } = await setup();
-    const first = await step(() => openSocket(driver));
-    for (let sequence = 1; sequence <= 4; sequence += 1) {
-      // Each emit is a separate protocol step so the hibernation mode rebuilds
-      // between every durable append.
-      // eslint-disable-next-line no-await-in-loop
-      await step(() =>
-        first.send({
-          d: { text: `event-${sequence}` },
-          ev: "publish",
-          t: "emit",
-        }),
-      );
-      // eslint-disable-next-line no-await-in-loop
-      await step(() => nextOfType(first, "ev"));
-    }
-    await step(() => first.terminate());
+    await publishRetainedEvents(
+      driver,
+      step,
+      Array.from({ length: 4 }, (_, index) => `event-${String(index + 1)}`),
+    );
 
     const resumed = accepted(await step(() => driver.connect()));
     await step(() => resumed.send({ since: 2, t: "hello", v: 1 }));
@@ -373,22 +379,13 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
 
   it("chunks replay and preserves terminal welcome ordering", async () => {
     const { driver, step } = await setup();
-    const first = await step(() => openSocket(driver));
-    for (let sequence = 1; sequence <= 3; sequence += 1) {
-      // Long payloads force one retained event per welcome chunk under the
-      // shared conformance replay limit.
-      // eslint-disable-next-line no-await-in-loop
-      await step(() =>
-        first.send({
-          d: { text: `${String(sequence)}:${"x".repeat(400)}` },
-          ev: "publish",
-          t: "emit",
-        }),
-      );
-      // eslint-disable-next-line no-await-in-loop
-      await step(() => nextOfType(first, "ev"));
-    }
-    await step(() => first.terminate());
+    // Long payloads force one retained event per welcome chunk under the
+    // shared conformance replay limit.
+    await publishRetainedEvents(
+      driver,
+      step,
+      Array.from({ length: 3 }, (_, index) => `${String(index + 1)}:${"x".repeat(400)}`),
+    );
 
     const resumed = accepted(await step(() => driver.connect()));
     await step(() => resumed.send({ since: 0, t: "hello", v: 1 }));

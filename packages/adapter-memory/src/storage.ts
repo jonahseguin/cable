@@ -16,6 +16,18 @@ function copyEntries(entries: ReadonlyMap<string, unknown>): Map<string, unknown
   return new Map(Array.from(entries, ([key, value]) => [key, copyValue(value)]));
 }
 
+function getStoredValues<T>(
+  entries: ReadonlyMap<string, unknown>,
+  keys: readonly string[],
+): Map<string, T> {
+  const found = new Map<string, T>();
+  for (const key of keys) {
+    const value = entries.get(key);
+    if (value !== undefined) found.set(key, copyStoredValue<T>(value));
+  }
+  return found;
+}
+
 function selectedKeys(
   entries: ReadonlyMap<string, unknown>,
   options: StorageListOptions,
@@ -42,12 +54,7 @@ class TransactionStorage implements Storage {
   }
 
   async getMany<T>(keys: readonly string[]): Promise<Map<string, T>> {
-    const found = new Map<string, T>();
-    for (const key of keys) {
-      const value = this.entries.get(key);
-      if (value !== undefined) found.set(key, copyStoredValue<T>(value));
-    }
-    return found;
+    return getStoredValues<T>(this.entries, keys);
   }
 
   async put(key: string, value: unknown): Promise<void> {
@@ -96,14 +103,7 @@ export class MemoryStorage implements Storage {
   }
 
   getMany<T>(keys: readonly string[]): Promise<Map<string, T>> {
-    return this.exclusive(async () => {
-      const found = new Map<string, T>();
-      for (const key of keys) {
-        const value = this.entries.get(key);
-        if (value !== undefined) found.set(key, copyStoredValue<T>(value));
-      }
-      return found;
-    });
+    return this.exclusive(async () => getStoredValues<T>(this.entries, keys));
   }
 
   put(key: string, value: unknown): Promise<void> {
