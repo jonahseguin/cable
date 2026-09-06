@@ -2,6 +2,7 @@ import type {
   AnyChannelContract,
   AnyContract,
   AnyProcedureContract,
+  ChannelFactory,
   Client,
   InferInput,
   InferOutput,
@@ -9,7 +10,11 @@ import type {
   ProcedureError,
 } from "@cable/client";
 import { queryOptions } from "@tanstack/react-query";
-import type { MutationOptions } from "@tanstack/react-query";
+import type {
+  MutationOptions,
+  QueryKeyWithDataTag,
+  UndefinedInitialDataOptions,
+} from "@tanstack/react-query";
 
 /** A stable TanStack Query key for one Cable query and its input. */
 export type CableQueryKey<TProcedure extends AnyProcedureContract> = readonly [
@@ -19,14 +24,18 @@ export type CableQueryKey<TProcedure extends AnyProcedureContract> = readonly [
 ];
 
 /** Native options for fetching one Cable query through TanStack Query. */
-export type CableQueryOptions<TProcedure extends AnyProcedureContract> = ReturnType<
-  typeof queryOptions<
+export type CableQueryOptions<TProcedure extends AnyProcedureContract> =
+  UndefinedInitialDataOptions<
     InferOutput<TProcedure>,
     ProcedureError<TProcedure>,
     InferOutput<TProcedure>,
     CableQueryKey<TProcedure>
-  >
->;
+  > &
+    QueryKeyWithDataTag<
+      CableQueryKey<TProcedure>,
+      InferOutput<TProcedure>,
+      ProcedureError<TProcedure>
+    >;
 
 /** Native options for executing one Cable mutation through TanStack Query. */
 export type CableMutationOptions<TProcedure extends AnyProcedureContract> = MutationOptions<
@@ -51,16 +60,19 @@ export interface MutationOptionsLeaf<TProcedure extends AnyProcedureContract> {
 
 /** A contract-shaped facade combining channel factories with procedure query options. */
 export type CableQuery<TTree> = {
-  readonly [TKey in keyof TTree & string]: TTree[TKey] extends AnyChannelContract
-    ? Client<TTree>[TKey]
-    : TTree[TKey] extends infer TNode
-      ? TNode extends AnyProcedureContract
-        ? TNode["kind"] extends "query"
-          ? QueryOptionsLeaf<TNode>
-          : MutationOptionsLeaf<TNode>
-        : CableQuery<TNode>
-      : never;
+  readonly [TKey in keyof TTree & string]: CableQueryNode<TTree[TKey]>;
 };
+
+/** Map one contract node to its Cable query facade member. */
+export type CableQueryNode<TNode> = TNode extends AnyChannelContract
+  ? ChannelFactory<TNode>
+  : TNode extends AnyProcedureContract
+    ? TNode["kind"] extends "query"
+      ? QueryOptionsLeaf<TNode>
+      : MutationOptionsLeaf<TNode>
+    : TNode extends object
+      ? CableQuery<TNode>
+      : never;
 
 /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-reflect-get, anti-slop/no-reflect-apply, anti-slop/no-runtime-typeof, anti-slop/no-known-value-widening, typescript/no-unsafe-type-assertion -- SAFETY: c.contract validates router keys, and the Cable client exposes a lazy Proxy whose apply trap accepts only query or mutate. This checked traversal follows only contract-typed paths, verifies every receiver and operation before invocation, and keeps the dynamic boundary in one implementation. */
 type UnknownCallable = (...args: readonly unknown[]) => unknown;

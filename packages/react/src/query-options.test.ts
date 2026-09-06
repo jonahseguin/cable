@@ -6,6 +6,7 @@ import { QueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 
+import type { CableQueryNode } from "./index.js";
 import { createCableQuery } from "./query-options.js";
 
 const api = c.contract({
@@ -66,9 +67,13 @@ function typeAssertions() {
   const cable = queryClient();
   const query = cable.posts.list.queryOptions({ limit: 1 });
   const mutation = cable.posts.create.mutationOptions();
+  expectTypeOf<CableQueryNode<typeof api.posts.list>>().toEqualTypeOf<typeof cable.posts.list>();
   expectTypeOf(query.queryKey[0]).toEqualTypeOf<"cable">();
   expectTypeOf(query.queryKey[1]).toEqualTypeOf<string>();
   expectTypeOf(query.queryKey[2]).toEqualTypeOf<{ limit: number }>();
+  expectTypeOf(new QueryClient().getQueryData(query.queryKey)).toEqualTypeOf<
+    string[] | undefined
+  >();
   expectTypeOf(mutation.mutationFn).parameter(0).toEqualTypeOf<string>();
   expectTypeOf(useQuery(query).data).toEqualTypeOf<string[] | undefined>();
   expectTypeOf(useMutation(mutation).error?.code).toEqualTypeOf<
