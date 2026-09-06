@@ -1,0 +1,27 @@
+{
+  "description": "Require the repository quality gate before a changed Codex session completes.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$(git rev-parse --show-toplevel)/scripts/agent-quality-gate.ts\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$(git rev-parse --show-toplevel)/scripts/agent-quality-gate.ts\"",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}
