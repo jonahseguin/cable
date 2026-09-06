@@ -1,0 +1,73 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "api",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "dev": {
+    "port": 8080,
+  },
+  "routes": [
+    {
+      "pattern": "api.sock8.com",
+      "custom_domain": true,
+    },
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["SocketShard", "ChannelRouter", "PresenceChannel"],
+    },
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "SocketShard",
+        "name": "SOCKET_SHARD",
+      },
+      {
+        "class_name": "ChannelRouter",
+        "name": "CHANNEL_ROUTER",
+      },
+      {
+        "class_name": "PresenceChannel",
+        "name": "PRESENCE_CHANNEL",
+      },
+    ],
+  },
+
+  "kv_namespaces": [
+    {
+      "binding": "SOCKET_KV",
+      "id": "fedec828bf7040de88ba38dc688aca69",
+      "preview_id": "ad259fc12f5e4d479940044070ca4794",
+    },
+  ],
+
+  "r2_buckets": [
+    {
+      "bucket_name": "sock8-message-history",
+      "binding": "sock8_message_history",
+      "preview_bucket_name": "sock8-message-history-preview",
+    },
+  ],
+
+  "queues": {
+    "producers": [
+      {
+        "queue": "message-persistence-queue",
+        "binding": "message_persistence_queue",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "message-persistence-queue",
+      },
+    ],
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+}

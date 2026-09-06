@@ -1,0 +1,75 @@
+# Static vs Parameterized Paths
+
+In Sock8, a channel path defines where messages are sent and received.
+
+There are two types of paths:
+
+---
+
+## Static Paths
+
+A static path has no dynamic segments.  
+It always refers to exactly the same location.
+
+```ts
+'notifications': [
+  z.object({
+    title: z.string(),
+    body: z.string(),
+  }),
+]
+```
+
+You interact with static channels directly — no extra parameters needed.
+
+```ts
+channels.notifications.emit({ title: 'Hello', body: 'World' });
+channels.notifications.subscribe((payload) => { ... });
+```
+
+---
+
+## Parameterized Paths
+
+A parameterized path contains `{param}` placeholders.  
+At both **compile-time** and **runtime**, you must provide values for these placeholders.
+
+```ts
+'chat.{roomId}.messages': [
+  z.object({
+    sender: z.string(),
+    text: z.string(),
+  }),
+]
+```
+
+To interact with a parameterized channel, you use `.for()`:
+
+```ts
+channels.chat.messages.for({ roomId: 'abc123' }).emit({ sender: 'Alex', text: 'Hey' });
+channels.chat.messages.for({ roomId: 'abc123' }).subscribe((payload) => { ... });
+```
+
+If you forget a parameter, TypeScript will catch it immediately.
+
+---
+
+## Why the distinction matters
+
+| Static channels                       | Parameterized channels                       |
+| :------------------------------------ | :------------------------------------------- |
+| Always same path                      | Varies based on provided parameters          |
+| No `.for()` needed                    | `.for()` must be called with correct params  |
+| Simpler, faster to use                | More flexible for scoped interactions        |
+| Good for global or system-wide events | Good for user-specific or room-specific data |
+
+---
+
+## Best Practices
+
+- Use **static channels** for truly global messages (e.g., "system alerts", "global metrics").
+- Use **parameterized channels** when the data belongs to a specific user, room, organization, etc.
+
+---
+
+Next: [Channel DSL > Using Channels →](../using-channels)

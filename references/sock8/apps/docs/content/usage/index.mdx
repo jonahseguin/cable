@@ -1,0 +1,81 @@
+---
+asIndexPage: true
+---
+
+# Server vs Client Trees
+
+In Sock8, your **channel tree** is the single source of truth for your realtime system — but it behaves differently depending on whether it's used on the **server** or **client**.
+
+Understanding how Sock8 separates these concerns is critical to understanding its design.
+
+---
+
+## One Source of Truth, Two Views
+
+You define your channels once, using `channels()`.
+
+From there, you get two different **views** of the same tree:
+
+| Context | Purpose                               | Created by                             |
+| ------- | ------------------------------------- | -------------------------------------- |
+| Server  | Authorize, emit, and manage messages. | `defineChannels()`                     |
+| Client  | Subscribe to and receive messages.    | `createProxyClient<typeof channels>()` |
+
+The server tree is the authoritative source.  
+The client tree is a lightweight proxy derived from the server types — manually instantiated, with no runtime knowledge of all channels.
+
+**Server trees** can `.emit()` messages.  
+**Client trees** can `.subscribe()` (or `useChannel()`) to messages, and manage presence (`usePresence()`).
+
+> **Note:** Clients **cannot** emit messages. All emits must happen server-side.
+
+Attempting to use a server-only API on the client (or vice versa) will result in a **TypeScript error** at compile time.
+
+---
+
+## No Runtime Channel List on Client
+
+The Sock8 client SDK **does not download the full channel list** at runtime.
+
+Instead:
+
+- The client knows about the shape of the tree **through TypeScript types only**.
+- The actual runtime logic is minimal: it builds proxy objects based on the tree's structure.
+- The client SDK sends lightweight requests to subscribe or emit without needing global knowledge of all channels.
+
+This makes Sock8 extremely **lightweight**, **secure**, and **fast** for clients.
+
+You can ship a massive channel tree without worrying about bloating your client bundle.
+
+---
+
+## Typing Informs Usage
+
+Because the client tree is type-derived from the server tree:
+
+- **Static validation** ensures you call `.for({})` correctly for parameterized channels.
+- **Schema validation** ensures you send and receive the right payloads.
+- **Autocompletion** gives you a rich developer experience.
+
+Example behavior:
+
+- If a channel expects `{ userId }`, you must call `.for({ userId })` — TypeScript enforces this.
+- If a channel expects a certain payload shape, your `.emit()` or `.subscribe()` handlers will automatically be typed accordingly.
+- Presence (`usePresence()`) is exposed only on the client, where it's relevant.
+
+No need to manually share types, no codegen, no schema duplication.
+
+The types **are** the contract.
+
+---
+
+## Why It Matters
+
+This approach achieves several important goals:
+
+- **Type safety**: Errors are caught at compile time instead of during live usage.
+- **Performance**: No heavy runtime reflection or fetching channel lists.
+- **Security**: Clients cannot discover channels they aren't authorized for.
+- **Simplicity**: You think in terms of your application's domain model, not raw socket mechanics.
+
+---
