@@ -22,7 +22,7 @@ const channel = c.channel("room.{roomId}", {
 const contract = c.contract({ room: channel });
 const procedures = implement(contract).context<{ readonly request: Request }>().procedures({});
 
-class Transport implements EdgeHostTransport {
+class Transport implements EdgeHostTransport<undefined> {
   public readonly limits = { maxHostKeyBytes: 1_024, maxUidCharacters: 252 };
   public readonly peers: Array<{ key: string; message: unknown }> = [];
   public readonly upgrades: Array<{ key: HostKey; request: Request; grant: SignedGrant }> = [];
@@ -47,6 +47,29 @@ class Transport implements EdgeHostTransport {
   public async upgrade(key: HostKey, request: Request, grant: SignedGrant): Promise<Response> {
     this.upgrades.push({ key, request, grant });
     return new Response(null, { status: 200 });
+  }
+}
+
+interface UpgradeExecution {
+  readonly requestId: string;
+}
+
+class VoidTransport implements EdgeHostTransport<UpgradeExecution, void> {
+  public readonly limits = { maxHostKeyBytes: 1_024, maxUidCharacters: 252 };
+  public execution: UpgradeExecution | undefined;
+
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- EdgeHostTransport models the adapter's untrusted peer RPC boundary.
+  public async peer(_key: HostKey, _message: PeerMessage): Promise<unknown> {
+    return { d: "ok", ok: true };
+  }
+
+  public async upgrade(
+    _key: HostKey,
+    _request: Request,
+    _grant: SignedGrant,
+    execution: UpgradeExecution,
+  ): Promise<void> {
+    this.execution = execution;
   }
 }
 
@@ -88,6 +111,27 @@ function hostCallRequest(): Request {
 }
 
 describe("portable edge handler", () => {
+  it("forwards adapter execution and allows an upgrade to complete without a Response", async () => {
+    const transport = new VoidTransport();
+    const edge = createEdgeHandler(contract, procedures, {
+      authenticate: () => ({ userId: "user-1" }),
+      context: ({ request }) => ({ request }),
+      credentials: { mode: "bearer" },
+      grantSecret: () => secret,
+      hosts: () => [{ channel, transport }],
+      now: () => now,
+    });
+
+    await expect(
+      edge.fetch(
+        upgrade("https://example.test/_cable/ws?ch=room%3ALOBBY&params=%22lobby%22"),
+        {},
+        { requestId: "upgrade-1" },
+      ),
+    ).resolves.toBeUndefined();
+    expect(transport.execution).toEqual({ requestId: "upgrade-1" });
+  });
+
   it("rejects unauthenticated, malformed, cross-origin, and non-JSON requests before grants or transport", async () => {
     const transport = new Transport();
     const { edge, grantSecrets } = handler(transport, { authenticate: () => null });

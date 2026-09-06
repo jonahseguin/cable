@@ -29,6 +29,7 @@
     "examples/chat-cloudflare": {
       "name": "@cable/example-chat-cloudflare",
       "dependencies": {
+        "@cable/adapter-node": "workspace:*",
         "@cable/client": "workspace:*",
         "@cable/cloudflare": "workspace:*",
         "@cable/contract": "workspace:*",
@@ -43,6 +44,7 @@
       },
       "devDependencies": {
         "@cloudflare/workers-types": "latest",
+        "@types/node": "22.20.1",
         "@types/react": "latest",
         "@types/react-dom": "latest",
         "@vitejs/plugin-react": "5.1.1",
@@ -78,6 +80,17 @@
     "packages/adapter-node": {
       "name": "@cable/adapter-node",
       "version": "0.0.0",
+      "dependencies": {
+        "@cable/contract": "workspace:*",
+        "@cable/core": "workspace:*",
+        "ws": "8.21.0",
+      },
+      "devDependencies": {
+        "@cable/conformance": "workspace:*",
+        "@types/node": "22.20.1",
+        "@types/ws": "8.18.1",
+        "zod": "4.5.4",
+      },
     },
     "packages/client": {
       "name": "@cable/client",
@@ -710,6 +723,8 @@
     "@types/react": ["@types/react@19.2.18", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w=="],
 
     "@types/react-dom": ["@types/react-dom@19.2.7", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-I8bPpDLcHBv1qiIiXDCy71Rt8eQDKJP0sMSWJphDdAcdqiJ1sGpZamavoEIRZmYzjia9LuEb2HlYdDpmoENpvQ=="],
+
+    "@types/ws": ["@types/ws@8.18.1", "", { "dependencies": { "@types/node": "*" } }, "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg=="],
 
     "@typescript/typescript-aix-ppc64": ["@typescript/typescript-aix-ppc64@7.0.2", "", { "os": "aix", "cpu": "ppc64" }, "sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ=="],
 

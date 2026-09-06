@@ -54,15 +54,17 @@ export function createHandler<
 ): EdgeHandler<TEnv, TExecution> {
   return createEdgeHandler(contract, procedures, {
     ...options,
-    hosts: (env): readonly EdgeHostRegistration[] =>
+    hosts: (env): readonly EdgeHostRegistration<TExecution>[] =>
       options.hosts(env).map((host) => ({
         channel: host.channel,
-        transport: cloudflareTransport(host.namespace),
+        transport: cloudflareTransport<TExecution>(host.namespace),
       })),
   });
 }
 
-function cloudflareTransport(namespace: CableDurableObjectNamespace): EdgeHostTransport {
+function cloudflareTransport<TExecution>(
+  namespace: CableDurableObjectNamespace,
+): EdgeHostTransport<TExecution> {
   return {
     limits: CLOUDFLARE_EDGE_LIMITS,
     async peer(key, message) {

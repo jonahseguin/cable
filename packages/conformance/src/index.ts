@@ -15,4 +15,4 @@ export {
   type ConformanceIdentity,
   type ConformanceTimers,
 } from "./fixture.js";
-export { hostConformance, temporalHostConformance } from "./suite.js";
+export { hostConformance, ordinaryHostConformance, temporalHostConformance } from "./suite.js";
