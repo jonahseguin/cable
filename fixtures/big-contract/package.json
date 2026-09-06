@@ -7,7 +7,9 @@
   "dependencies": {
     "@cable/client": "workspace:*",
     "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*"
+    "@cable/core": "workspace:*",
+    "@cable/react": "workspace:*",
+    "@tanstack/react-query": "5.102.8"
   },
   "devDependencies": {
     "zod": "4.5.4"

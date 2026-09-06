@@ -48,10 +48,9 @@ export class ManagedChannel {
     };
   }
 
-  updatePresence(data: RpcCall["input"]): void {
+  updatePresence(data: RpcCall["input"]): Promise<void> {
     this.desiredPresence = { d: data };
-    if (this.session.status === "open") this.session.send({ t: "presence", d: data });
-    else this.session.start();
+    return this.session.send({ t: "presence", d: data });
   }
 
   private receive(frame: HostFrame): void {
@@ -74,7 +73,7 @@ export class ManagedChannel {
     this.pendingMembers.clear();
     this.changed();
     if (this.desiredPresence !== undefined)
-      this.session.send({ t: "presence", d: this.desiredPresence.d });
+      void this.session.send({ t: "presence", d: this.desiredPresence.d }).catch(() => undefined);
   }
 
   private changed(): void {

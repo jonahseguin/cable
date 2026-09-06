@@ -115,3 +115,13 @@ global RPC, and HTTP host fallback. The TanStack Start example builds both its
 client and SSR output. The type-performance programs measure 310,351 client
 instantiations in 0.46 seconds and 235,460 edge instantiations in 0.31 seconds.
 CI run `34011847336` passed the Node 22 compatibility job and full quality gate.
+
+## M4 local acceptance
+
+`@cable/react` provides native TanStack Query options and React channel hooks.
+The chat example uses both, including an SSR-scoped `QueryClient`. The local
+quality gate passes 224 root tests, 13 Cloudflare unit tests, 50 workerd tests
+with 2 expected native socket-send-fault skips, and the chat integration smoke.
+The type-performance programs measure 325,199 client instantiations in 0.58
+seconds and 235,460 edge instantiations in 0.31 seconds. CI verification is
+pending; M5 has not started.

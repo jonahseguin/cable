@@ -162,6 +162,11 @@ is `{ id, ok: true, data }` or `{ id, ok: false, error }`. An error contains
 and must be unique within a batch. Result order follows request order. A failed
 call does not discard successful siblings.
 
+Procedure paths join router segments with `.`. A router segment must therefore
+be nonempty and cannot contain `.` or `/`. Contract construction rejects those
+keys before the client, HTTP routes, and TanStack query keys can interpret two
+different contract trees as the same path.
+
 The default request limits are 1 MiB and 100 calls. The handler bounds streamed
 bodies before executing calls. Invalid envelopes fail the request; procedure
 validation and handler failures belong to their individual results.

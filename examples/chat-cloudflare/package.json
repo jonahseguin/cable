@@ -13,6 +13,8 @@
     "@cable/cloudflare": "workspace:*",
     "@cable/contract": "workspace:*",
     "@cable/core": "workspace:*",
+    "@cable/react": "workspace:*",
+    "@tanstack/react-query": "latest",
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",
     "react": "latest",

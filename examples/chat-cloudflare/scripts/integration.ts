@@ -68,6 +68,8 @@ async function verifyChat(): Promise<void> {
     const offMessage = aliceRoom.on("message", (message) => {
       received.resolve(message);
     });
+    const offAlicePresence = aliceRoom.presence.on(() => undefined);
+    const offBobPresence = bobRoom.presence.on(() => undefined);
     aliceRoom.presence.update({ name: "Alice" });
     bobRoom.presence.update({ name: "Bob" });
     await Promise.all([waitForOpen(aliceRoom), waitForOpen(bobRoom)]);
@@ -92,6 +94,8 @@ async function verifyChat(): Promise<void> {
       fallback.dispose();
     }
     offMessage();
+    offAlicePresence();
+    offBobPresence();
   } finally {
     aliceRoom.dispose();
     bobRoom.dispose();

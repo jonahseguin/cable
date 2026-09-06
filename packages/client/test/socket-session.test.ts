@@ -96,6 +96,18 @@ describe("resumable socket sessions", () => {
     expect(vi.getTimerCount()).toBe(1);
   });
 
+  it("rejects a queued fire-and-forget write when encoding fails", async () => {
+    const harness = new SocketHarness();
+    const connection = session(harness);
+    const pending = connection.send({ t: "emit", ev: "bad", d: 1n });
+    await harness.flush();
+    harness.welcome();
+    await harness.flush();
+    await expect(pending).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(connection.status).toBe("closed");
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
   it("commits presented replay events rather than the advertised head and refreshes credentials", async () => {
     const harness = new SocketHarness();
     const cursors = new Map<string, string>();

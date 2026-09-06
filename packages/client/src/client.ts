@@ -2,6 +2,7 @@ import { isChannelContract, isProcedureContract, isContract } from "@cable/contr
 import type {
   InferInput,
   InferOutput,
+  InferErrors,
   AnyProcedureContract,
   AnyContract,
   AnyChannelContract,
@@ -11,7 +12,7 @@ import type {
   QueryTransport,
 } from "@cable/contract";
 import { CableError } from "@cable/core";
-import type { RpcCall, RpcSuccess } from "@cable/core";
+import type { BuiltinCode, RpcCall, RpcSuccess } from "@cable/core";
 
 import { batchLink } from "./batch-link.js";
 import { ChannelPool } from "./channel-pool.js";
@@ -21,6 +22,11 @@ import type { Link, NextLink } from "./link.js";
 /** Raw schema inputs accepted by a client operation; void inputs may be omitted. */
 export type ProcedureArguments<Node extends AnyProcedureContract> =
   undefined extends InferInput<Node> ? [input?: InferInput<Node>] : [input: InferInput<Node>];
+
+/** Every transport and declared error a procedure call may reject with. */
+export type ProcedureError<Node extends AnyProcedureContract> = CableError<
+  BuiltinCode | InferErrors<Node>["code"]
+>;
 
 /** The callable operation exposed by one contract procedure. */
 export type ProcedureClient<Node extends AnyProcedureContract> = Node["kind"] extends "query"
@@ -161,8 +167,13 @@ export function createClient<Tree extends AnyContract>(options: ClientOptions<Tr
     }
   }
 
+  const proxies = new Map<string, ProxyCall>();
+
   function proxy(path: readonly string[]): ProxyCall {
-    return new Proxy(() => undefined, {
+    const pathKey = path.join("\u0000");
+    const cached = proxies.get(pathKey);
+    if (cached !== undefined) return cached;
+    const child = new Proxy(() => undefined, {
       get(_target, key) {
         if (!isStringKey(key) || key === "then") return undefined;
         return proxy([...path, key]);
@@ -179,6 +190,8 @@ export function createClient<Tree extends AnyContract>(options: ClientOptions<Tr
         return executeProcedure(path.slice(0, -1), args[0]);
       },
     });
+    proxies.set(pathKey, child);
+    return child;
   }
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SAFETY: the proxy checks operation names and maps contract-typed calls to the schema-validated server boundary.

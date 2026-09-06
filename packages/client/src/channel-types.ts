@@ -8,6 +8,15 @@ import type {
   InferServerEvent,
 } from "@cable/contract";
 
+declare const subscriptionChannel: unique symbol;
+
+/** Recover the channel node carried by a channel-handle type. */
+export type InferChannel<Handle> = Handle extends {
+  readonly [subscriptionChannel]?: infer Channel extends AnyChannelContract;
+}
+  ? Channel
+  : never;
+
 /** Connection state. Resuming lasts until the final replay chunk arrives. */
 export type ChannelStatus = "connecting" | "open" | "resuming" | "closed";
 
@@ -31,6 +40,8 @@ export interface ChannelPresence<Channel extends AnyChannelContract> {
 
 /** Observe typed events and connection state while retaining a shared socket. */
 export interface ChannelSubscription<Channel extends AnyChannelContract> {
+  /** Type-only channel evidence retained when hooks infer from a subscription. */
+  readonly [subscriptionChannel]?: Channel;
   readonly status: ChannelStatus;
   on<Event extends keyof Channel["server"] & string>(
     event: Event,

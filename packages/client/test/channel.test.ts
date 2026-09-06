@@ -103,6 +103,7 @@ describe.each([false, true])("channel client (hibernate: %s)", (hibernate) => {
   it("shares canonical keys and keeps other views alive through disposal", async () => {
     const fixture = await setup(hibernate);
     const owner = fixture.client();
+    expect(owner.room === owner.room).toBe(true);
     const first = fixture.handle(owner);
     const second = fixture.handle(owner, "one");
     const received: string[] = [];
@@ -131,6 +132,7 @@ describe.each([false, true])("channel client (hibernate: %s)", (hibernate) => {
     const fixture = await setup(hibernate);
     const first = fixture.handle();
     const second = fixture.handle();
+    const observePresence = first.presence.on(() => undefined);
     first.presence.update({ name: "one" });
     second.presence.update({ name: "two" });
     await fixture.flush();
@@ -141,6 +143,7 @@ describe.each([false, true])("channel client (hibernate: %s)", (hibernate) => {
     await vi.advanceTimersByTimeAsync(50);
     await fixture.flush();
     expect(first.presence.others).toEqual([]);
+    observePresence();
   });
 
   it("preserves declared acknowledgement errors and unsubscribes independently", async () => {
@@ -155,7 +158,7 @@ describe.each([false, true])("channel client (hibernate: %s)", (hibernate) => {
     off();
     await complete(channel.publish("after", { ack: true }), fixture.host);
     expect(received).toEqual([]);
-    expect(channel.status).toBe("open");
+    expect(channel.status).toBe("closed");
   });
 
   it("resumes missed events once and republishes presence after reconnect", async () => {
@@ -191,6 +194,84 @@ describe.each([false, true])("channel client (hibernate: %s)", (hibernate) => {
     await fixture.flush();
     expect(fixture.sockets).toHaveLength(0);
     await expect(channel.length("x")).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  });
+
+  it("keeps one pool reference while local subscriptions remain and reacquires after cleanup", async () => {
+    const fixture = await setup(hibernate);
+    const channel = fixture.handle();
+    const offEvent = channel.on("message", () => undefined);
+    const offStatus = channel.onStatus(() => undefined);
+    await fixture.flush();
+    expect(fixture.sockets).toHaveLength(1);
+    offEvent();
+    await vi.advanceTimersByTimeAsync(50);
+    expect([...fixture.host.connections()]).toHaveLength(1);
+    offStatus();
+    await vi.advanceTimersByTimeAsync(50);
+    await fixture.host.flush();
+    expect([...fixture.host.connections()]).toHaveLength(0);
+
+    channel.on("message", () => undefined);
+    await fixture.flush();
+    expect(fixture.sockets).toHaveLength(2);
+  });
+
+  it("releases a synchronously cleaned-up subscription before parameter resolution", async () => {
+    const fixture = await setup(hibernate);
+    const channel = fixture.handle();
+    const first = channel.on("message", () => undefined);
+    first();
+    await fixture.flush();
+    expect(fixture.sockets).toHaveLength(0);
+
+    const second = channel.on("message", () => undefined);
+    await fixture.flush();
+    expect(fixture.sockets).toHaveLength(1);
+    second();
+    await vi.advanceTimersByTimeAsync(50);
+    await fixture.host.flush();
+    expect([...fixture.host.connections()]).toHaveLength(0);
+  });
+
+  it("releases a fire-and-forget lease only after the queued write reaches the socket", async () => {
+    const fixture = await setup(hibernate);
+    const channel = fixture.handle();
+    channel.publish("queued");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(fixture.sockets).toHaveLength(1);
+    await fixture.host.flush();
+    await vi.advanceTimersByTimeAsync(50);
+    await fixture.host.flush();
+    expect([...fixture.host.connections()]).toHaveLength(0);
+  });
+
+  it("releases a settled acknowledgement lease", async () => {
+    const fixture = await setup(hibernate);
+    const channel = fixture.handle();
+    await complete(channel.publish("ack", { ack: true }), fixture.host);
+    await vi.advanceTimersByTimeAsync(50);
+    await fixture.host.flush();
+    expect([...fixture.host.connections()]).toHaveLength(0);
+  });
+
+  it("replaces an inactive view's presence snapshot when it subscribes again", async () => {
+    const fixture = await setup(hibernate);
+    const first = fixture.handle();
+    const second = fixture.handle();
+    const observe = first.presence.on(() => undefined);
+    first.presence.update({ name: "one" });
+    second.presence.update({ name: "two" });
+    await fixture.flush();
+    expect(first.presence.others).toMatchObject([{ d: { name: "two" } }]);
+    observe();
+    second.dispose();
+    await vi.advanceTimersByTimeAsync(50);
+    await fixture.flush();
+
+    const resubscribe = first.presence.on(() => undefined);
+    await fixture.flush();
+    expect(first.presence.others).toEqual([]);
+    resubscribe();
   });
 });
 
