@@ -32,6 +32,42 @@ function nextMessage(socket: WebSocket): Promise<string> {
   });
 }
 
+async function openNativeSocket(
+  roomId: string,
+  hello = true,
+): Promise<{ readonly socket: WebSocket; readonly stub: DurableObjectStub }> {
+  const key = channelKey(conformanceChannel, { roomId });
+  const claims = {
+    exp: Date.now() + 60_000,
+    grants: ["connect"],
+    hostKey: key,
+    identity: { userId: "socket-user" },
+    params: { roomId },
+    uid: "socket-user",
+    v: 1,
+  } satisfies GrantClaims;
+  const grant = await signGrant(claims, grantSecret);
+  const stub = env.CABLE_HOSTS.getByName(key);
+  const response = await stub.fetch(
+    new Request("https://conformance.invalid/_cable/ws", {
+      headers: { upgrade: "websocket", "x-cable-grant": `${grant.payload}.${grant.sig}` },
+    }),
+  );
+  expect(response.status).toBe(101);
+  const socket = response.webSocket;
+  if (socket === null) throw new Error("Durable Object did not return a WebSocket.");
+  socket.accept();
+  if (hello) {
+    const welcome = nextMessage(socket);
+    socket.send(encodeClientFrame({ t: "hello", v: 1 }));
+    const frame = decodeHostFrame(await welcome);
+    if (frame === "pong" || frame.t !== "welcome") {
+      throw new Error("Native Durable Object did not negotiate the Cable protocol.");
+    }
+  }
+  return { socket, stub };
+}
+
 hostConformance(createWorkerdConformanceDriver);
 
 describe("Cloudflare Durable Object conformance", () => {
@@ -130,10 +166,6 @@ describe("Cloudflare Durable Object conformance", () => {
     expect(driver.key).toBe(channelKey(conformanceChannel, { roomId: "driver-smoke" }));
     expect(driver.limits.maxFrameBytes).toBeGreaterThan(0);
     await expect(driver.connectionCount()).resolves.toBe(0);
-    const initialTime = await driver.now();
-    await driver.advanceTime(1);
-    await expect(driver.now()).resolves.toBe(initialTime + 1);
-    await expect(driver.scheduleGet()).resolves.toBeNull();
     await expect(driver.storageGet("missing")).resolves.toBeUndefined();
     await expect(driver.storageList({ prefix: "ev:" })).resolves.toEqual(new Map());
     await expect(
@@ -161,6 +193,90 @@ describe("Cloudflare Durable Object conformance", () => {
       t: "ev",
     });
     await expect(driver.storageGet("meta:seq")).resolves.toBe(1);
+  });
+
+  it("delivers a native hello deadline after ping and hibernation", async () => {
+    const { socket, stub } = await openNativeSocket("native-hello-deadline", false);
+    const pong = nextMessage(socket);
+    socket.send(encodeClientFrame("ping"));
+    await expect(pong).resolves.toBe("pong");
+    await evictDurableObject(stub, { webSockets: "hibernate" });
+    expect(decodeHostFrame(await nextMessage(socket))).toMatchObject({ t: "bye" });
+    await expect(
+      runInDurableObject(stub, async (_instance, state) => state.storage.list({ prefix: "gr:" })),
+    ).resolves.toEqual(new Map());
+  });
+
+  it("delivers native timers in deadline order across hibernation", async () => {
+    const { socket, stub } = await openNativeSocket("native-timer-order");
+    const now = Date.now();
+    socket.send(
+      encodeClientFrame({ d: { at: now + 40, text: "later" }, ev: "schedule", t: "emit" }),
+    );
+    socket.send(
+      encodeClientFrame({ d: { at: now + 20, text: "earlier" }, ev: "schedule", t: "emit" }),
+    );
+    await expect(
+      runInDurableObject(stub, (_instance, state) => state.storage.getAlarm()),
+    ).resolves.not.toBeNull();
+    await evictDurableObject(stub, { webSockets: "hibernate" });
+    expect(decodeHostFrame(await nextMessage(socket))).toMatchObject({
+      d: { source: "timer", text: "earlier" },
+      seq: 1,
+      t: "ev",
+    });
+    expect(decodeHostFrame(await nextMessage(socket))).toMatchObject({
+      d: { source: "timer", text: "later" },
+      seq: 2,
+      t: "ev",
+    });
+  });
+
+  it("compacts retained history after a native timer crosses its retention deadline", async () => {
+    const { socket, stub } = await openNativeSocket("native-history-retention");
+    const published = nextMessage(socket);
+    socket.send(encodeClientFrame({ d: { text: "expired" }, ev: "publish", t: "emit" }));
+    expect(decodeHostFrame(await published)).toMatchObject({ seq: 1, t: "ev" });
+    socket.send(
+      encodeClientFrame({
+        d: { at: Date.now() + 1_050, text: "retention-barrier" },
+        ev: "schedule",
+        t: "emit",
+      }),
+    );
+    await expect(
+      runInDurableObject(stub, (_instance, state) => state.storage.getAlarm()),
+    ).resolves.not.toBeNull();
+    await evictDurableObject(stub, { webSockets: "hibernate" });
+    expect(decodeHostFrame(await nextMessage(socket))).toMatchObject({
+      d: { source: "timer", text: "retention-barrier" },
+      seq: 2,
+      t: "ev",
+    });
+    const stale = await openNativeSocket("native-history-retention", false);
+    const reset = nextMessage(stale.socket);
+    stale.socket.send(encodeClientFrame({ since: 0, t: "hello", v: 1 }));
+    expect(decodeHostFrame(await reset)).toMatchObject({ reset: true, replay: [], t: "welcome" });
+  });
+
+  it("retries a native timer once after hibernation without a duplicate durable record", async () => {
+    const { socket, stub } = await openNativeSocket("native-timer-retry");
+    socket.send(
+      encodeClientFrame({ d: { at: Date.now() + 20, text: "retry" }, ev: "schedule", t: "emit" }),
+    );
+    await expect(
+      runInDurableObject(stub, (_instance, state) => state.storage.getAlarm()),
+    ).resolves.not.toBeNull();
+    await evictDurableObject(stub, { webSockets: "hibernate" });
+    expect(decodeHostFrame(await nextMessage(socket))).toMatchObject({
+      d: { source: "timer", text: "retry" },
+      seq: 1,
+      t: "ev",
+    });
+    const timers = await runInDurableObject(stub, (_instance, state) =>
+      state.storage.list({ prefix: "tm:" }),
+    );
+    expect([...timers.keys()].filter((key) => key.includes(":user:"))).toEqual([]);
   });
 
   it("keeps an accepted socket and durable sequence through hibernation eviction", async () => {

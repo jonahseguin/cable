@@ -4,6 +4,8 @@ export type {
   ConformanceUpgrade,
   HostConformanceDriver,
   HostConformanceFactory,
+  TemporalHostConformanceDriver,
+  TemporalHostConformanceFactory,
 } from "./driver.js";
 export {
   CONFORMANCE_LIMITS,
@@ -13,4 +15,4 @@ export {
   type ConformanceIdentity,
   type ConformanceTimers,
 } from "./fixture.js";
-export { hostConformance } from "./suite.js";
+export { hostConformance, temporalHostConformance } from "./suite.js";

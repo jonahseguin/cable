@@ -6,11 +6,13 @@ import type {
   ConformanceUpgrade,
   HostConformanceDriver,
   HostConformanceFactory,
+  TemporalHostConformanceFactory,
 } from "./driver.js";
 import { CONFORMANCE_POLICY } from "./fixture.js";
 
 type ScenarioMode = "hibernate" | "ordinary";
 type ScenarioStep = <Result>(operation: () => Promise<Result>) => Promise<Result>;
+const RETAINED_EVENT_TEXTS = ["event-1", "event-2", "event-3", "event-4"] as const;
 
 function accepted(upgrade: ConformanceUpgrade): ConformanceSocket {
   if (!upgrade.accepted) throw new Error("Expected the conformance upgrade to be accepted.");
@@ -96,11 +98,14 @@ function peerCall(value: string): PeerMessage {
   };
 }
 
-function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
-  async function setup(): Promise<{
-    readonly driver: HostConformanceDriver;
-    readonly step: <Result>(operation: () => Promise<Result>) => Promise<Result>;
-  }> {
+function scenarioSetup<TDriver extends HostConformanceDriver>(
+  factory: () => Promise<TDriver>,
+  mode: ScenarioMode,
+): () => Promise<{
+  readonly driver: TDriver;
+  readonly step: <Result>(operation: () => Promise<Result>) => Promise<Result>;
+}> {
+  return async () => {
     const driver = await factory();
     let completed = 0;
     return {
@@ -117,7 +122,11 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
         return result;
       },
     };
-  }
+  };
+}
+
+function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
+  const setup = scenarioSetup(factory, mode);
 
   it("accepts only valid, unexpired grants for this Host", async () => {
     const { driver, step } = await setup();
@@ -136,17 +145,6 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
     });
   });
 
-  it("retains and fires a pending hello deadline across reconstruction", async () => {
-    const { driver, step } = await setup();
-    const socket = accepted(await step(() => driver.connect()));
-    if (mode === "ordinary") await driver.hibernate?.();
-    await step(() => driver.advanceTime(CONFORMANCE_POLICY.handshakeTimeoutMs + 1));
-    const bye = await step(() => nextOfType(socket, "bye"));
-    expect(bye.reason).toMatch(/handshake|hello/iu);
-    await expect(driver.connectionCount()).resolves.toBe(0);
-    await expect(driver.storageList({ prefix: "gr:" })).resolves.toEqual(new Map());
-  });
-
   it("negotiates hello and keeps event sequences monotonic", async () => {
     const { driver, step } = await setup();
     const socket = await step(() => openSocket(driver));
@@ -160,23 +158,12 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
 
   it("replays retained events and resets a stale cursor", async () => {
     const { driver, step } = await setup();
-    await publishRetainedEvents(
-      driver,
-      step,
-      Array.from({ length: 4 }, (_, index) => `event-${String(index + 1)}`),
-    );
+    await publishRetainedEvents(driver, step, RETAINED_EVENT_TEXTS);
 
     const resumed = accepted(await step(() => driver.connect()));
     await step(() => resumed.send({ since: 2, t: "hello", v: 1 }));
     const replay = await welcomeSequence(resumed, step);
     expect(replay.flatMap((chunk) => chunk.replay).map((event) => event.seq)).toEqual([3, 4]);
-
-    await step(() => driver.advanceTime(1_001));
-    const stale = accepted(await step(() => driver.connect()));
-    await step(() => stale.send({ since: 0, t: "hello", v: 1 }));
-    const reset = await step(() => nextOfType(stale, "welcome"));
-    expect(reset.reset).toBe(true);
-    expect(reset.replay).toEqual([]);
   });
 
   it("returns validation and declared event errors without closing", async () => {
@@ -237,46 +224,6 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
     await step(() => first.close());
     const leave = await step(() => nextOfType(second, "presence"));
     expect(leave.leave).toHaveLength(1);
-  });
-
-  it("re-arms one alarm for ordered durable timers", async () => {
-    const { driver, step } = await setup();
-    const socket = await step(() => openSocket(driver));
-    const now = await driver.now();
-    await step(() =>
-      socket.send({ d: { at: now + 20, text: "later" }, ev: "schedule", t: "emit" }),
-    );
-    await step(() =>
-      socket.send({
-        d: { at: now + 10, text: "earlier" },
-        ev: "schedule",
-        t: "emit",
-      }),
-    );
-    await step(() => driver.advanceTime(10));
-    const earlier = await step(() => nextOfType(socket, "ev"));
-    expect(earlier.d).toEqual({ source: "timer", text: "earlier" });
-    await step(() => driver.advanceTime(10));
-    const later = await step(() => nextOfType(socket, "ev"));
-    expect(later.d).toEqual({ source: "timer", text: "later" });
-    const nextAlarm = await driver.scheduleGet();
-    expect(nextAlarm).not.toBeNull();
-    expect(nextAlarm).toBeGreaterThan(await driver.now());
-  });
-
-  it("retries a failed durable timer once without duplicate delivery", async () => {
-    const { driver, step } = await setup();
-    const socket = await step(() => openSocket(driver));
-    const due = (await driver.now()) + 10;
-    await step(() => socket.send({ d: { at: due, text: "retry" }, ev: "schedule", t: "emit" }));
-    await step(() => driver.advanceTime(10));
-    await expect(driver.scheduleGet()).resolves.toBe(due + CONFORMANCE_POLICY.timerRetryMs);
-    await step(() => driver.advanceTime(CONFORMANCE_POLICY.timerRetryMs - 1));
-    await expect(driver.scheduleGet()).resolves.toBe(due + CONFORMANCE_POLICY.timerRetryMs);
-    await step(() => driver.advanceTime(1));
-    const event = await step(() => nextOfType(socket, "ev"));
-    expect(event).toMatchObject({ d: { source: "timer", text: "retry" }, seq: 1 });
-    await expect(driver.storageGet("meta:seq")).resolves.toBe(1);
   });
 
   it("runs one host procedure over a socket and peers", async () => {
@@ -420,6 +367,72 @@ function scenarios(factory: HostConformanceFactory, mode: ScenarioMode): void {
     const response = await step(() => nextFrame(socket));
     expect(["bye", "err"]).toContain(response.t);
   });
+}
+
+function temporalScenarios(factory: TemporalHostConformanceFactory, mode: ScenarioMode): void {
+  const setup = scenarioSetup(factory, mode);
+
+  it("retains and fires a pending hello deadline across reconstruction", async () => {
+    const { driver, step } = await setup();
+    const socket = accepted(await step(() => driver.connect()));
+    if (mode === "ordinary") await driver.hibernate?.();
+    await step(() => driver.advanceTime(CONFORMANCE_POLICY.handshakeTimeoutMs + 1));
+    const bye = await step(() => nextOfType(socket, "bye"));
+    expect(bye.reason).toMatch(/handshake|hello/iu);
+    await expect(driver.connectionCount()).resolves.toBe(0);
+    await expect(driver.storageList({ prefix: "gr:" })).resolves.toEqual(new Map());
+  });
+
+  it("compacts expired retained events before a stale cursor reconnects", async () => {
+    const { driver, step } = await setup();
+    await publishRetainedEvents(driver, step, RETAINED_EVENT_TEXTS);
+    await step(() => driver.advanceTime(1_001));
+    const stale = accepted(await step(() => driver.connect()));
+    await step(() => stale.send({ since: 0, t: "hello", v: 1 }));
+    const reset = await step(() => nextOfType(stale, "welcome"));
+    expect(reset.reset).toBe(true);
+    expect(reset.replay).toEqual([]);
+  });
+
+  it("re-arms one alarm for ordered durable timers", async () => {
+    const { driver, step } = await setup();
+    const socket = await step(() => openSocket(driver));
+    const now = await driver.now();
+    await step(() =>
+      socket.send({ d: { at: now + 20, text: "later" }, ev: "schedule", t: "emit" }),
+    );
+    await step(() =>
+      socket.send({
+        d: { at: now + 10, text: "earlier" },
+        ev: "schedule",
+        t: "emit",
+      }),
+    );
+    await step(() => driver.advanceTime(10));
+    const earlier = await step(() => nextOfType(socket, "ev"));
+    expect(earlier.d).toEqual({ source: "timer", text: "earlier" });
+    await step(() => driver.advanceTime(10));
+    const later = await step(() => nextOfType(socket, "ev"));
+    expect(later.d).toEqual({ source: "timer", text: "later" });
+    const nextAlarm = await driver.scheduleGet();
+    expect(nextAlarm).not.toBeNull();
+    expect(nextAlarm).toBeGreaterThan(await driver.now());
+  });
+
+  it("retries a failed durable timer once without duplicate delivery", async () => {
+    const { driver, step } = await setup();
+    const socket = await step(() => openSocket(driver));
+    const due = (await driver.now()) + 10;
+    await step(() => socket.send({ d: { at: due, text: "retry" }, ev: "schedule", t: "emit" }));
+    await step(() => driver.advanceTime(10));
+    await expect(driver.scheduleGet()).resolves.toBe(due + CONFORMANCE_POLICY.timerRetryMs);
+    await step(() => driver.advanceTime(CONFORMANCE_POLICY.timerRetryMs - 1));
+    await expect(driver.scheduleGet()).resolves.toBe(due + CONFORMANCE_POLICY.timerRetryMs);
+    await step(() => driver.advanceTime(1));
+    const event = await step(() => nextOfType(socket, "ev"));
+    expect(event).toMatchObject({ d: { source: "timer", text: "retry" }, seq: 1 });
+    await expect(driver.storageGet("meta:seq")).resolves.toBe(1);
+  });
 
   it("keeps literal ping handling compatible with auto-response Hosts", async () => {
     const { driver, step } = await setup();
@@ -441,6 +454,18 @@ export function hostConformance(factory: HostConformanceFactory): void {
     });
     describe("hibernate between steps", () => {
       scenarios(factory, "hibernate");
+    });
+  });
+}
+
+/** Register exact temporal behavior for Hosts with a deterministic clock. */
+export function temporalHostConformance(factory: TemporalHostConformanceFactory): void {
+  describe("Host temporal conformance", () => {
+    describe("ordinary", () => {
+      temporalScenarios(factory, "ordinary");
+    });
+    describe("hibernate between steps", () => {
+      temporalScenarios(factory, "hibernate");
     });
   });
 }

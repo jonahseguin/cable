@@ -29,7 +29,6 @@ export interface HostConformanceDriver {
   readonly key: string;
   readonly limits: HostLimits;
   attachmentLimitProbe(): Promise<void>;
-  advanceTime(milliseconds: number): Promise<void>;
   connectionCount(): Promise<number>;
   connect(grant?: ConformanceGrant): Promise<ConformanceUpgrade>;
   /**
@@ -43,12 +42,20 @@ export interface HostConformanceDriver {
   };
   failOneSend?(): Promise<() => void>;
   hibernate?(): Promise<void>;
-  now(): Promise<number>;
   peerCall<T>(message: PeerMessage): Promise<T>;
-  scheduleGet(): Promise<number | null>;
   storageGet<T>(key: string): Promise<T | undefined>;
   storageList<T>(options: StorageListOptions): Promise<ReadonlyMap<string, T>>;
 }
 
 /** Construct an isolated Host configured with the shared conformance fixture. */
 export type HostConformanceFactory = () => Promise<HostConformanceDriver>;
+
+/** Extra controls required for exact, deterministic temporal conformance. */
+export interface TemporalHostConformanceDriver extends HostConformanceDriver {
+  advanceTime(milliseconds: number): Promise<void>;
+  now(): Promise<number>;
+  scheduleGet(): Promise<number | null>;
+}
+
+/** Construct a Host with deterministic control of its logical clock. */
+export type TemporalHostConformanceFactory = () => Promise<TemporalHostConformanceDriver>;

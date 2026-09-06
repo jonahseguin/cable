@@ -45,7 +45,6 @@ export interface ConformanceStorageValue {
 export type ConformanceStorageEntry = readonly [string, unknown];
 
 const grantSecret = "cloudflare-conformance-secret-material-32-bytes";
-const conformanceClock = { now: Date.now() };
 let nextConnectionId = 0;
 let namedStubRequests = 0;
 let lastForwarded: EdgeForwardingState | undefined;
@@ -94,21 +93,13 @@ const BaseConformanceHost = createCloudflareHostClass(
     },
     grantSecret: () => grantSecret,
     limits: CONFORMANCE_LIMITS,
-    now: () => conformanceClock.now,
+    now: Date.now,
     peer: (env: ConformanceEnv, key) => env.CABLE_HOSTS.getByName(key),
   },
 );
 
 /** Durable Object used only by the real-workerd adapter conformance harness. */
 export class ConformanceHost extends BaseConformanceHost {
-  public __cable_test_alarm_get(): Promise<number | null> {
-    return this.cableHost.schedule.get();
-  }
-
-  public __cable_test_alarm_run(): Promise<void> {
-    return this.alarm();
-  }
-
   public async __cable_test_attachment_limit_probe(): Promise<string | null> {
     try {
       const socket = this.sockets().at(0);
@@ -142,10 +133,6 @@ export class ConformanceHost extends BaseConformanceHost {
     return this.cableHost.limits;
   }
 
-  public __cable_test_now(): number {
-    return conformanceClock.now;
-  }
-
   // oxlint-disable-next-line anti-slop/no-unknown-returns -- Peer results cross the Durable Object RPC boundary.
   public __cable_test_peer_call(message: PeerMessage): Promise<unknown> {
     // eslint-disable-next-line no-underscore-dangle -- The reserved Cable peer RPC is the direct same-object test seam.
@@ -157,12 +144,6 @@ export class ConformanceHost extends BaseConformanceHost {
     await this.__cable_peer(message);
   }
 
-  public __cable_test_set_now(now: number): number {
-    assertClock(now);
-    conformanceClock.now = now;
-    return conformanceClock.now;
-  }
-
   public async __cable_test_storage_get(key: string): Promise<ConformanceStorageValue> {
     const value = await this.cableHost.storage.get(key);
     return value === undefined ? { found: false } : { found: true, value };
@@ -172,14 +153,6 @@ export class ConformanceHost extends BaseConformanceHost {
     options: StorageListOptions,
   ): Promise<readonly ConformanceStorageEntry[]> {
     return [...(await this.cableHost.storage.list(options)).entries()];
-  }
-
-  public __cable_test_advance_time(milliseconds: number): number {
-    if (!Number.isFinite(milliseconds) || milliseconds < 0) {
-      throw new TypeError("Test clock advance must be a finite non-negative number.");
-    }
-    conformanceClock.now += milliseconds;
-    return conformanceClock.now;
   }
 }
 
@@ -219,10 +192,4 @@ function countedNamespace(namespace: CableDurableObjectNamespace): CableDurableO
       };
     },
   };
-}
-
-function assertClock(now: number): void {
-  if (!Number.isFinite(now) || now < 0) {
-    throw new TypeError("Test clock must be a finite non-negative number.");
-  }
 }

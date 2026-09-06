@@ -2,7 +2,7 @@
 eslint/no-underscore-dangle,
 typescript/no-redundant-type-constituents, typescript/no-unsafe-argument,
 typescript/no-unsafe-assignment, typescript/no-unsafe-call,
-typescript/no-unsafe-member-access, typescript/no-unsafe-return -- This test-only
+typescript/no-unsafe-member-access -- This test-only
 workerd driver calls generated Durable Object RPC bindings. The root lint project
 cannot load cloudflare:test globals; workerd/tsconfig.json typechecks this file
 with the official plugin declarations. */
@@ -41,17 +41,12 @@ let nextDriverRoom = 0;
 type ConformanceControlStub = DurableObjectStub &
   Pick<
     ConformanceHost,
-    | "__cable_test_advance_time"
-    | "__cable_test_alarm_get"
-    | "__cable_test_alarm_run"
     | "__cable_test_attachment_limit_probe"
     | "__cable_test_connection_count"
     | "__cable_test_key"
     | "__cable_test_limits"
-    | "__cable_test_now"
     | "__cable_test_peer_call"
     | "__cable_test_peer_send"
-    | "__cable_test_set_now"
     | "__cable_test_storage_get"
     | "__cable_test_storage_list"
   >;
@@ -65,8 +60,6 @@ export async function createWorkerdConformanceDriver(
   // Durable Object class; the generated binding cannot express its RPC methods.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Workerd's generated namespace omits test-only RPC method declarations.
   const stub = env.CABLE_HOSTS.getByName(key) as unknown as ConformanceControlStub;
-  const now = Date.now();
-  await stub.__cable_test_set_now(now);
   const [hostKey, limits] = await Promise.all([
     stub.__cable_test_key(),
     stub.__cable_test_limits(),
@@ -104,18 +97,12 @@ class WorkerdHostConformanceDriver implements HostConformanceDriver {
     throw new RangeError(failure);
   }
 
-  public async advanceTime(milliseconds: number): Promise<void> {
-    const now = await this.stub.__cable_test_advance_time(milliseconds);
-    const alarm = await this.stub.__cable_test_alarm_get();
-    if (alarm !== null && alarm <= now) await this.stub.__cable_test_alarm_run();
-  }
-
   public connectionCount(): Promise<number> {
     return Promise.resolve(this.stub.__cable_test_connection_count());
   }
 
   public async connect(grant: ConformanceGrant = "valid"): Promise<ConformanceUpgrade> {
-    const now = await this.now();
+    const now = Date.now();
     const claims = {
       exp: grant === "expired" ? now - 1 : now + 60_000,
       grants: ["connect"],
@@ -142,7 +129,7 @@ class WorkerdHostConformanceDriver implements HostConformanceDriver {
     return {
       accepted: true,
       socket: new WorkerdConformanceSocket(response.webSocket, async () => {
-        await this.stub.__cable_test_now();
+        await this.stub.__cable_test_connection_count();
       }),
     };
   }
@@ -151,13 +138,8 @@ class WorkerdHostConformanceDriver implements HostConformanceDriver {
     // Test RPC activates an object that workerd may have already put to sleep
     // after the preceding WebSocket callback. The eviction API only accepts a
     // currently running object.
-    await this.stub.__cable_test_now();
+    await this.stub.__cable_test_connection_count();
     await evictDurableObject(this.stub, { webSockets: "hibernate" });
-  }
-
-  public async now(): Promise<number> {
-    const now = await this.stub.__cable_test_now();
-    return now;
   }
 
   public async peerCall<T>(message: PeerMessage): Promise<T> {
@@ -165,10 +147,6 @@ class WorkerdHostConformanceDriver implements HostConformanceDriver {
     // SAFETY: The shared scenario supplies the operation's expected peer result type.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Peer RPC parsing belongs to the core operation boundary.
     return result as T;
-  }
-
-  public scheduleGet(): Promise<number | null> {
-    return this.stub.__cable_test_alarm_get();
   }
 
   public async storageGet<T>(key: string): Promise<T | undefined> {
