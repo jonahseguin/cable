@@ -10,11 +10,41 @@ Publishing is deliberately blocked until the remaining release prerequisites in 
 4. Make the GitHub repository public before relying on public npm provenance.
 5. Keep the `npm` GitHub environment absent until the repository plan supports required reviewers. On 2026-09-07, GitHub rejected the guarded environment request with HTTP 422 because this private repository does not support that rule. GitHub created an unprotected environment despite the rejection; it was deleted and the environment list was verified empty. Do not create an unprotected fallback.
 
+## Changesets and GitHub releases
+
+`.github/workflows/changesets.yml` runs on pushes to `main`. It uses the
+official [Changesets GitHub Action](https://github.com/changesets/action) to
+create or update one version pull request. `bunx changeset version` consumes
+the reviewed changesets and writes package `CHANGELOG.md` files with
+`@changesets/changelog-github`; the workflow does not publish packages or make
+GitHub releases.
+
+The manual `.github/workflows/release.yml` remains the only publishing entry
+point. After its artifact audit and OIDC publish succeed, it creates one
+GitHub release per published package with generated notes and a tag in the
+form `@cablejs/package@version`. Existing releases are skipped so a retry does
+not duplicate them. A release failure after npm publication is therefore
+retryable without republishing a matching archive.
+
 ## Trusted publishing bootstrap
 
 npm trusted publishing uses GitHub Actions OpenID Connect. It needs Node 22.14 or newer, npm CLI 11.5.1 or newer, and the workflow `id-token: write` permission. The release workflow already declares these requirements and does not accept an npm token fallback.
 
-Trusted publishing must be configured against an existing npm package. The first release therefore needs a deliberate, manual bootstrap by an authorized npm owner. After that publication, configure npm trusted publishing for this repository and the `Release` workflow. Do not add a long-lived `NPM_TOKEN` as a workaround.
+Configure one npm trusted publisher for each package in the npm package
+settings. The exact GitHub Actions fields are:
+
+- Organization or user: `jonahseguin`
+- Repository: `cable`
+- Workflow filename: `release.yml`
+- Environment name: `npm`
+
+The first-package limitation is that npm exposes trusted-publisher settings on
+an existing package. An npm owner must create each package and configure this
+publisher once before the workflow can publish it. That bootstrap does not add
+an npm token path to the repository. The workflow uses `id-token: write`, npm
+CLI OIDC detection, and no `NPM_TOKEN` fallback. See npm's [trusted publishing
+documentation](https://docs.npmjs.com/trusted-publishers) for the current
+provider fields and version requirements.
 
 ## Artifact audit
 
@@ -37,4 +67,4 @@ bun scripts/release-artifacts.ts --configured
 
 `.github/workflows/release.yml` runs only when manually dispatched from `main`. Its readiness job stops before npm writes when package selection, visibility, licensing, or metadata are incomplete. The publish job refers to an `npm` GitHub environment. That environment and its protection rules are not configured by this repository; an operator must create and protect it before release. A missing environment must not be treated as protected.
 
-The publish job audits Bun-generated tarballs from the committed release versions and publishes those exact tarballs with provenance enabled in dependency order. Before publishing, it compares each registry version's integrity and SHA-1 checksum with the archive. Matching versions are skipped for a safe retry; mismatches and non-404 lookup errors stop the run before any new publish. Changesets does not run in this workflow and does not create tags. The workflow does not create GitHub releases, credentials, or a fallback publishing path.
+The publish job audits Bun-generated tarballs from the committed release versions and publishes those exact tarballs with provenance enabled in dependency order. Before publishing, it compares each registry version's integrity and SHA-1 checksum with the archive. Matching versions are skipped for a safe retry; mismatches and non-404 lookup errors stop the run before any new publish. Changesets does not run versioning in this workflow and does not create package-version commits. The post-publish release step creates GitHub releases and generated notes; it does not create credentials or a fallback publishing path.

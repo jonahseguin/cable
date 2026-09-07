@@ -3,7 +3,7 @@
   "access": "restricted",
   "baseBranch": "main",
   "bumpVersionsWithWorkspaceProtocolOnly": true,
-  "changelog": false,
+  "changelog": ["@changesets/changelog-github", { "repo": "jonahseguin/cable" }],
   "commit": false,
   "fixed": [],
   "ignore": ["@cablejs/conformance", "@cablejs/rivet"],

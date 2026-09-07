@@ -29,6 +29,7 @@
     "lint:fix": "oxlint --disable-nested-config --fix --deny-warnings --report-unused-disable-directives .",
     "prepare": "bun run setup:hooks",
     "release:artifacts": "tsx scripts/release-artifacts.ts --all-eligible",
+    "release:github": "tsx scripts/release-github.ts",
     "release:publish": "tsx scripts/release-publish.ts",
     "release:readiness": "tsx scripts/release-readiness.ts",
     "setup:hooks": "bun scripts/setup-git-hooks.ts",
@@ -40,6 +41,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && bun run --workspaces --if-present typecheck"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.2",
     "@oxlint/plugins": "1.81.0",
     "@standard-schema/spec": "1.1.0",
