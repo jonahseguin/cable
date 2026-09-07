@@ -1,11 +1,11 @@
-import { c } from "@cable/contract";
-import { CableError } from "@cable/core";
+import { c } from "@cablejs/contract";
+import { CableError } from "@cablejs/core";
 import { Context, Effect, Layer, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { implementEffect, typedEffect } from "./server.js";
 
-const Prefix = Context.Service<{ readonly value: string }>("@cable/effect/test/Prefix");
+const Prefix = Context.Service<{ readonly value: string }>("@cablejs/effect/test/Prefix");
 
 const api = c.contract({
   greet: c.query({

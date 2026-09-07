@@ -3,12 +3,12 @@ title: React channels
 description: Subscribe React components to Cable channels, typed server events, connection state, and presence without owning socket cleanup yourself.
 ---
 
-`@cable/react` gives components a channel handle for as long as they are mounted. It does not provide a replacement for TanStack Query. Use [TanStack Query](/tanstack-query) for procedure caching, mutations, and hydration.
+`@cablejs/react` gives components a channel handle for as long as they are mounted. It does not provide a replacement for TanStack Query. Use [TanStack Query](/tanstack-query) for procedure caching, mutations, and hydration.
 
 The hooks need a Cable client built from the runtime contract. This client module is imported by the component examples below.
 
 ```ts title="src/cable.ts"
-import { createClient } from "@cable/client";
+import { createClient } from "@cablejs/client";
 
 import { api } from "./api.js";
 
@@ -24,7 +24,7 @@ export const cable = createClient({
 Pass the channel factory and its parameters to `useChannel`. The handle has the client events, host procedures, presence, and history declared by that channel's contract.
 
 ```tsx title="src/room.tsx"
-import { useChannel, useChannelStatus, useEvent, usePresence } from "@cable/react";
+import { useChannel, useChannelStatus, useEvent, usePresence } from "@cablejs/react";
 import { useEffect, useState } from "react";
 
 import { cable } from "./cable.js";
@@ -81,7 +81,7 @@ The client applies its `ws.idleClose` delay only after the final lease is releas
 Cable resumes logged server events from its last delivered sequence. A retained-history gap emits the channel's `reset` event after the next welcome frame. Refetch state that depends on the channel when it happens.
 
 ```tsx
-import { useChannel, useEvent } from "@cable/react";
+import { useChannel, useEvent } from "@cablejs/react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { cable } from "./cable.js";

@@ -1,4 +1,4 @@
-import type { HostKey } from "@cable/core";
+import type { HostKey } from "@cablejs/core";
 import { describe, expect, it } from "vitest";
 
 import { MemoryHostRegistry } from "./registry.js";

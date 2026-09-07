@@ -6,8 +6,8 @@ description: Build request context at the adapter boundary, then refine it with 
 Cable does not define users, roles, or sessions. Your adapter authenticates the request and provides the initial context. Application middleware decides which procedures can use that context.
 
 ```ts title="procedures.ts"
-import { c } from "@cable/contract";
-import { CableError, implement } from "@cable/core";
+import { c } from "@cablejs/contract";
+import { CableError, implement } from "@cablejs/core";
 import { z } from "zod";
 
 const api = c.contract({

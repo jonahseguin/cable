@@ -1,5 +1,5 @@
-import { createClient } from "@cable/client";
-import type { ChannelStatus, Link, PresenceMember } from "@cable/client";
+import { createClient } from "@cablejs/client";
+import type { ChannelStatus, Link, PresenceMember } from "@cablejs/client";
 import type {
   InferChannelParams,
   InferClientEventErrors,
@@ -8,8 +8,8 @@ import type {
   InferOutput,
   InferPresence,
   InferServerEvent,
-} from "@cable/contract";
-import { createCableQuery } from "@cable/react";
+} from "@cablejs/contract";
+import { createCableQuery } from "@cablejs/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { api, type Api } from "./contract.js";

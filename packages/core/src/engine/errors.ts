@@ -1,4 +1,4 @@
-import type { ErrorMap } from "@cable/contract";
+import type { ErrorMap } from "@cablejs/contract";
 
 import type { ChannelWireError } from "../channel-protocol.js";
 import { BUILTIN_CODES, CableError, isCableError } from "../errors.js";

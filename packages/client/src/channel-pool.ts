@@ -1,6 +1,6 @@
-import type { AnyChannelContract } from "@cable/contract";
-import { CableError, decodeResult, encodeInput, resolveChannel } from "@cable/core";
-import type { HostFrame, PresenceEntry, RpcCall, RpcResult } from "@cable/core";
+import type { AnyChannelContract } from "@cablejs/contract";
+import { CableError, decodeResult, encodeInput, resolveChannel } from "@cablejs/core";
+import type { HostFrame, PresenceEntry, RpcCall, RpcResult } from "@cablejs/core";
 
 import type { SocketOptions, Unsubscribe } from "./channel-types.js";
 import { ChannelView } from "./channel-view.js";

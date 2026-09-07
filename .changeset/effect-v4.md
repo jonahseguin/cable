@@ -1,6 +1,6 @@
 ---
-"@cable/effect": minor
-"@cable/contract": minor
+"@cablejs/effect": minor
+"@cablejs/contract": minor
 ---
 
 Add Effect 4 RC procedure and durable channel integrations, including Layer-owned

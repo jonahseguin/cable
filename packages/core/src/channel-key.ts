@@ -1,8 +1,8 @@
 /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type --
 Channel parameter names are declared dynamically by the contract pattern. This
 module parses the schema's unknown input and output into that named string map. */
-import { isChannelContract } from "@cable/contract";
-import type { AnyChannelContract } from "@cable/contract";
+import { isChannelContract } from "@cablejs/contract";
+import type { AnyChannelContract } from "@cablejs/contract";
 
 import { CableError } from "./errors.js";
 import type { HostKey } from "./host.js";

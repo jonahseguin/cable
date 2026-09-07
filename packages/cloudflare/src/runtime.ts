@@ -1,7 +1,7 @@
 /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns,
 anti-slop/no-unsafe-dictionary-type -- These structural declarations mirror
 Cloudflare's serialized-attachment and Durable Object callback boundaries. */
-import type { PeerMessage } from "@cable/core";
+import type { PeerMessage } from "@cablejs/core";
 
 /** The methods Cable exposes on each generated Durable Object. */
 export interface CableDurableObject {

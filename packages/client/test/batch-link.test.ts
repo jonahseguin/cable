@@ -1,5 +1,5 @@
-import { decodeBatch, encodeBatchResponse } from "@cable/core";
-import type { RpcBatch, RpcResult } from "@cable/core";
+import { decodeBatch, encodeBatchResponse } from "@cablejs/core";
+import type { RpcBatch, RpcResult } from "@cablejs/core";
 import { describe, expect, it } from "vitest";
 
 import { batchLink } from "../src/batch-link.js";

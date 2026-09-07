@@ -1,4 +1,4 @@
-import type { Schedule } from "@cable/core";
+import type { Schedule } from "@cablejs/core";
 
 /** Engine callback retained by one memory schedule across manual time advances. */
 export type AlarmHandler = () => Promise<void>;

@@ -1,4 +1,4 @@
-import { implement } from "@cable/core";
+import { implement } from "@cablejs/core";
 
 import { api, type Api } from "./contract.js";
 

@@ -14,7 +14,7 @@ import {
   type ConformanceSocket,
   type ConformanceUpgrade,
   type HostConformanceDriver,
-} from "@cable/conformance";
+} from "@cablejs/conformance";
 import {
   channelKey,
   decodeHostFrame,
@@ -28,7 +28,7 @@ import {
   type SignedGrant,
   type PeerMessage,
   type StorageListOptions,
-} from "@cable/core";
+} from "@cablejs/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
 

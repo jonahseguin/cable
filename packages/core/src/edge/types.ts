@@ -6,7 +6,7 @@ import type {
   InferInput,
   InferOutput,
   InferSchemaInput,
-} from "@cable/contract";
+} from "@cablejs/contract";
 
 import type { GrantSecret } from "../grant.js";
 import type { HostKey, PeerMessage, SignedGrant } from "../host.js";

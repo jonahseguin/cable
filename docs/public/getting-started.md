@@ -8,7 +8,7 @@ This source preview follows one procedure through a contract, a server implement
 ## Define the contract
 
 ```ts title="api.ts"
-import { c } from "@cable/contract";
+import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 export const api = c.contract({
@@ -24,7 +24,7 @@ export const api = c.contract({
 `context` is your application boundary. The example below supplies an authenticated name; an adapter can derive it from a session, bearer token, or another request credential.
 
 ```ts title="server.ts"
-import { createRpcHandler, implement } from "@cable/core";
+import { createRpcHandler, implement } from "@cablejs/core";
 
 import { api } from "./api.js";
 
@@ -44,7 +44,7 @@ export default { fetch: rpc.fetch };
 ## Call it from the client
 
 ```ts title="client.ts"
-import { createClient } from "@cable/client";
+import { createClient } from "@cablejs/client";
 
 import { api } from "./api.js";
 

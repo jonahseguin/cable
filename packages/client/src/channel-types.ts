@@ -6,7 +6,7 @@ import type {
   InferPresence,
   InferSchemaInput,
   InferServerEvent,
-} from "@cable/contract";
+} from "@cablejs/contract";
 
 declare const subscriptionChannel: unique symbol;
 

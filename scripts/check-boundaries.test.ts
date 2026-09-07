@@ -61,12 +61,12 @@ describe("source package boundaries", () => {
   });
 
   it("enforces public workspace entry points and dependency direction", () => {
-    expect(check("client", `import "@cable/core"; export * from "./socket.js";`)).toEqual([
+    expect(check("client", `import "@cablejs/core"; export * from "./socket.js";`)).toEqual([
       undefined,
       undefined,
     ]);
-    expectRejected("core", `export * from "@cable/client";`);
-    expectRejected("client", `import "@cable/core/src/private";`);
+    expectRejected("core", `export * from "@cablejs/client";`);
+    expectRejected("client", `import "@cablejs/core/src/private";`);
     expectRejected("client", `import "../../core/src/index.js";`);
     expectRejected("client", `import(target);`);
   });
@@ -113,18 +113,18 @@ describe("manifest package boundaries", () => {
     const errors = manifestViolations(
       "core",
       JSON.stringify({
-        name: "@cable/core",
-        dependencies: { "@cable/client": "workspace:*" },
+        name: "@cablejs/core",
+        dependencies: { "@cablejs/client": "workspace:*" },
         optionalDependencies: { "node:fs": "1.0.0" },
-        peerDependencies: { "@cable/contract": "^0.1.0" },
+        peerDependencies: { "@cablejs/contract": "^0.1.0" },
       }),
       root,
     );
 
     expect(errors).toEqual([
-      "core/package.json: @cable/client: unsupported package dependency: @cable/client",
+      "core/package.json: @cablejs/client: unsupported package dependency: @cablejs/client",
       "core/package.json: node:fs: platform module belongs in adapter-node: node:fs",
-      "core/package.json: @cable/contract: internal dependencies must use the workspace protocol",
+      "core/package.json: @cablejs/contract: internal dependencies must use the workspace protocol",
     ]);
   });
 
@@ -133,7 +133,7 @@ describe("manifest package boundaries", () => {
       manifestViolations(
         "contract",
         JSON.stringify({
-          name: "@cable/contract",
+          name: "@cablejs/contract",
           dependencies: { "@standard-schema/spec": "1.1.0" },
         }),
         root,
@@ -143,7 +143,7 @@ describe("manifest package boundaries", () => {
     expect(
       manifestViolations(
         "contract",
-        JSON.stringify({ name: "@cable/contract", dependencies: { zod: "4.5.4" } }),
+        JSON.stringify({ name: "@cablejs/contract", dependencies: { zod: "4.5.4" } }),
         root,
       ),
     ).toEqual([
@@ -152,8 +152,8 @@ describe("manifest package boundaries", () => {
   });
 
   it("requires a package name that matches its workspace directory", () => {
-    expect(manifestViolations("client", JSON.stringify({ name: "@cable/wrong" }), root)).toEqual([
-      "client/package.json: expected package name @cable/client",
+    expect(manifestViolations("client", JSON.stringify({ name: "@cablejs/wrong" }), root)).toEqual([
+      "client/package.json: expected package name @cablejs/client",
     ]);
   });
 
@@ -164,7 +164,7 @@ describe("manifest package boundaries", () => {
     expect(() =>
       manifestViolations(
         "client",
-        JSON.stringify({ name: "@cable/client", dependencies: { invalid: 1 } }),
+        JSON.stringify({ name: "@cablejs/client", dependencies: { invalid: 1 } }),
         root,
       ),
     ).toThrow("package.json dependencies.invalid must be a string");

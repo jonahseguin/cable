@@ -1,4 +1,4 @@
-import { isChannelContract, type AnyChannelContract, type ContractTree } from "@cable/contract";
+import { isChannelContract, type AnyChannelContract, type ContractTree } from "@cablejs/contract";
 
 import { resolveChannel, type ResolvedChannel } from "../channel-key.js";
 import { CableError, isCableError } from "../errors.js";

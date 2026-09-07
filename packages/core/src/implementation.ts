@@ -11,7 +11,7 @@ import {
   type InferOutput,
   type InferSchemaInput,
   type InferSchemaOutput,
-} from "@cable/contract";
+} from "@cablejs/contract";
 
 import { BUILTIN_CODES, CableError, isCableError, type BuiltinCode } from "./errors.js";
 import {

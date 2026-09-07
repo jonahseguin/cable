@@ -1,8 +1,14 @@
 {
-  "name": "@cable/effect",
+  "name": "@cablejs/effect",
   "version": "0.0.0",
   "private": true,
   "description": "Optional Effect handlers, Layers, and client Streams after the engine stabilizes.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/effect"
+  },
   "files": [
     "dist"
   ],
@@ -19,13 +25,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cable/client": "workspace:*",
-    "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*",
+    "@cablejs/client": "workspace:*",
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*",
     "effect": "4.0.0-rc.112"
   },
   "devDependencies": {
-    "@cable/adapter-memory": "workspace:*",
+    "@cablejs/adapter-memory": "workspace:*",
     "zod": "4.5.4"
   }
 }

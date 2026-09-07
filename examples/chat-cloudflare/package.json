@@ -1,5 +1,5 @@
 {
-  "name": "@cable/example-chat-cloudflare",
+  "name": "@cablejs/example-chat-cloudflare",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,12 +11,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cable/adapter-node": "workspace:*",
-    "@cable/client": "workspace:*",
-    "@cable/cloudflare": "workspace:*",
-    "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*",
-    "@cable/react": "workspace:*",
+    "@cablejs/adapter-node": "workspace:*",
+    "@cablejs/client": "workspace:*",
+    "@cablejs/cloudflare": "workspace:*",
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*",
+    "@cablejs/react": "workspace:*",
     "@tanstack/react-query": "latest",
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",

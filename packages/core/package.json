@@ -1,8 +1,14 @@
 {
-  "name": "@cable/core",
+  "name": "@cablejs/core",
   "version": "0.0.0",
   "private": true,
   "description": "Portable procedure runtime, wire codec, Host interfaces, and durable channel engine.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/core"
+  },
   "files": [
     "dist"
   ],
@@ -19,7 +25,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cable/contract": "workspace:*"
+    "@cablejs/contract": "workspace:*"
   },
   "devDependencies": {
     "zod": "4.5.4"

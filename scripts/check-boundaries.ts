@@ -146,7 +146,7 @@ export function imports(source: string): ImportReference[] {
 }
 
 function workspaceDependency(specifier: string): string | undefined {
-  if (!specifier.startsWith("@cable/")) return undefined;
+  if (!specifier.startsWith("@cablejs/")) return undefined;
   const segments = specifier.split("/");
   return segments.length === 2 ? segments[1] : computedModule;
 }
@@ -323,7 +323,7 @@ export function manifestViolations(owner: string, source: string, root: string):
   const manifest = parseManifest(source);
   const file = resolve(root, "packages", owner, "package.json");
   const errors: string[] = [];
-  const expectedName = `@cable/${owner}`;
+  const expectedName = `@cablejs/${owner}`;
   if (manifest.name !== expectedName) {
     errors.push(`${owner}/package.json: expected package name ${expectedName}`);
   }
@@ -338,7 +338,7 @@ export function manifestViolations(owner: string, source: string, root: string):
       root,
     );
     if (reason !== undefined) errors.push(`${owner}/package.json: ${dependency.name}: ${reason}`);
-    if (dependency.name.startsWith("@cable/") && !dependency.version.startsWith("workspace:")) {
+    if (dependency.name.startsWith("@cablejs/") && !dependency.version.startsWith("workspace:")) {
       errors.push(
         `${owner}/package.json: ${dependency.name}: internal dependencies must use the workspace protocol`,
       );

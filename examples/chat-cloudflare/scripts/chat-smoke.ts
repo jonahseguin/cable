@@ -1,4 +1,4 @@
-import { createClient } from "@cable/client";
+import { createClient } from "@cablejs/client";
 
 import { api } from "../src/api.ts";
 import { waitFor, waitForOpen } from "./chat-await.ts";

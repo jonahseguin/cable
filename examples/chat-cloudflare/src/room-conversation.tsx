@@ -1,4 +1,4 @@
-import { useChannel, useChannelStatus, useEvent, usePresence } from "@cable/react";
+import { useChannel, useChannelStatus, useEvent, usePresence } from "@cablejs/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";

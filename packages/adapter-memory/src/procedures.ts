@@ -1,5 +1,5 @@
-import { decodeBatch, decodeBatchResponse, encodeBatch, encodeBatchResponse } from "@cable/core";
-import type { RpcCall, RpcResult } from "@cable/core";
+import { decodeBatch, decodeBatchResponse, encodeBatch, encodeBatchResponse } from "@cablejs/core";
+import type { RpcCall, RpcResult } from "@cablejs/core";
 
 /** The portable execution interface exposed by an implemented procedure contract. */
 export interface MemoryProcedures<Context> {

@@ -16,7 +16,7 @@ export type {
   AnyProcedureContract,
   InferInput,
   InferOutput,
-} from "@cable/contract";
+} from "@cablejs/contract";
 export type { Link, LinkContext, LinkHandler, NextLink } from "./link.js";
 export type {
   ChannelHandle,

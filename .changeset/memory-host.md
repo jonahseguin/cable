@@ -1,6 +1,6 @@
 ---
-"@cable/adapter-memory": minor
-"@cable/conformance": minor
+"@cablejs/adapter-memory": minor
+"@cablejs/conformance": minor
 ---
 
 Add the deterministic memory Host with structured-clone transactions, manual

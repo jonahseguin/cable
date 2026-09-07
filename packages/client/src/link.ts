@@ -1,5 +1,5 @@
-import type { QueryTransport } from "@cable/contract";
-import type { RpcCall, RpcResult } from "@cable/core";
+import type { QueryTransport } from "@cablejs/contract";
+import type { RpcCall, RpcResult } from "@cablejs/core";
 
 /** The next link in the request pipeline. A transport link finishes the request. */
 export type NextLink = (call: RpcCall) => Promise<RpcResult>;

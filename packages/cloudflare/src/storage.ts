@@ -2,7 +2,7 @@
 anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening --
 Cloudflare KV accepts structured-clone values and exposes a structural overload
 that this adapter maps to core's similarly generic storage interface. */
-import type { Storage, StorageListOptions } from "@cable/core";
+import type { Storage, StorageListOptions } from "@cablejs/core";
 
 import type {
   CloudflareDurableStorage,

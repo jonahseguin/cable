@@ -1,15 +1,15 @@
-import * as cloudflarePublic from "@cable/cloudflare";
+import * as cloudflarePublic from "@cablejs/cloudflare";
 /* oxlint-disable typescript/no-deprecated -- Workers Vitest 1.1.4 exposes the
 test worker fetch binding as deprecated SELF; the integration test exercises the
 public Worker boundary until the plugin provides its replacement. */
-import { conformanceChannel, hostConformance } from "@cable/conformance";
+import { conformanceChannel, hostConformance } from "@cablejs/conformance";
 import {
   channelKey,
   decodeHostFrame,
   encodeClientFrame,
   signGrant,
   type GrantClaims,
-} from "@cable/core";
+} from "@cablejs/core";
 import { evictDurableObject, runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";

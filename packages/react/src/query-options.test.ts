@@ -1,7 +1,7 @@
-import { createMemoryLink } from "@cable/adapter-memory";
-import { createClient } from "@cable/client";
-import { c } from "@cable/contract";
-import { CableError, implement } from "@cable/core";
+import { createMemoryLink } from "@cablejs/adapter-memory";
+import { createClient } from "@cablejs/client";
+import { c } from "@cablejs/contract";
+import { CableError, implement } from "@cablejs/core";
 import { QueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";

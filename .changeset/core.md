@@ -1,5 +1,5 @@
 ---
-"@cable/core": minor
+"@cablejs/core": minor
 ---
 
 Add typed Cable errors, Standard Schema procedure validation, middleware context

@@ -4,8 +4,8 @@ Status: accepted, 2026-09-06.
 
 ## Decision
 
-`@cable/effect` targets `effect` 4.0.0-rc.112, the current npm release-candidate
-tag. It declares `effect` as a package dependency and keeps `@cable/core` free
+`@cablejs/effect` targets `effect` 4.0.0-rc.112, the current npm release-candidate
+tag. It declares `effect` as a package dependency and keeps `@cablejs/core` free
 of Effect.
 
 The pinned Effect reference is also `4.0.0-rc.112`. M7 uses its v4 APIs and

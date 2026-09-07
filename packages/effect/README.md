@@ -1,4 +1,4 @@
-# @cable/effect
+# @cablejs/effect
 
 Effect 4 RC integration for cable procedures, channel handlers, and client
 streams. `implementEffect` runs global procedure Effects through a caller-owned
@@ -24,9 +24,9 @@ When it completes, fails, or is interrupted, Cable removes that listener. A
 shared channel socket stays open for other channel users.
 
 ```ts
-import { createClient } from "@cable/client";
-import { c } from "@cable/contract";
-import { effectClient } from "@cable/effect";
+import { createClient } from "@cablejs/client";
+import { c } from "@cablejs/contract";
+import { effectClient } from "@cablejs/effect";
 import { Effect, Stream } from "effect";
 import { z } from "zod";
 

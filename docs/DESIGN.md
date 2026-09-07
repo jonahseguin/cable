@@ -1,7 +1,7 @@
 # cable — Design & Handoff Document
 
 > Working name: **cable** (knit stitch + network cable). Not final. Use the npm
-> scope `@cable/*` everywhere, but keep the name in exactly one place per package
+> scope `@cablejs/*` everywhere, but keep the name in exactly one place per package
 > (`package.json` `name`) and in a repo-root `NAME.md` so a rename is a search/replace.
 > Do not put "cf", "cloudflare", "durable", or "rivet" in the name; the library
 > targets both Cloudflare and Rivet.
@@ -116,7 +116,7 @@ source path and license.
 |------|-----------------|-----|
 | `trpc/trpc` | `packages/server/src/unstable-core-do-not-import/` (router, procedure builder, middleware typing), `packages/server/src/adapters/ws.ts`, `packages/server/src/adapters/fetch/`, `packages/client/src/links/httpBatchLink.ts`, `packages/tanstack-react-query/`, `examples/.test/diagnostics-big-router/` | The DX we are imitating; the WS adapter and subscription model we are *not* imitating; the TanStack options-proxy pattern; the TS perf fixture to beat |
 | `unnoq/orpc` | `packages/contract/`, `packages/server/src/adapters/websocket/`, `packages/server/src/adapters/standard/`, `packages/experimental-durable-iterator/`, `packages/tanstack-query/` | Contract-first design, `.errors()` per procedure, Standard Schema integration, their DO hibernation approach (compare against ours) |
-| `Effect-TS/effect` | `packages/effect/src/Schema.ts` (incl. Standard Schema support), `packages/rpc/`, `packages/platform/src/HttpApi*.ts`, `packages/platform/src/Socket.ts` | For the `@cable/effect` package: how Effect models RPC, typed error channels, Streams over sockets, Layers |
+| `Effect-TS/effect` | `packages/effect/src/Schema.ts` (incl. Standard Schema support), `packages/rpc/`, `packages/platform/src/HttpApi*.ts`, `packages/platform/src/Socket.ts` | For the `@cablejs/effect` package: how Effect models RPC, typed error channels, Streams over sockets, Layers |
 | `rivet-dev/actors` (formerly `rivet-dev/rivet`; GitHub redirects) | `rivetkit-typescript/packages/rivetkit/` (actor definition, `onWebSocket`, conn state, hibernation, drivers incl. the Cloudflare DO driver), `rivetkit-typescript/packages/react/`, `site/src/content/docs/` (the docs source, greppable offline) | Target runtime #2. How they persist conn state across sleep, how their CF driver wraps DOs, how their gateway holds sockets during hibernation |
 | `cloudflare/agents` | `packages/partyserver/` (the most battle-tested TS wrapper over DO Hibernation: `acceptWebSocket`, tags, attachments, `webSocketMessage/Close/Error`, alarms), `packages/agents/src/` (`@callable`, state sync over WS) | Reference for correct DO hibernation mechanics in TypeScript; do not copy the framework |
 | `cloudflare/capnweb` (optional) | `src/` | The transport we chose *not* to build on; useful for comparing frame design and bidirectional-call ideas |
@@ -206,7 +206,7 @@ publishes `llms.txt` indexes). If a URL 404s, search the site, don't guess.
 - Parameterized channel patterns with typed params and capability flags (presence, history) from [removed].
 
 **Adapt (Cloudflare Agents / partyserver)**
-- Their hibernation mechanics (tags, attachments, auto-response) — replicate the mechanics inside `@cable/cloudflare`, not their class-based agent model.
+- Their hibernation mechanics (tags, attachments, auto-response) — replicate the mechanics inside `@cablejs/cloudflare`, not their class-based agent model.
 
 **Avoid / solve (tRPC subscription challenges)**
 - Observable-on-connect subscriptions: state lives in closures → dies on hibernation. **Ours:** subscriptions are implicit in the host; delivery state is `seq`/`since` in attachment + log.
@@ -251,7 +251,7 @@ publishes `llms.txt` indexes). If a URL 404s, search the site, don't guess.
 
 | tRPC pain | Our target |
 |-----------|------------|
-| Backend suck-in when importing `AppRouter` | `@cable/contract` has zero runtime deps and never imports server code; client imports only the contract |
+| Backend suck-in when importing `AppRouter` | `@cablejs/contract` has zero runtime deps and never imports server code; client imports only the contract |
 | TS perf non-linear in router size | Shallow builder generics; contract is plain object types; CI fixture with 200 procedures / 40 channels must type-check under a budget (see §11) |
 | Untyped errors | `.errors({ CODE: schema })` on every procedure and client emit; client gets a discriminated union |
 | Adapter fragmentation | Core is web-standard (`Request`/`Response`, `WebSocket`, `ReadableStream`); adapters are thin shims implementing one `Host` interface |
@@ -267,7 +267,7 @@ publishes `llms.txt` indexes). If a URL 404s, search the site, don't guess.
 - **Package manager:** pnpm (workspaces). Node 22+.
 - **Language:** TypeScript 5.x, `strict`, `exactOptionalPropertyTypes`,
   `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `moduleResolution: bundler`.
-  Enable `isolatedDeclarations` on `@cable/contract` if feasible (forces
+  Enable `isolatedDeclarations` on `@cablejs/contract` if feasible (forces
   explicit, cheap public types).
 - **Build:** `tsdown` (or `tsup` if tsdown misbehaves). ESM only. `exports` maps
   with `types` first.
@@ -308,16 +308,16 @@ cable/
 │   ├── refs.sh                   # init/update references
 │   └── ts-perf.ts                # runs tsc --extendedDiagnostics on the perf fixture
 ├── packages/
-│   ├── contract/                 # @cable/contract — DSL + types. ZERO runtime deps.
-│   ├── core/                     # @cable/core — protocol codec, Host interfaces, host engine, procedure runtime, errors
-│   ├── client/                   # @cable/client — HTTP link, socket manager, typed proxy
-│   ├── react/                    # @cable/react — hooks + TanStack Query options proxy
-│   ├── adapter-memory/           # @cable/adapter-memory — MemoryHost + in-process transport (tests)
-│   ├── adapter-node/             # @cable/adapter-node — NodeHost on `ws` (local dev without wrangler)
-│   ├── cloudflare/               # @cable/cloudflare — cloudflareHost(), createHandler()
-│   ├── rivet/                    # @cable/rivet — rivetHost(), createHandler()
-│   ├── effect/                   # @cable/effect — Effect integration
-│   └── conformance/              # @cable/conformance — Host conformance test suite (run against every adapter)
+│   ├── contract/                 # @cablejs/contract — DSL + types. ZERO runtime deps.
+│   ├── core/                     # @cablejs/core — protocol codec, Host interfaces, host engine, procedure runtime, errors
+│   ├── client/                   # @cablejs/client — HTTP link, socket manager, typed proxy
+│   ├── react/                    # @cablejs/react — hooks + TanStack Query options proxy
+│   ├── adapter-memory/           # @cablejs/adapter-memory — MemoryHost + in-process transport (tests)
+│   ├── adapter-node/             # @cablejs/adapter-node — NodeHost on `ws` (local dev without wrangler)
+│   ├── cloudflare/               # @cablejs/cloudflare — cloudflareHost(), createHandler()
+│   ├── rivet/                    # @cablejs/rivet — rivetHost(), createHandler()
+│   ├── effect/                   # @cablejs/effect — Effect integration
+│   └── conformance/              # @cablejs/conformance — Host conformance test suite (run against every adapter)
 ├── examples/
 │   ├── chat-cloudflare/          # Worker + DO + TanStack Start client
 │   └── chat-rivet/
@@ -333,8 +333,8 @@ client    ←  react
 core      ←  conformance
 ```
 
-`@cable/contract` may depend only on `@standard-schema/spec` (types-only).
-`@cable/core` may not import any Node, Cloudflare, or Rivet API. Anything
+`@cablejs/contract` may depend only on `@standard-schema/spec` (types-only).
+`@cablejs/core` may not import any Node, Cloudflare, or Rivet API. Anything
 platform-specific lives in an adapter package.
 
 ### 3.3 Vendoring reference repositories
@@ -427,14 +427,14 @@ If submodules become annoying in the agent's environment, the fallback is
 
 | Term | Meaning |
 |------|---------|
-| **Contract** | The runtime-free description of the API: procedures, channels, their schemas and errors. Lives in `@cable/contract`. Shared by client and server. |
+| **Contract** | The runtime-free description of the API: procedures, channels, their schemas and errors. Lives in `@cablejs/contract`. Shared by client and server. |
 | **Procedure** | A `query` or `mutation`. Has `input`, `output`, `errors`. Either **global** (runs in the stateless edge handler) or **host-scoped** (declared on a channel; runs inside that channel's host). |
 | **Channel** | A parameterized pattern (`chat.{roomId}`) declaring `server` events (host→client), `client` events (client→host), optional `procedures`, `presence` schema, `history` policy. |
 | **Channel instance** | A channel with concrete params: `chat.{roomId}` + `{ roomId: 'lobby' }`. |
 | **Host** | The durable actor that owns one channel instance. On Cloudflare: one Durable Object. On Rivet: one actor. Identified by a **host key** (`chat:lobby`). |
 | **Host interface** | The small runtime-agnostic surface (`Host`, `Connection`, `Storage`, `Schedule`, `Peers`) the engine uses. Adapters implement it. |
-| **Engine** | The runtime-agnostic host logic in `@cable/core`: implements `HostHandlers` against a `Host`. Handles frames, event log, resume, presence, timers, host-scoped procedures. |
-| **Adapter** | A package implementing `Host` for a runtime and wiring runtime events into `HostHandlers` (`@cable/cloudflare`, `@cable/rivet`, `adapter-memory`, `adapter-node`). |
+| **Engine** | The runtime-agnostic host logic in `@cablejs/core`: implements `HostHandlers` against a `Host`. Handles frames, event log, resume, presence, timers, host-scoped procedures. |
+| **Adapter** | A package implementing `Host` for a runtime and wiring runtime events into `HostHandlers` (`@cablejs/cloudflare`, `@cablejs/rivet`, `adapter-memory`, `adapter-node`). |
 | **Handler (edge)** | The stateless entrypoint (`createHandler`): authenticates, runs global procedures, routes WebSocket upgrades to hosts. On CF this is the Worker `fetch`. |
 | **Grant** | The identity + permissions the edge handler computes for a connection and forwards, signed, to the host. |
 | **Attachment** | Small per-connection blob that survives host hibernation (CF `serializeAttachment`, ~2 KB; Rivet `c.conn.state`). |
@@ -443,7 +443,7 @@ If submodules become annoying in the agent's environment, the fallback is
 
 ---
 
-## 5. The contract (`@cable/contract`)
+## 5. The contract (`@cablejs/contract`)
 
 ### 5.1 Requirements
 
@@ -458,7 +458,7 @@ If submodules become annoying in the agent's environment, the fallback is
 ### 5.2 DSL
 
 ```ts
-import { c } from '@cable/contract'
+import { c } from '@cablejs/contract'
 import { z } from 'zod'
 
 export const api = c.contract({
@@ -534,12 +534,12 @@ typed as `INTERNAL` on the client and logged via `onError`.
 
 ---
 
-## 6. Server: procedures (`@cable/core` + edge adapters)
+## 6. Server: procedures (`@cablejs/core` + edge adapters)
 
 ### 6.1 Implementing global procedures
 
 ```ts
-import { implement } from '@cable/core'
+import { implement } from '@cablejs/core'
 import { api } from '@app/contract'
 
 export const procedures = implement(api)
@@ -628,7 +628,7 @@ its captured chain once.
    in storage and always arms the alarm for the earliest entry. Hosts with
    richer schedulers get simpler adapters.
 
-### 7.2 Host interface (decided; `@cable/core/host.ts`)
+### 7.2 Host interface (decided; `@cablejs/core/host.ts`)
 
 ```ts
 export type HostKey = string & { __brand: 'HostKey' }       // "chat:lobby"
@@ -722,7 +722,7 @@ Notes:
   capability lets the CF adapter later back the log with SQLite indexes
   without changing the engine.
 
-### 7.3 Engine responsibilities (`@cable/core/engine.ts`)
+### 7.3 Engine responsibilities (`@cablejs/core/engine.ts`)
 
 `createEngine(channelContract, impl, host): HostHandlers`
 
@@ -837,7 +837,7 @@ never collide with engine keys), `schedule`, `peers`, `now`, `error`.
 - The host verifies the signature and `exp`, then runs optional `authorize`.
 - Credentials never appear in WebSocket frames. The first frame is `hello`.
 
-### 8.3 Cloudflare adapter (`@cable/cloudflare`)
+### 8.3 Cloudflare adapter (`@cablejs/cloudflare`)
 
 ```ts
 // wrangler.jsonc
@@ -847,11 +847,11 @@ never collide with engine keys), `schedule`, `peers`, `now`, `error`.
 }
 
 // src/hosts/chat.ts
-import { cloudflareHost } from '@cable/cloudflare'
+import { cloudflareHost } from '@cablejs/cloudflare'
 export class ChatRoom extends cloudflareHost(api.chat) { /* §7.5 */ }
 
 // src/worker.ts
-import { createHandler } from '@cable/cloudflare'
+import { createHandler } from '@cablejs/cloudflare'
 export { ChatRoom } from './hosts/chat'
 const handler = createHandler(api, procedures, {
   hosts: (env) => ({ chat: env.CHAT }),                 // channel family → DO namespace binding
@@ -890,7 +890,7 @@ exposes a way to run each test in an isolated DO; simulate by constructing a
 fresh DO instance over the same storage and asserting resume/presence still
 work).
 
-### 8.4 Rivet adapter (`@cable/rivet`)
+### 8.4 Rivet adapter (`@cablejs/rivet`)
 
 Verified against Rivet docs (Sept 2026):
 
@@ -919,7 +919,7 @@ export const chatRoom = rivetHost(api.chat, { authorize, onClient, procedures })
 export const registry = setup({ use: { chatRoom } })
 ```
 
-`@cable/rivet`'s `createHandler` mirrors CF's for Node/Bun (Hono
+`@cablejs/rivet`'s `createHandler` mirrors CF's for Node/Bun (Hono
 `upgradeWebSocket` proxy per Rivet docs). Treat this adapter as **beta** until
 the conformance suite is green against Rivet's hibernation (low-level handler
 hibernation shipped Nov 2025; verify current behaviour when you get there).
@@ -936,7 +936,7 @@ hibernation shipped Nov 2025; verify current behaviour when you get there).
   memory or a JSON file, `Schedule` via `setTimeout`. For local dev without
   wrangler. Same `createHandler` shape.
 
-### 8.6 Conformance suite (`@cable/conformance`)
+### 8.6 Conformance suite (`@cablejs/conformance`)
 
 `hostConformance(factory: () => Promise<{ host, connect, hibernate?, advanceTime }>)`
 runs against every adapter:
@@ -998,7 +998,7 @@ Close codes: 4000 protocol error, 4001 unauthorized, 4002 grant expired,
 
 ---
 
-## 10. Client (`@cable/client`, `@cable/react`)
+## 10. Client (`@cablejs/client`, `@cablejs/react`)
 
 ### 10.1 Vanilla client
 
@@ -1059,7 +1059,7 @@ event patches query cache" glue. Keep the door open in the API.
 
 ---
 
-## 11. Effect integration (`@cable/effect`) — phase 3
+## 11. Effect integration (`@cablejs/effect`) — phase 3
 
 Core stays Promise-based. Effect is a layer on top:
 
@@ -1127,9 +1127,9 @@ example (where applicable) runs.
 **M0 — Scaffold.** §3.4. Empty packages, references, CI, ADRs, perf fixture generator.
 
 **M1 — Contract + procedures over memory.**
-`@cable/contract` DSL and types; `@cable/core` errors, Standard Schema
+`@cablejs/contract` DSL and types; `@cablejs/core` errors, Standard Schema
 validation, `implement()`, batch codec; `adapter-memory` in-process link;
-`@cable/client` procedure proxy + batch link. Perf baseline recorded.
+`@cablejs/client` procedure proxy + batch link. Perf baseline recorded.
 
 **M2 — Channels over memory.**
 Engine: frames, event log, resume, presence, timer heap, host-scoped
@@ -1138,20 +1138,20 @@ manager; conformance suite v1. This is the hardest milestone; expect it to
 take longest.
 
 **M3 — Cloudflare.**
-`@cable/cloudflare` (`cloudflareHost`, `createHandler`, Peers over DO RPC,
+`@cablejs/cloudflare` (`cloudflareHost`, `createHandler`, Peers over DO RPC,
 auto-response ping); conformance on workerd via vitest-pool-workers;
 `examples/chat-cloudflare` (Worker + DO + TanStack Start client).
 
 **M4 — React.**
-`@cable/react` options proxy + hooks; example client uses it.
+`@cablejs/react` options proxy + hooks; example client uses it.
 
 **M5 — Node dev host.** `adapter-node` + `createHandler`; run the example
 without wrangler.
 
-**M6 — Rivet.** `@cable/rivet`; conformance against Rivet's driver;
+**M6 — Rivet.** `@cablejs/rivet`; conformance against Rivet's driver;
 `examples/chat-rivet`.
 
-**M7 — Effect.** `@cable/effect` per §11.
+**M7 — Effect.** `@cablejs/effect` per §11.
 
 **Post-v1 backlog:** `relay` helper for aggregate channels; `patches` query
 glue; CBOR encoding; OpenAPI from contract; `HistoryStore` R2 adapter;
@@ -1192,7 +1192,7 @@ DevTools panel (frame inspector); SQL-backed event log on CF.
 6. **Consult `references/` deliberately**, per the table in §1.3: tRPC for
    builder/middleware DX and the TanStack options-proxy; oRPC for
    contract/`.errors()`/Standard Schema and to compare their hibernation
-   plugin with our engine; Effect for `@cable/effect` only. Never import from
+   plugin with our engine; Effect for `@cablejs/effect` only. Never import from
    `references/`. Attribute any ported algorithm.
 7. **Web standards only** in `core` and `client`: `fetch`, `Request`,
    `Response`, `WebSocket`, `TextEncoder`, `crypto.subtle` (HMAC). No `Buffer`,

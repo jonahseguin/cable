@@ -1,6 +1,6 @@
 # cable
 
-The project name is **cable** and the intended npm scope is `@cable`.
+The project name is **cable** and the intended npm scope is `@cablejs`.
 The user confirmed this name during M0; the alternatives in the design are historical.
 
 Package identities live in their `package.json` files. A rename also updates workspace

@@ -1,8 +1,14 @@
 {
-  "name": "@cable/cloudflare",
+  "name": "@cablejs/cloudflare",
   "version": "0.0.0",
   "private": true,
   "description": "Durable Objects host, authenticated edge handler, and workerd conformance.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/cloudflare"
+  },
   "files": [
     "dist"
   ],
@@ -23,11 +29,11 @@
     "types:generate": "wrangler types --config wrangler.test.jsonc --env-interface CloudflareTestEnv worker-configuration.d.ts"
   },
   "dependencies": {
-    "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*"
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*"
   },
   "devDependencies": {
-    "@cable/conformance": "workspace:*",
+    "@cablejs/conformance": "workspace:*",
     "@cloudflare/vitest-plugin": "1.1.4",
     "vitest": "4.1.11",
     "wrangler": "4.129.0",

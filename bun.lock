@@ -28,14 +28,14 @@
       },
     },
     "examples/chat-cloudflare": {
-      "name": "@cable/example-chat-cloudflare",
+      "name": "@cablejs/example-chat-cloudflare",
       "dependencies": {
-        "@cable/adapter-node": "workspace:*",
-        "@cable/client": "workspace:*",
-        "@cable/cloudflare": "workspace:*",
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
-        "@cable/react": "workspace:*",
+        "@cablejs/adapter-node": "workspace:*",
+        "@cablejs/client": "workspace:*",
+        "@cablejs/cloudflare": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
+        "@cablejs/react": "workspace:*",
         "@tanstack/react-query": "latest",
         "@tanstack/react-router": "latest",
         "@tanstack/react-start": "latest",
@@ -54,13 +54,13 @@
       },
     },
     "fixtures/big-contract": {
-      "name": "@cable/fixture-big-contract",
+      "name": "@cablejs/fixture-big-contract",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/client": "workspace:*",
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
-        "@cable/react": "workspace:*",
+        "@cablejs/client": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
+        "@cablejs/react": "workspace:*",
         "@tanstack/react-query": "5.102.8",
       },
       "devDependencies": {
@@ -68,52 +68,52 @@
       },
     },
     "packages/adapter-memory": {
-      "name": "@cable/adapter-memory",
+      "name": "@cablejs/adapter-memory",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
       },
       "devDependencies": {
-        "@cable/conformance": "workspace:*",
+        "@cablejs/conformance": "workspace:*",
       },
     },
     "packages/adapter-node": {
-      "name": "@cable/adapter-node",
+      "name": "@cablejs/adapter-node",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
         "ws": "8.21.0",
       },
       "devDependencies": {
-        "@cable/conformance": "workspace:*",
+        "@cablejs/conformance": "workspace:*",
         "@types/node": "22.20.1",
         "@types/ws": "8.18.1",
         "zod": "4.5.4",
       },
     },
     "packages/client": {
-      "name": "@cable/client",
+      "name": "@cablejs/client",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
       },
       "devDependencies": {
-        "@cable/adapter-memory": "workspace:*",
+        "@cablejs/adapter-memory": "workspace:*",
         "zod": "4.5.4",
       },
     },
     "packages/cloudflare": {
-      "name": "@cable/cloudflare",
+      "name": "@cablejs/cloudflare",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
       },
       "devDependencies": {
-        "@cable/conformance": "workspace:*",
+        "@cablejs/conformance": "workspace:*",
         "@cloudflare/vitest-plugin": "1.1.4",
         "vitest": "4.1.11",
         "wrangler": "4.129.0",
@@ -121,11 +121,11 @@
       },
     },
     "packages/conformance": {
-      "name": "@cable/conformance",
+      "name": "@cablejs/conformance",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
       },
       "devDependencies": {
         "vitest": "4.1.11",
@@ -137,7 +137,7 @@
       },
     },
     "packages/contract": {
-      "name": "@cable/contract",
+      "name": "@cablejs/contract",
       "version": "0.0.0",
       "dependencies": {
         "@standard-schema/spec": "1.1.0",
@@ -147,39 +147,39 @@
       },
     },
     "packages/core": {
-      "name": "@cable/core",
+      "name": "@cablejs/core",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/contract": "workspace:*",
+        "@cablejs/contract": "workspace:*",
       },
       "devDependencies": {
         "zod": "4.5.4",
       },
     },
     "packages/effect": {
-      "name": "@cable/effect",
+      "name": "@cablejs/effect",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/client": "workspace:*",
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
+        "@cablejs/client": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
         "effect": "4.0.0-rc.112",
       },
       "devDependencies": {
-        "@cable/adapter-memory": "workspace:*",
+        "@cablejs/adapter-memory": "workspace:*",
         "zod": "4.5.4",
       },
     },
     "packages/react": {
-      "name": "@cable/react",
+      "name": "@cablejs/react",
       "version": "0.0.0",
       "dependencies": {
-        "@cable/client": "workspace:*",
+        "@cablejs/client": "workspace:*",
       },
       "devDependencies": {
-        "@cable/adapter-memory": "workspace:*",
-        "@cable/contract": "workspace:*",
-        "@cable/core": "workspace:*",
+        "@cablejs/adapter-memory": "workspace:*",
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
         "@tanstack/react-query": "5.102.8",
         "react": "19.2.8",
         "react-dom": "19.2.8",
@@ -191,7 +191,7 @@
       },
     },
     "packages/rivet": {
-      "name": "@cable/rivet",
+      "name": "@cablejs/rivet",
       "version": "0.0.0",
     },
   },
@@ -323,29 +323,29 @@
 
     "@bruits/satteri-win32-x64-msvc": ["@bruits/satteri-win32-x64-msvc@0.10.5", "", { "os": "win32", "cpu": "x64" }, "sha512-C3IfPvfvMXmlzBxaMPKFS1XiuV9pu2mC7YqkPk7PSvTgPZ8gbdASIpHpztDLvTTQjqZ0z1Ol8tK5X+V6XXC0wQ=="],
 
-    "@cable/adapter-memory": ["@cable/adapter-memory@workspace:packages/adapter-memory"],
+    "@cablejs/adapter-memory": ["@cablejs/adapter-memory@workspace:packages/adapter-memory"],
 
-    "@cable/adapter-node": ["@cable/adapter-node@workspace:packages/adapter-node"],
+    "@cablejs/adapter-node": ["@cablejs/adapter-node@workspace:packages/adapter-node"],
 
-    "@cable/client": ["@cable/client@workspace:packages/client"],
+    "@cablejs/client": ["@cablejs/client@workspace:packages/client"],
 
-    "@cable/cloudflare": ["@cable/cloudflare@workspace:packages/cloudflare"],
+    "@cablejs/cloudflare": ["@cablejs/cloudflare@workspace:packages/cloudflare"],
 
-    "@cable/conformance": ["@cable/conformance@workspace:packages/conformance"],
+    "@cablejs/conformance": ["@cablejs/conformance@workspace:packages/conformance"],
 
-    "@cable/contract": ["@cable/contract@workspace:packages/contract"],
+    "@cablejs/contract": ["@cablejs/contract@workspace:packages/contract"],
 
-    "@cable/core": ["@cable/core@workspace:packages/core"],
+    "@cablejs/core": ["@cablejs/core@workspace:packages/core"],
 
-    "@cable/effect": ["@cable/effect@workspace:packages/effect"],
+    "@cablejs/effect": ["@cablejs/effect@workspace:packages/effect"],
 
-    "@cable/example-chat-cloudflare": ["@cable/example-chat-cloudflare@workspace:examples/chat-cloudflare"],
+    "@cablejs/example-chat-cloudflare": ["@cablejs/example-chat-cloudflare@workspace:examples/chat-cloudflare"],
 
-    "@cable/fixture-big-contract": ["@cable/fixture-big-contract@workspace:fixtures/big-contract"],
+    "@cablejs/fixture-big-contract": ["@cablejs/fixture-big-contract@workspace:fixtures/big-contract"],
 
-    "@cable/react": ["@cable/react@workspace:packages/react"],
+    "@cablejs/react": ["@cablejs/react@workspace:packages/react"],
 
-    "@cable/rivet": ["@cable/rivet@workspace:packages/rivet"],
+    "@cablejs/rivet": ["@cablejs/rivet@workspace:packages/rivet"],
 
     "@capsizecss/unpack": ["@capsizecss/unpack@4.0.1", "", { "dependencies": { "fontkitten": "^1.0.3" } }, "sha512-CuNiSqg7+e1cO/GjffyMOm5Tt2jUF9CWHHnvQ/UkqvtkGfHdgwEC0wpmq7fkN3gxwpRnrAN0WzO3vREKmNolMQ=="],
 

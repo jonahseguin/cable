@@ -1,5 +1,5 @@
 ---
-"@cable/client": minor
+"@cablejs/client": minor
 ---
 
 Add typed channel handles with shared sockets, bounded reconnect and acknowledgements,

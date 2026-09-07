@@ -4,7 +4,7 @@ import { Readable, type Duplex } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 
-import type { ContractTree } from "@cable/contract";
+import type { ContractTree } from "@cablejs/contract";
 import {
   createEdgeHandler,
   type EdgeContract,
@@ -12,7 +12,7 @@ import {
   type EdgeHostTransport,
   type GrantSecret,
   type ImplementedProcedures,
-} from "@cable/core";
+} from "@cablejs/core";
 import { WebSocketServer } from "ws";
 
 import type { NodeRuntime, NodeHandlerHost, NodePreparedUpgrade } from "./runtime.js";

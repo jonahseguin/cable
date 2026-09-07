@@ -1,6 +1,6 @@
-import type { AnyChannelContract } from "@cable/contract";
-import { CableError } from "@cable/core";
-import type { PresenceEntry, RpcCall } from "@cable/core";
+import type { AnyChannelContract } from "@cablejs/contract";
+import { CableError } from "@cablejs/core";
+import type { PresenceEntry, RpcCall } from "@cablejs/core";
 
 import type { ChannelPool, ManagedChannel } from "./channel-pool.js";
 import type { ChannelStatus, Unsubscribe } from "./channel-types.js";

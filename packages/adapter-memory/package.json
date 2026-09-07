@@ -1,8 +1,14 @@
 {
-  "name": "@cable/adapter-memory",
+  "name": "@cablejs/adapter-memory",
   "version": "0.0.0",
   "private": true,
   "description": "In-process transport and deterministic hosts with simulated hibernation.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/adapter-memory"
+  },
   "files": [
     "dist"
   ],
@@ -19,10 +25,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*"
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*"
   },
   "devDependencies": {
-    "@cable/conformance": "workspace:*"
+    "@cablejs/conformance": "workspace:*"
   }
 }

@@ -1,7 +1,7 @@
 // fallow-ignore-file unused-file -- This is the Bun-built Node server entry used by dev:node and the Node integration smoke.
 import { createServer } from "node:http";
 
-import { createHandler, nodeHost } from "@cable/adapter-node";
+import { createHandler, nodeHost } from "@cablejs/adapter-node";
 
 import { api } from "./api.js";
 import { chatImplementation, identityFromRequest, procedures } from "./chat-server.js";

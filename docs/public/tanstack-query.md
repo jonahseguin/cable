@@ -6,7 +6,7 @@ description: Use Cable procedures with native TanStack Query options, typed keys
 `createCableQuery(client)` returns a contract-shaped object with native TanStack Query options. Cable does not wrap `useQuery` or `useMutation`, so query configuration, cache ownership, retries, errors, and hydration keep their usual TanStack Query behavior.
 
 ```ts title="src/cable-query.ts"
-import { createCableQuery } from "@cable/react";
+import { createCableQuery } from "@cablejs/react";
 
 import { cable } from "./cable.js";
 

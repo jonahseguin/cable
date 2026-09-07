@@ -1,4 +1,4 @@
-import { c } from "@cable/contract";
+import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 export const api = c.contract({

@@ -1,4 +1,4 @@
-import { c } from "@cable/contract";
+import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 const forbiddenError = z.object({ resource: z.string() });

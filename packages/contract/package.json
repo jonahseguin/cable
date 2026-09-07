@@ -1,8 +1,14 @@
 {
-  "name": "@cable/contract",
+  "name": "@cablejs/contract",
   "version": "0.0.0",
   "private": true,
   "description": "Contract DSL, Standard Schema types, and inference helpers. Zero runtime dependencies.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/contract"
+  },
   "files": [
     "dist"
   ],

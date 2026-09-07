@@ -1,6 +1,6 @@
 /* oxlint-disable anti-slop/no-unknown-parameters -- Standard Schema owns this
 untrusted boundary and returns parsed domain output before it leaves validate. */
-import type { AnyStandardSchema, InferSchemaOutput } from "@cable/contract";
+import type { AnyStandardSchema, InferSchemaOutput } from "@cablejs/contract";
 
 import { CableError } from "./errors.js";
 

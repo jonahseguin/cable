@@ -1,6 +1,6 @@
 ---
-"@cable/contract": minor
-"@cable/client": patch
+"@cablejs/contract": minor
+"@cablejs/client": patch
 ---
 
 Add the contract DSL for typed queries, mutations, and durable channel families.

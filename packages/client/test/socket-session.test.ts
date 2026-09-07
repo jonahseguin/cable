@@ -1,6 +1,6 @@
-import { MemorySocket } from "@cable/adapter-memory";
-import { decodeClientFrame } from "@cable/core";
-import type { ClientWireFrame, RpcCall } from "@cable/core";
+import { MemorySocket } from "@cablejs/adapter-memory";
+import { decodeClientFrame } from "@cablejs/core";
+import type { ClientWireFrame, RpcCall } from "@cablejs/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SocketSession } from "../src/socket-session.js";

@@ -3,11 +3,11 @@ title: Node and Bun
 description: Run Cable's in-memory Node host behind a Node HTTP server and native WebSocket upgrades.
 ---
 
-`@cable/adapter-node` is a local Node host. It keeps channel state in process memory, so restarting the process drops sockets, presence, history, and application storage.
+`@cablejs/adapter-node` is a local Node host. It keeps channel state in process memory, so restarting the process drops sockets, presence, history, and application storage.
 
 ```ts
 import { createServer } from "node:http";
-import { createHandler, nodeHost } from "@cable/adapter-node";
+import { createHandler, nodeHost } from "@cablejs/adapter-node";
 
 const handler = createHandler(api, procedures, {
   authenticate: identityFromRequest,

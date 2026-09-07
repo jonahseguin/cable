@@ -1,6 +1,6 @@
 ---
-"@cable/contract": patch
-"@cable/core": minor
+"@cablejs/contract": patch
+"@cablejs/core": minor
 ---
 
 Add channel frame codecs, portable host interfaces, canonical channel keys, and

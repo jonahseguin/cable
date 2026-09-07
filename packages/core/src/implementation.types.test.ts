@@ -1,4 +1,4 @@
-import { c } from "@cable/contract";
+import { c } from "@cablejs/contract";
 import { expectTypeOf, it } from "vitest";
 import { z } from "zod";
 

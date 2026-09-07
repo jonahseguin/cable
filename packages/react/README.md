@@ -1,6 +1,6 @@
-# @cable/react
+# @cablejs/react
 
-`@cable/react` connects a Cable client to React and TanStack Query. It provides
+`@cablejs/react` connects a Cable client to React and TanStack Query. It provides
 native query and mutation options, plus hooks that lease channel handles while a
 component is mounted.
 
@@ -14,7 +14,7 @@ import {
   useChannelStatus,
   useEvent,
   usePresence,
-} from "@cable/react";
+} from "@cablejs/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 const cableQuery = createCableQuery(cable);

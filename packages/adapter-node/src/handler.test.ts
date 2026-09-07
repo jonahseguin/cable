@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 
-import { c } from "@cable/contract";
-import { encodeBatch, implement } from "@cable/core";
+import { c } from "@cablejs/contract";
+import { encodeBatch, implement } from "@cablejs/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 

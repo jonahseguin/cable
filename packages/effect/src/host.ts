@@ -3,7 +3,7 @@ import type {
   AnyProcedureContract,
   InferSchemaInput,
   InferSchemaOutput,
-} from "@cable/contract";
+} from "@cablejs/contract";
 import {
   CableError,
   createEngine,
@@ -19,13 +19,13 @@ import {
   type Host as CoreHost,
   type HostHandlers,
   type TimerPayloads,
-} from "@cable/core";
+} from "@cablejs/core";
 import { Context, Effect, Layer } from "effect";
 
 import { runEffect } from "./server.js";
 
 /** The underlying cable Host available to Effect channel handlers. */
-export const Host = Context.Service<CoreHost>("@cable/effect/Host");
+export const Host = Context.Service<CoreHost>("@cablejs/effect/Host");
 
 /** Build the Host Layer supplied while a channel handler runs. */
 export function hostLayer(host: CoreHost): Layer.Layer<CoreHost> {

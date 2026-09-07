@@ -1,5 +1,5 @@
-import { CableError } from "@cable/core";
-import type { BuiltinCode } from "@cable/core";
+import { CableError } from "@cablejs/core";
+import type { BuiltinCode } from "@cablejs/core";
 
 const codes = new Map<number, BuiltinCode>([
   [400, "BAD_REQUEST"],

@@ -6,7 +6,7 @@
   "changelog": false,
   "commit": false,
   "fixed": [],
-  "ignore": [],
+  "ignore": ["@cablejs/conformance", "@cablejs/rivet"],
   "linked": [],
   "privatePackages": {
     "tag": false,

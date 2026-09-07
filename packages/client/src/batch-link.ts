@@ -1,5 +1,5 @@
-import { CableError, decodeBatchResponse, encodeBatch } from "@cable/core";
-import type { RpcCall, RpcResult } from "@cable/core";
+import { CableError, decodeBatchResponse, encodeBatch } from "@cablejs/core";
+import type { RpcCall, RpcResult } from "@cablejs/core";
 
 import { getRequest } from "./get-request.js";
 import { httpError } from "./http-error.js";

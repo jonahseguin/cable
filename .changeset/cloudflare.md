@@ -1,5 +1,5 @@
 ---
-"@cable/cloudflare": minor
+"@cablejs/cloudflare": minor
 ---
 
 Add the Cloudflare Durable Object host and Worker edge handler. The adapter

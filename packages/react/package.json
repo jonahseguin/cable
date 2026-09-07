@@ -1,8 +1,14 @@
 {
-  "name": "@cable/react",
+  "name": "@cablejs/react",
   "version": "0.0.0",
   "private": true,
   "description": "React channel hooks and native TanStack Query options proxies.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/react"
+  },
   "files": [
     "dist"
   ],
@@ -19,12 +25,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cable/client": "workspace:*"
+    "@cablejs/client": "workspace:*"
   },
   "devDependencies": {
-    "@cable/adapter-memory": "workspace:*",
-    "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*",
+    "@cablejs/adapter-memory": "workspace:*",
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*",
     "@tanstack/react-query": "5.102.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",

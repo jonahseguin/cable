@@ -1,4 +1,4 @@
-import type { AnyChannelContract } from "@cable/contract";
+import type { AnyChannelContract } from "@cablejs/contract";
 import {
   createEngine,
   type ChannelImplementation,
@@ -7,7 +7,7 @@ import {
   type HostLimits,
   type PeerMessage,
   type TimerPayloads,
-} from "@cable/core";
+} from "@cablejs/core";
 import { DurableObject } from "cloudflare:workers";
 
 import { CloudflareConnection, parseAttachment } from "./connection.js";

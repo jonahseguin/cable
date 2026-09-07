@@ -3,10 +3,10 @@ title: Cloudflare Durable Objects
 description: Run each Cable channel host in a Cloudflare Durable Object with hibernatable WebSockets, durable storage, edge authentication, and signed private grants.
 ---
 
-`@cable/cloudflare` runs one Cable channel host in a Durable Object. Export the generated class from the Worker module, bind its class name in Wrangler, and register that namespace in the edge handler.
+`@cablejs/cloudflare` runs one Cable channel host in a Durable Object. Export the generated class from the Worker module, bind its class name in Wrangler, and register that namespace in the edge handler.
 
 ```ts
-import { cloudflareHost, createHandler, type CloudflareHostInstance } from "@cable/cloudflare";
+import { cloudflareHost, createHandler, type CloudflareHostInstance } from "@cablejs/cloudflare";
 
 interface Env {
   readonly CHAT_HOSTS: DurableObjectNamespace<CloudflareHostInstance<Env>>;
@@ -60,7 +60,7 @@ The local example needs both the Worker and Vite processes. Create the Worker se
 Set `CABLE_GRANT_SECRET` in `examples/chat-cloudflare/.dev.vars` to at least 32 random characters. Then start Vite in a second terminal:
 
 ```bash
-bun --filter @cable/example-chat-cloudflare dev
+bun --filter @cablejs/example-chat-cloudflare dev
 ```
 
 The local browser identity is only a development bearer token. Replace it with application authentication before deployment. The contract, Worker, and client code live in `examples/chat-cloudflare/src/`.

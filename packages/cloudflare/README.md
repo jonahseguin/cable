@@ -1,6 +1,6 @@
-# @cable/cloudflare
+# @cablejs/cloudflare
 
-`@cable/cloudflare` runs one Cable channel host in a Cloudflare Durable Object.
+`@cablejs/cloudflare` runs one Cable channel host in a Cloudflare Durable Object.
 It exports `cloudflareHost()` to create the Durable Object class and
 `createHandler()` for the Worker edge routes.
 
@@ -10,7 +10,7 @@ forwards the request to the named Durable Object. The host validates the grant
 again before it accepts the socket.
 
 ```ts
-import { cloudflareHost, createHandler } from "@cable/cloudflare";
+import { cloudflareHost, createHandler } from "@cablejs/cloudflare";
 
 export const ChatHost = cloudflareHost(api.chat, chatImplementation, {
   grantSecret: (env: Env) => env.CABLE_GRANT_SECRET,

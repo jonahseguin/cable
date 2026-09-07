@@ -3,12 +3,12 @@ title: Effect
 description: Use Cable procedures, channel handlers, and channel streams as Effect values while the runtime adapter retains ownership.
 ---
 
-`@cable/effect` adapts Cable callbacks and clients to Effect. It does not change Cable's transport, authentication, or channel lifecycle.
+`@cablejs/effect` adapts Cable callbacks and clients to Effect. It does not change Cable's transport, authentication, or channel lifecycle.
 
 ```ts
 import { Effect, Layer } from "effect";
-import { implementEffect } from "@cable/effect";
-import { c } from "@cable/contract";
+import { implementEffect } from "@cablejs/effect";
+import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 const api = c.contract({
@@ -35,8 +35,8 @@ For channel behavior, `createEffectEngine(channel, implementation, host, options
 
 ```ts
 import { Effect, Stream } from "effect";
-import { createClient } from "@cable/client";
-import { effectClient } from "@cable/effect";
+import { createClient } from "@cablejs/client";
+import { effectClient } from "@cablejs/effect";
 
 const client = effectClient(api, createClient({ contract: api, url: "/_cable" }));
 const room = client.chat({ roomId: "general" });

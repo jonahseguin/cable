@@ -6,13 +6,13 @@ typescript/no-unsafe-member-access -- This test-only
 workerd driver calls generated Durable Object RPC bindings. The root lint project
 cannot load cloudflare:test globals; workerd/tsconfig.json typechecks this file
 with the official plugin declarations. */
-import { conformanceChannel } from "@cable/conformance";
+import { conformanceChannel } from "@cablejs/conformance";
 import type {
   ConformanceGrant,
   ConformanceSocket,
   ConformanceUpgrade,
   HostConformanceDriver,
-} from "@cable/conformance";
+} from "@cablejs/conformance";
 import {
   channelKey,
   decodeHostFrame,
@@ -24,7 +24,7 @@ import {
   type HostWireFrame,
   type PeerMessage,
   type StorageListOptions,
-} from "@cable/core";
+} from "@cablejs/core";
 import { evictDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 
