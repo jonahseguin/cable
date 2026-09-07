@@ -1,6 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "cloudflare-workers",
-  "main": "src/index.ts",
-  "compatibility_date": "2025-05-05",
-}

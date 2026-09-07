@@ -1,6 +1,6 @@
 ---
 title: Use the client
-description: Call Cable procedures and manage typed channels with batched HTTP, reconnecting sockets, presence, durable replay, and explicit resource ownership.
+description: Call cable procedures and manage typed channels with batched HTTP, reconnecting sockets, presence, durable replay, and explicit resource ownership.
 ---
 
 `@cablejs/client` imports the shared contract and calls procedures through HTTP batches. It does not import server implementations.
@@ -43,8 +43,8 @@ Handles for the same canonical channel key share one connection within a client.
 
 ## Reconnect and history
 
-Reconnect uses exponential backoff. Cable resumes from the last delivered event and waits for the final welcome chunk before reporting `open`. A retained-history gap emits `reset`. Optional `ws.cursors` persists sequence cursors through a sessionStorage-compatible store.
+Reconnect uses exponential backoff. cable resumes from the last delivered event and waits for the final welcome chunk before reporting `open`. A retained-history gap emits `reset`. Optional `ws.cursors` persists sequence cursors through a sessionStorage-compatible store.
 
-Acknowledged channel events and host calls reject when their connection is interrupted. Cable does not repeat them automatically. See [channels](/channels) for presence, history, and lifecycle ownership, and [reliability](/reliability) for the recovery boundary.
+Acknowledged channel events and host calls reject when their connection is interrupted. cable does not repeat them automatically. See [channels](/channels) for presence, history, and lifecycle ownership, and [reliability](/reliability) for the recovery boundary.
 
 Next, [connect the client to Cloudflare](/adapters/cloudflare).

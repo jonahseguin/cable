@@ -1,3 +1,0 @@
-{
-  "extends": ["@monotest/tsconfig/react.json"]
-}

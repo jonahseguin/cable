@@ -1,6 +1,6 @@
 ---
 title: Implement procedures
-description: Attach global procedure handlers to a Cable contract with typed context, boundary validation, and declared errors.
+description: Attach global procedure handlers to a cable contract with typed context, boundary validation, and declared errors.
 ---
 
 `implement(contract)` checks that server handlers cover every global procedure. Procedures declared inside a channel belong to that channel's implementation.
@@ -38,9 +38,9 @@ export default { fetch: rpc.fetch };
 
 ## Validation and errors
 
-Cable parses input before middleware and handlers run. It validates output by default, including schema transformations. Set `validateOutput: false` only when handlers already return the output schema's parsed type.
+cable parses input before middleware and handlers run. It validates output by default, including schema transformations. Set `validateOutput: false` only when handlers already return the output schema's parsed type.
 
-Handlers can throw `CableError` with one of the procedure's declared codes. Unknown thrown values and undeclared codes become sanitized `INTERNAL` failures, and Cable reports them to `onError`.
+Handlers can throw `CableError` with one of the procedure's declared codes. Unknown thrown values and undeclared codes become sanitized `INTERNAL` failures, and cable reports them to `onError`.
 
 ## Reuse authorization middleware
 

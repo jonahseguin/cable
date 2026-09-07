@@ -3,7 +3,7 @@ title: Authorize procedures
 description: Build request context at the adapter boundary, then refine it with reusable application middleware.
 ---
 
-Cable does not define users, roles, or sessions. Your adapter authenticates the request and provides the initial context. Application middleware decides which procedures can use that context.
+cable does not define users, roles, or sessions. Your adapter authenticates the request and provides the initial context. Application middleware decides which procedures can use that context.
 
 ```ts title="procedures.ts"
 import { c } from "@cablejs/contract";

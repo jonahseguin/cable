@@ -56,8 +56,8 @@ const room = client.chat({ roomId: "general" });
 const messages = await room.recent({ limit: 50 });
 ```
 
-Cable sends this call through an open channel socket when one exists. The edge handler also exposes `POST /_cable/host/<channel-key>/<procedure>` for an authenticated caller without a socket. Both paths validate the same procedure input and invoke the same host implementation.
+cable sends this call through an open channel socket when one exists. The edge handler also exposes `POST /_cable/host/<channel-key>/<procedure>` for an authenticated caller without a socket. Both paths validate the same procedure input and invoke the same host implementation.
 
-Use a channel procedure when the operation needs one channel's state, ordering, or membership. Use a global procedure for ordinary request-scoped work. Neither kind inherits authorization from the other: the edge authenticates every request, Cable signs channel grants, and the channel still decides what its identity and grants may do.
+Use a channel procedure when the operation needs one channel's state, ordering, or membership. Use a global procedure for ordinary request-scoped work. Neither kind inherits authorization from the other: the edge authenticates every request, cable signs channel grants, and the channel still decides what its identity and grants may do.
 
-`history.load` is reserved by Cable when a channel declares `history`. Do not declare an application procedure with that name.
+`history.load` is reserved by cable when a channel declares `history`. Do not declare an application procedure with that name.

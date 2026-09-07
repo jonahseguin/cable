@@ -3,7 +3,7 @@ title: Get started
 description: Define one procedure, implement it with request context, and call it from a typed client.
 ---
 
-This source preview follows one procedure through a contract, a server implementation, and a client. Put the shared contract in a module that both application sides can import.
+This example follows one procedure through a contract, a server implementation, and a client. Put the shared contract in a module that both application sides can import.
 
 ## Define the contract
 
@@ -35,7 +35,7 @@ const procedures = implement(api)
   });
 
 const rpc = createRpcHandler(procedures, {
-  context: () => ({ name: "Cable" }),
+  context: () => ({ name: "cable" }),
 });
 
 export default { fetch: rpc.fetch };

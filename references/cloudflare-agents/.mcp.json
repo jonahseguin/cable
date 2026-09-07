@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "agents": {
-      "type": "http",
-      "url": "https://agents.cloudflare.com/mcp"
-    }
-  }
-}

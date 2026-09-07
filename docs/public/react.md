@@ -1,11 +1,11 @@
 ---
 title: React channels
-description: Subscribe React components to Cable channels, typed server events, connection state, and presence without owning socket cleanup yourself.
+description: Subscribe React components to cable channels, typed server events, connection state, and presence without owning socket cleanup yourself.
 ---
 
 `@cablejs/react` gives components a channel handle for as long as they are mounted. It does not provide a replacement for TanStack Query. Use [TanStack Query](/tanstack-query) for procedure caching, mutations, and hydration.
 
-The hooks need a Cable client built from the runtime contract. This client module is imported by the component examples below.
+The hooks need a cable client built from the runtime contract. This client module is imported by the component examples below.
 
 ```ts title="src/cable.ts"
 import { createClient } from "@cablejs/client";
@@ -72,13 +72,13 @@ export function Room({ roomId, userName }: { roomId: string; userName: string })
 - `useChannel` creates the handle during render and retains its subscription after mount. Rendering on the server never opens a socket.
 - Each mounted consumer retains one lease. Consumers for the same channel parameters share the client's connection; the final unmount releases it.
 - `useEvent`, `useChannelStatus`, and `usePresence` subscribe and unsubscribe with the component. Do not call `dispose()` on a handle returned by `useChannel`.
-- `useChannelStatus` reports `connecting`, `open`, `resuming`, or `closed`. `resuming` lasts until Cable receives every replay chunk after reconnect.
+- `useChannelStatus` reports `connecting`, `open`, `resuming`, or `closed`. `resuming` lasts until cable receives every replay chunk after reconnect.
 
 The client applies its `ws.idleClose` delay only after the final lease is released. Set `idleClose: 0` when a route should close immediately after its last channel consumer unmounts.
 
 ## Handle reconnects and reset
 
-Cable resumes logged server events from its last delivered sequence. A retained-history gap emits the channel's `reset` event after the next welcome frame. Refetch state that depends on the channel when it happens.
+cable resumes logged server events from its last delivered sequence. A retained-history gap emits the channel's `reset` event after the next welcome frame. Refetch state that depends on the channel when it happens.
 
 ```tsx
 import { useChannel, useEvent } from "@cablejs/react";

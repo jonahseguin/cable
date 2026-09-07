@@ -13,8 +13,8 @@ client proxy.
 channel-handle member names. It cannot be used for a channel client event or
 procedure.
 
-The package targets `effect` 4.0.0-rc.112 only. It remains private and
-unpublished. See [the implementation plan](../../docs/PLAN.md).
+The package targets `effect` 4.0.0-rc.112 only. See the [Effect integration
+guide](../../docs/public/integrations/effect.md) for the supported setup.
 
 ## Consume a channel stream
 

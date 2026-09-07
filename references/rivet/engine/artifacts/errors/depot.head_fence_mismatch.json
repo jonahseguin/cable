@@ -1,5 +1,0 @@
-{
-  "code": "head_fence_mismatch",
-  "group": "depot",
-  "message": "SQLite head fence mismatch."
-}

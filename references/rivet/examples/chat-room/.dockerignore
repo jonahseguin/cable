@@ -1,9 +1,0 @@
-node_modules
-dist
-.turbo
-.vercel
-.actorcore
-*.md
-tests
-Dockerfile
-.dockerignore
