@@ -4,16 +4,16 @@ description: Give Claude or Codex a bounded prompt for making safe cable changes
 ---
 
 This prompt is for an agent working in an existing cable checkout. It asks the
-agent to inspect the repository before choosing a runtime or dependency, and to
-stop when package resolution fails.
+agent to inspect the repository before choosing a runtime or dependency and to
+verify the published package versions before installing them.
 
 ```text
 Work in the existing cable repository. Before changing anything:
 
 1. Inspect the project files, package manager, runtime, package manifests, and current git status.
 2. Read the current repository guidance and the relevant docs in docs/.
-3. Verify package names and versions from the manifests. Do not assume a package is published or available from a registry.
-4. If an install or package lookup reports that a @cablejs/* package is unpublished or unavailable, stop and report the exact error. Do not substitute another dependency or invent a compatibility path.
+3. Verify package names and current versions from the manifests and registry before installing them.
+4. If the requested package or version cannot be resolved, stop and report the exact error. Do not substitute another dependency or invent a compatibility path.
 
 For the requested change:
 
