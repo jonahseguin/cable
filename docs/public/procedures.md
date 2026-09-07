@@ -1,9 +1,9 @@
 ---
 title: Implement procedures
-description: Attach procedure handlers to a Cable contract with typed context, boundary validation, declared errors, and reusable middleware for explicit contract leaves.
+description: Attach global procedure handlers to a Cable contract with typed context, boundary validation, and declared errors.
 ---
 
-`implement(contract)` checks that server handlers cover the contract's global procedures. Host-scoped procedures belong in channel implementations.
+`implement(contract)` checks that server handlers cover every global procedure. Procedures declared inside a channel belong to that channel's implementation.
 
 ```ts
 import { c } from "@cable/contract";
@@ -42,7 +42,7 @@ Cable parses input before middleware and handlers run. It validates output by de
 
 Handlers can throw `CableError` with one of the procedure's declared codes. Unknown thrown values and undeclared codes become sanitized `INTERNAL` failures, and Cable reports them to `onError`.
 
-## Reusable middleware
+## Reuse authorization middleware
 
 `builder.procedure` resolves one explicit global contract leaf. Its `.use()` method captures middleware for leaves resolved through that value. Keep the complete contract-shaped object in the single `.procedures()` call.
 
@@ -87,3 +87,5 @@ export const procedures = builder.procedures({
 ```
 
 The resolver accepts a global procedure leaf, never a channel. A resolved leaf runs its captured middleware once. `next({ ctx })` retains the `posts` service while refining `identity` from nullable to authenticated.
+
+Read [authorization](/authorization) for a focused context-refinement example, [organize procedures](/organizing-procedures) to split handlers across files, or [channel procedures](/channel-procedures) for calls that run inside one channel host.

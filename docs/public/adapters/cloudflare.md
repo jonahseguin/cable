@@ -3,10 +3,15 @@ title: Cloudflare Durable Objects
 description: Run each Cable channel host in a Cloudflare Durable Object with hibernatable WebSockets, durable storage, edge authentication, and signed private grants.
 ---
 
-`@cable/cloudflare` runs one Cable channel host in a Cloudflare Durable Object. `cloudflareHost()` creates the Durable Object class. `createHandler()` creates the Worker edge routes.
+`@cable/cloudflare` runs one Cable channel host in a Durable Object. Export the generated class from the Worker module, bind its class name in Wrangler, and register that namespace in the edge handler.
 
 ```ts
-import { cloudflareHost, createHandler } from "@cable/cloudflare";
+import { cloudflareHost, createHandler, type CloudflareHostInstance } from "@cable/cloudflare";
+
+interface Env {
+  readonly CHAT_HOSTS: DurableObjectNamespace<CloudflareHostInstance<Env>>;
+  readonly CABLE_GRANT_SECRET: string;
+}
 
 export const ChatHost = cloudflareHost(api.chat, chatImplementation, {
   grantSecret: (env: Env) => env.CABLE_GRANT_SECRET,
@@ -26,11 +31,22 @@ const handler = createHandler(api, procedures, {
 export default { fetch: handler.fetch };
 ```
 
+```jsonc
+{
+  "durable_objects": { "bindings": [{ "name": "CHAT_HOSTS", "class_name": "ChatHost" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatHost"] }],
+}
+```
+
+`class_name` must equal the exported class name. Add a migration when introducing a class. Do not rename or remove a deployed class without Cloudflare's migration process.
+
 ## Request flow
 
-The edge handler authenticates RPC, host-fallback, and WebSocket requests. For an accepted upgrade, it strips caller credentials, signs a private grant, and forwards the request to the Durable Object named for the channel key. The host verifies that grant before accepting the socket.
+The edge handler authenticates RPC, host-fallback, and WebSocket requests. For an accepted upgrade, it strips caller credentials, signs a private grant, and forwards the request to the Durable Object named for the channel key. The host verifies that grant before accepting the socket. `grantSecret` must return the same secret in both places.
 
-The adapter uses hibernatable WebSockets, serialized attachments, Durable Object storage and alarms, and RPC for peer calls. Channel state survives a new engine instance because the runtime's sockets and durable storage remain authoritative.
+In cookie mode, set `credentials: { mode: "cookie", origins: ["https://app.example.com"] }` and authenticate the session cookie. In bearer mode, set `credentials: { mode: "bearer" }` and validate the Authorization header or browser token. `grants` derives short-lived channel capabilities. It does not replace a channel's `authorize` check.
+
+The adapter uses hibernatable WebSockets, serialized attachments, Durable Object storage and alarms, and RPC for peer calls. Keep application state in `context.storage`, not object fields, because hibernation creates a new engine instance.
 
 ## Run the example
 

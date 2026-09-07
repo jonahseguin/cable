@@ -1,53 +1,57 @@
 ---
 title: Get started
-description: Run Cable's local Cloudflare chat example from a checkout of this private repository, then inspect the contract, Worker, client, and Node development path.
+description: Define one procedure, implement it with request context, and call it from a typed client.
 ---
 
-Cable is not published yet. Use a repository checkout to run the example and inspect the workspace packages.
+This source preview follows one procedure through a contract, a server implementation, and a client. Put the shared contract in a module that both application sides can import.
 
-## Install the workspace
+## Define the contract
 
-```bash
-git clone https://github.com/jonahseguin/cable.git
-cd cable
-bun install
+```ts title="api.ts"
+import { c } from "@cable/contract";
+import { z } from "zod";
+
+export const api = c.contract({
+  greeting: c.query({
+    input: z.object({ name: z.string().min(1) }),
+    output: z.object({ message: z.string() }),
+  }),
+});
 ```
 
-Cable uses Bun `1.4.0`. The Cloudflare example also uses Wrangler through its workspace dependencies.
+## Implement it on the server
 
-## Run the Cloudflare chat example
+`context` is your application boundary. The example below supplies an authenticated name; an adapter can derive it from a session, bearer token, or another request credential.
 
-In one terminal, create the local Worker secret and start Wrangler:
+```ts title="server.ts"
+import { createRpcHandler, implement } from "@cable/core";
 
-```bash
-cp examples/chat-cloudflare/.dev.vars.example examples/chat-cloudflare/.dev.vars
-(cd examples/chat-cloudflare && bunx wrangler dev --local)
+import { api } from "./api.js";
+
+const procedures = implement(api)
+  .context<{ readonly name: string }>()
+  .procedures({
+    greeting: ({ ctx, input }) => ({ message: `Hello, ${input.name} from ${ctx.name}` }),
+  });
+
+const rpc = createRpcHandler(procedures, {
+  context: () => ({ name: "Cable" }),
+});
+
+export default { fetch: rpc.fetch };
 ```
 
-Set `CABLE_GRANT_SECRET` in `.dev.vars` to at least 32 random characters before starting Wrangler. In a second terminal, start the Vite application:
+## Call it from the client
 
-```bash
-bun --filter @cable/example-chat-cloudflare dev
+```ts title="client.ts"
+import { createClient } from "@cable/client";
+
+import { api } from "./api.js";
+
+const client = createClient({ contract: api, url: "/_cable" });
+const greeting = await client.greeting.query({ name: "Mina" });
+
+console.log(greeting.message);
 ```
 
-The example's local identity is a display name sent as a bearer token. It is only for local development. Replace `identityFromRequest` with application authentication before deployment. Its Worker code is in `examples/chat-cloudflare/src/worker.ts`; the shared contract is in `examples/chat-cloudflare/src/api.ts`.
-
-## Run without Wrangler
-
-The same example has a Node development entry point:
-
-```bash
-bun --filter @cable/example-chat-cloudflare dev:node
-```
-
-This path uses `@cable/adapter-node` and is useful for local development. It does not replace the Cloudflare Durable Object runtime.
-
-## Check the docs site
-
-```bash
-bun run docs:dev
-bun run docs:validate
-bun run docs:build
-```
-
-The documentation site is a local static build. It has no deployment configuration or hosted AI endpoint.
+The client infers the procedure input and output from `api`. Next, learn how to [define contracts](/contracts), [authorize procedures](/authorization), or run the [chat example](/examples).
