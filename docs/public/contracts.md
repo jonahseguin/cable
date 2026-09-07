@@ -1,6 +1,6 @@
 ---
 title: Define a contract
-description: Declare Cable procedures and channel families with Standard Schema validators in a shared API that clients and servers both import.
+description: Declare global procedures and channel families with Standard Schema validators in one shared API.
 ---
 
 `@cable/contract` defines the shared API without importing server code. It accepts Standard Schema v1 validators, including Zod, Valibot, ArkType, and Effect Schema.
@@ -35,19 +35,24 @@ export const api = c.contract({
         errors: { MUTED: z.void() },
       },
     },
+    procedures: {
+      members: c.query({ input: z.object({}), output: z.number() }),
+    },
     presence: z.object({ typing: z.boolean() }),
     history: { retain: "24h", max: 10_000 },
   }),
 });
 ```
 
-## Procedures
+## Global procedures
 
 Use `c.query` for reads and `c.mutation` for writes. Each accepts `input`, `output`, and optional declared `errors`. A query may opt into GET transport with `transport.method: "GET"`; the cache value applies to successful responses.
 
+Global procedures live anywhere in the contract tree outside a channel. [Implement procedures](/procedures) covers their server handlers.
+
 ## Channels
 
-`c.channel(pattern, definition)` declares one parameterized channel family. The `server` object lists events delivered to clients. The `client` object lists client events and their optional declared errors. `presence` and `history` are optional channel capabilities.
+`c.channel(pattern, definition)` declares one parameterized channel family. The `server` object lists events delivered to clients. The `client` object lists client events and their optional declared errors. `procedures` declares calls scoped to one open channel. `presence` and `history` are optional channel capabilities.
 
 Channel patterns cannot overlap. Contract keys cannot contain `.` or `/`, and channel event names cannot collide with channel-handle members such as `on`, `dispose`, `presence`, or `history`.
 
@@ -62,4 +67,4 @@ type ListInput = InferInput<typeof api.posts.list>;
 type MessageEvent = InferServerEvent<typeof api.chat, "message">;
 ```
 
-Next, [implement procedures](/procedures) against the procedure leaves in this contract.
+Next, [implement procedures](/procedures) against global leaves or read [channel procedures](/channel-procedures) for calls that belong to one channel.
