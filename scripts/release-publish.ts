@@ -5,11 +5,8 @@ import { basename, resolve } from "node:path";
 
 import { z } from "zod";
 
-import { publishablePackages } from "./release-config.js";
+import { readReleasePlan, validateReleasePlan } from "./release-plan.js";
 
-const releasePlanSchema = z.object({
-  artifacts: z.array(z.object({ archive: z.string(), name: z.string(), version: z.string() })),
-});
 const registryDistSchema = z.object({ "dist.integrity": z.string(), "dist.shasum": z.string() });
 
 interface RegistryVersion {
@@ -59,15 +56,8 @@ if (!validTag(tag)) throw new Error(`Invalid npm dist-tag: ${tag}`);
 const distTag = tag;
 
 const directory = resolve(directoryArgument);
-const plan = releasePlanSchema.parse(
-  JSON.parse(await readFile(resolve(directory, "release-plan.json"), "utf8")),
-);
-const names = plan.artifacts.map((artifact) => artifact.name);
-if (names.length === 0 || names.join("\n") !== publishablePackages.join("\n")) {
-  throw new Error(
-    "Release plan does not match the configured publish allowlist and dependency order.",
-  );
-}
+const plan = await readReleasePlan(directory);
+validateReleasePlan(plan);
 
 const pending = await Promise.all(
   plan.artifacts.map(async (artifact) => {

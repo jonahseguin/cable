@@ -1,14 +1,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { access, readFile } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 
-import { z } from "zod";
-
-import { publishablePackages } from "./release-config.js";
-
-const releasePlanSchema = z.object({
-  artifacts: z.array(z.object({ archive: z.string(), name: z.string(), version: z.string() })),
-});
+import { readReleasePlan, validateReleasePlan } from "./release-plan.js";
 
 const [directoryArgument] = process.argv.slice(2);
 if (directoryArgument === undefined || process.argv.length !== 3) {
@@ -19,15 +13,8 @@ if (process.env["GH_TOKEN"] === undefined || process.env["GH_TOKEN"] === "") {
 }
 
 const directory = resolve(directoryArgument);
-const plan = releasePlanSchema.parse(
-  JSON.parse(await readFile(resolve(directory, "release-plan.json"), "utf8")),
-);
-const names = plan.artifacts.map((artifact) => artifact.name);
-if (names.length === 0 || names.join("\n") !== publishablePackages.join("\n")) {
-  throw new Error(
-    "Release plan does not match the configured publish allowlist and dependency order.",
-  );
-}
+const plan = await readReleasePlan(directory);
+validateReleasePlan(plan);
 await Promise.all(
   plan.artifacts.map(async (artifact) => {
     if (basename(artifact.archive) !== artifact.archive)
