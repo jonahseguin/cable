@@ -42,7 +42,7 @@ it.each(packages)("builds an importable ESM entry and declarations for $name", a
   if (!isPackageManifest(manifest)) throw new Error(`Invalid export map for ${name}`);
   const entry = manifest.exports["."];
   expect(Object.keys(entry)[0]).toBe("types");
-  expect(manifest.private).toBe(true);
+  expect(manifest.private).toBe(name === "conformance" || name === "rivet");
   if (name !== "cloudflare") {
     await import(new URL(entry.import, root).href);
   }
