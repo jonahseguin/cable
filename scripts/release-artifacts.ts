@@ -31,12 +31,14 @@ const packageManifestSchema = z.object({
   exports: z.record(z.string(), z.union([z.string(), z.record(z.string(), z.string())])).optional(),
   scripts: z.record(z.string(), z.string()).optional(),
 });
-const stagedManifestSchema = z.object({
-  dependencies: z.record(z.string(), z.string()).optional(),
-  devDependencies: z.record(z.string(), z.string()).optional(),
-  optionalDependencies: z.record(z.string(), z.string()).optional(),
-  peerDependencies: z.record(z.string(), z.string()).optional(),
-});
+const stagedManifestSchema = z
+  .object({
+    dependencies: z.record(z.string(), z.string()).optional(),
+    devDependencies: z.record(z.string(), z.string()).optional(),
+    optionalDependencies: z.record(z.string(), z.string()).optional(),
+    peerDependencies: z.record(z.string(), z.string()).optional(),
+  })
+  .passthrough();
 
 type PackageManifest = z.infer<typeof packageManifestSchema>;
 
