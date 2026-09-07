@@ -42,9 +42,11 @@ The first-package limitation is that npm exposes trusted-publisher settings on
 an existing package. An npm owner must create each package and configure this
 publisher once before the workflow can publish it. That bootstrap does not add
 an npm token path to the repository. The workflow uses `id-token: write`, npm
-CLI OIDC detection, and no `NPM_TOKEN` fallback. See npm's [trusted publishing
-documentation](https://docs.npmjs.com/trusted-publishers) for the current
-provider fields and version requirements.
+CLI OIDC detection, and no `NPM_TOKEN` fallback. npm supports this trust
+relationship from a private GitHub repository, but it will not generate a
+public provenance attestation until the repository and package are public. See
+npm's [trusted publishing documentation](https://docs.npmjs.com/trusted-publishers)
+for the current provider fields and version requirements.
 
 ## Artifact audit
 
