@@ -1,30 +1,41 @@
 ---
 title: Welcome
-description: End-to-end type safety for APIs and realtime channels.
+description: End-to-end type safety for APIs and realtime.
 ---
 
-Move fast. Stay in sync.
+End-to-end type safety for APIs and realtime.
 
-Define the contract once. Implement it on the server. Call it from a typed client.
+Define the contract once. Implement it on the server. Call procedures and exchange typed events from the client.
 
-```ts
+```ts title="api.ts"
 import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 export const api = c.contract({
-  greeting: c.query({
-    input: z.object({ name: z.string() }),
-    output: z.object({ message: z.string() }),
+  profile: c.query({
+    input: z.object({ userId: z.string() }),
+    output: z.object({ name: z.string() }),
+  }),
+  chat: c.channel("chat.{roomId}", {
+    server: { message: z.object({ author: z.string(), text: z.string() }) },
+    client: { send: z.object({ text: z.string().min(1) }) },
   }),
 });
 ```
 
-```ts
+```ts title="app.ts"
 import { createClient } from "@cablejs/client";
 import { api } from "./api.js";
 
 const client = createClient({ contract: api, url: "/_cable" });
-const result = await client.greeting.query({ name: "Mina" });
+const profile = await client.profile.query({ userId: "user-1" });
+
+const room = client.chat({ roomId: "general" });
+const unsubscribe = room.on("message", (message) => console.log(message.text));
+await room.send({ text: `Hello from ${profile.name}` }, { ack: true });
+
+unsubscribe();
+room.dispose();
 ```
 
 The same contract gives the server and client their types. Add a channel when
