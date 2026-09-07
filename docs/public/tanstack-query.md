@@ -1,9 +1,9 @@
 ---
 title: TanStack Query
-description: Use Cable procedures with native TanStack Query options, typed keys, mutations, cache invalidation, and server-side prefetching.
+description: Use cable procedures with native TanStack Query options, typed keys, mutations, cache invalidation, and server-side prefetching.
 ---
 
-`createCableQuery(client)` returns a contract-shaped object with native TanStack Query options. Cable does not wrap `useQuery` or `useMutation`, so query configuration, cache ownership, retries, errors, and hydration keep their usual TanStack Query behavior.
+`createCableQuery(client)` returns a contract-shaped object with native TanStack Query options. cable does not wrap `useQuery` or `useMutation`, so query configuration, cache ownership, retries, errors, and hydration keep their usual TanStack Query behavior.
 
 ```ts title="src/cable-query.ts"
 import { createCableQuery } from "@cablejs/react";
@@ -74,7 +74,7 @@ export function Posts({ roomId }: { roomId: string }) {
 
 `queryOptions(input)` uses the key `["cable", path, input]`. Call `queryKey(input)` for invalidation, prefetching, or direct cache reads. Its key carries the procedure's output type, so `queryClient.getQueryData(cableQuery.posts.list.queryKey({ roomId }))` has the same data type as the query.
 
-`mutationOptions()` receives the mutation input through `mutate(input)` or `mutateAsync(input)`. Its error type includes the procedure's declared errors and Cable's built-in transport errors. Inspect a declared code in the standard mutation error branch.
+`mutationOptions()` receives the mutation input through `mutate(input)` or `mutateAsync(input)`. Its error type includes the procedure's declared errors and cable's built-in transport errors. Inspect a declared code in the standard mutation error branch.
 
 ```tsx
 if (createPost.error?.code === "FORBIDDEN") {
@@ -84,7 +84,7 @@ if (createPost.error?.code === "FORBIDDEN") {
 
 ## Prefetch for server rendering
 
-Create a `QueryClient` per server request. Prefetch Cable's native options, dehydrate the result, and hydrate the same options on the client. The code below leaves request creation to the framework and receives the request-scoped client explicitly.
+Create a `QueryClient` per server request. Prefetch cable's native options, dehydrate the result, and hydrate the same options on the client. The code below leaves request creation to the framework and receives the request-scoped client explicitly.
 
 ```tsx title="src/posts-ssr.tsx"
 import { dehydrate, HydrationBoundary, QueryClient, useQuery } from "@tanstack/react-query";

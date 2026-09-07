@@ -13,16 +13,11 @@ Never describe a planned API as available.
 
 ## Start here
 
-1. Read `docs/DESIGN.md` in full before changing code, then use `docs/PLAN.md`
-   for the current execution order and [`references/README.md`](references/README.md)
-   for pinned research material. Direct user instructions have precedence. The
-   design follows, as amended by accepted ADRs; the plan cannot override it.
-   In particular, ADR 0014 supersedes the design's historical submodule setup.
-2. Work only in the assigned milestone from section 14. M7 work is authorized
-   alongside the unresolved M6 gate; do not weaken, bypass, or relabel that
-   gate. Later milestones remain context, not scope. Record an open decision in
-   `docs/adr/` before relying on it; one short decision with its reason is
-   enough. Raise contradictions instead of silently redesigning them.
+1. Read the relevant package and public documentation before changing code.
+   Direct user instructions have precedence. Record an open decision in the
+   nearest public design or maintenance document before relying on it.
+2. Work only in the assigned milestone. Do not weaken, bypass, or relabel an
+   unresolved gate. Raise contradictions instead of silently redesigning them.
 3. Check `git status` before editing. Preserve unrelated work. This repository
    is often changed by several agents at once.
 
@@ -34,12 +29,8 @@ Never describe a planned API as available.
   the type-only `@standard-schema/spec` dependency.
 - `@cablejs/core` and `@cablejs/client` use web APIs. Node, Cloudflare, and Rivet
   APIs belong in their adapter packages. `ws` belongs only in `adapter-node`.
-- `references/` is read-only research material. Follow
-  [`references/README.md`](references/README.md) for pins and updates. Do not
-  import from it, include it in tooling, or search it by default. Attribute any
-  non-trivial port with its source path and license. For Sock8's unfinished,
-  non-authoritative snapshot and licensing caveat, read
-  [`docs/sock8-reference.md`](docs/sock8-reference.md).
+- External research is read-only context. Do not import it or include it in
+  tooling. Attribute any non-trivial port with its source path and license.
 - Runtime state is authoritative; process memory is a cache. Channel behavior
   must survive a new engine instance over the same sockets and storage.
 - Keep public types shallow. Infer one contract node at a time; never recurse
@@ -95,9 +86,7 @@ watch mode, enable telemetry, or apply a fix before reviewing a dry run.
 The tracked native hooks run `bun run check` before a changed Claude or Codex
 session completes. A successful result applies only to the exact repository
 content checked. If the hook reports an unverified state, report that failed
-check as the blocker and do not call the work verified. See
-[`docs/agent-quality-gate.md`](docs/agent-quality-gate.md) for activation and
-scope.
+check as the blocker and do not call the work verified.
 
 ## Milestone gates
 
@@ -114,5 +103,4 @@ scope.
 
 Use plain, specific prose in documentation, READMEs, changesets, and release
 notes. Apply the project-local `unslop` skill when editing prose. Keep claims
-tied to code that exists and examples that run. `docs/documentation.md`
-records the later Blume site plan.
+tied to code that exists and examples that run.

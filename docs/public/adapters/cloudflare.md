@@ -1,9 +1,9 @@
 ---
 title: Cloudflare Durable Objects
-description: Run each Cable channel host in a Cloudflare Durable Object with hibernatable WebSockets, durable storage, edge authentication, and signed private grants.
+description: Run each cable channel host in a Cloudflare Durable Object with hibernatable WebSockets, durable storage, edge authentication, and signed private grants.
 ---
 
-`@cablejs/cloudflare` runs one Cable channel host in a Durable Object. Export the generated class from the Worker module, bind its class name in Wrangler, and register that namespace in the edge handler.
+`@cablejs/cloudflare` runs one cable channel host in a Durable Object. Export the generated class from the Worker module, bind its class name in Wrangler, and register that namespace in the edge handler.
 
 ```ts
 import { cloudflareHost, createHandler, type CloudflareHostInstance } from "@cablejs/cloudflare";

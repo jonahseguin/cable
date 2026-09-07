@@ -3,7 +3,7 @@ title: Examples
 description: Follow the runnable Cloudflare chat application from shared contract to server host and React client.
 ---
 
-The [Cloudflare chat example](https://github.com/jonahseguin/cable/tree/main/examples/chat-cloudflare) is the current runnable source preview. It includes global session procedures, a room channel, typed client events, retained history, presence, and a React client.
+The [Cloudflare chat example](https://github.com/jonahseguin/cable/tree/main/examples/chat-cloudflare) is a runnable application. It includes global session procedures, a room channel, typed client events, retained history, presence, and a React client.
 
 Read the files in this order:
 

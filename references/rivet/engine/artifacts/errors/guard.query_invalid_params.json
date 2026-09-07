@@ -1,5 +1,0 @@
-{
-  "code": "query_invalid_params",
-  "group": "guard",
-  "message": "invalid query gateway params"
-}

@@ -1,5 +1,0 @@
-{
-  "code": "invalid_argument",
-  "group": "napi",
-  "message": "Invalid native argument"
-}

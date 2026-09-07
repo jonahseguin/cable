@@ -1,5 +1,0 @@
-{
-  "code": "actor_stopped_while_waiting",
-  "group": "guard",
-  "message": "Actor stopped while waiting for a response."
-}

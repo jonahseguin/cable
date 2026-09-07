@@ -1,9 +1,0 @@
-{
-  "name": "@monotest/tsconfig",
-  "private": true,
-  "type": "module",
-  "files": [
-    "./base.json",
-    "./react.json"
-  ]
-}

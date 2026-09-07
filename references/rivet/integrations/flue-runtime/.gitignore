@@ -1,6 +1,0 @@
-node_modules/
-dist/
-examples/*/.next/
-examples/*/dist/
-examples/*/node_modules/
-*.tsbuildinfo

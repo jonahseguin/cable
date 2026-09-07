@@ -3,8 +3,6 @@ import { defineConfig } from "blume";
 export default defineConfig({
   title: "cable",
   description: "Contract-first procedures and durable typed channels for actor runtimes.",
-  banner:
-    "Preview documentation. cable packages are private and unpublished; the examples run from this repository.",
   content: {
     root: "docs/public",
   },

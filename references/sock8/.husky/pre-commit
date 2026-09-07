@@ -1,4 +1,0 @@
-#!/usr/bin/env sh
-
-# Run lint-staged
-bun lint-staged

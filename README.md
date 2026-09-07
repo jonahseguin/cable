@@ -1,13 +1,12 @@
 # cable
 
 Contract-first, type-safe procedures and durable WebSocket channels for actor
-runtimes. Cloudflare Durable Objects first; Rivet follows after the portable
-engine and conformance suite are stable.
+runtimes.
 
-**Status: contracts and procedures are implemented; channels are in progress.**
-The packages remain private while the portable channel engine is built and tested. [The design](docs/DESIGN.md)
-describes the intended library; [the implementation plan](docs/PLAN.md) defines
-the work and gates.
+Define an API once, implement it on the server, and call the same contract from
+typed clients. The public guides cover [installation](docs/public/installation.md),
+[a quickstart](docs/public/getting-started.md), contracts, procedures, clients,
+and durable channels.
 
 ## Start working
 
@@ -20,11 +19,6 @@ bun install --frozen-lockfile
 bun run setup:hooks
 bun run check
 ```
-
-Agents start with [AGENTS.md](AGENTS.md). Claude imports the same instructions
-through `CLAUDE.md`. Project-local skills are available in `.agents/skills` and
-`.claude/skills`; provenance and maintenance instructions are in
-[the skills guide](.agents/README.md).
 
 The optional `setup:hooks` command installs this repository's pre-push quality gate
 using local Git configuration. It does not change global hooks.
@@ -43,12 +37,7 @@ using local Git configuration. It does not change global hooks.
 | `bun run generate:perf`    | Regenerate the fixed contract performance workload                              |
 | `bun run ts-perf`          | Enforce the contract and client type-performance budgets                        |
 
-[Reference repositories](references/README.md) are pinned research material,
-excluded from project tooling. Study their implementations deliberately and
-attribute any non-trivial port. [ADR 0013](docs/adr/0013-tooling.md) records why
-this repo uses Oxlint/Oxfmt directly, without ESLint, Prettier, Biome, or an
-Ultracite preset dependency.
-
-The [Blume plan](docs/documentation.md) covers the later documentation site.
-Packages remain private until API, licensing, ownership, and release checks are
-complete. CI verifies the repository and does not publish packages or deploy sites.
+The documentation site is built from `docs/public` with Blume. Packages are
+currently private workspace packages and are not yet available from
+npm; the installation guide shows the supported repository workflow and the
+publication status.

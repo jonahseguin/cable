@@ -24,7 +24,7 @@ export const api = c.contract({
 });
 ```
 
-The `server` map declares events clients receive. The `client` map declares commands clients can send. Both parse their input at the Cable boundary. A client event without `{ ack: true }` is fire-and-forget. Declare its `errors` only when callers need an acknowledged failure.
+The `server` map declares events clients receive. The `client` map declares commands clients can send. Both parse their input at the cable boundary. A client event without `{ ack: true }` is fire-and-forget. Declare its `errors` only when callers need an acknowledged failure.
 
 ## Implement the host
 
@@ -48,7 +48,7 @@ export const chatImplementation = {
 } satisfies ChannelImplementation<typeof api.chat, { userId: string }>;
 ```
 
-`authorize` runs after Cable verifies the edge-signed grant and before the socket is accepted. `onClient` receives parsed input, the authenticated identity, parsed route parameters, namespaced durable storage, live connections, peer access, and durable `emit` methods. Keep authorization decisions in `authorize` or in the event and procedure that needs them. Do not trust data from the socket as identity.
+`authorize` runs after cable verifies the edge-signed grant and before the socket is accepted. `onClient` receives parsed input, the authenticated identity, parsed route parameters, namespaced durable storage, live connections, peer access, and durable `emit` methods. Keep authorization decisions in `authorize` or in the event and procedure that needs them. Do not trust data from the socket as identity.
 
 `emit` validates the event, appends it to the channel log, then delivers it to connected clients. `emitTo` sends to one connection or user. It is transient unless passed `{ log: true }`.
 

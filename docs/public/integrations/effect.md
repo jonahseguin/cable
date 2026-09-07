@@ -1,9 +1,9 @@
 ---
 title: Effect
-description: Use Cable procedures, channel handlers, and channel streams as Effect values while the runtime adapter retains ownership.
+description: Use cable procedures, channel handlers, and channel streams as Effect values while the runtime adapter retains ownership.
 ---
 
-`@cablejs/effect` adapts Cable callbacks and clients to Effect. It does not change Cable's transport, authentication, or channel lifecycle.
+`@cablejs/effect` adapts cable callbacks and clients to Effect. It does not change cable's transport, authentication, or channel lifecycle.
 
 ```ts
 import { Effect, Layer } from "effect";
@@ -29,7 +29,7 @@ const procedures = implementEffect(api)
   .toCore(Layer.empty);
 ```
 
-Each procedure invocation gets a fresh Layer scope. Cable releases that scope when the invocation ends.
+Each procedure invocation gets a fresh Layer scope. cable releases that scope when the invocation ends.
 
 For channel behavior, `createEffectEngine(channel, implementation, host, options, layer)` adapts an `EffectChannelImplementation` to the adapter's core `Host`. Its `emit`, `emitTo`, and `schedule` methods return Effects; storage and sockets still belong to the runtime adapter.
 
