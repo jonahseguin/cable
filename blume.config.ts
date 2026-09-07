@@ -6,6 +6,12 @@ export default defineConfig({
   content: {
     root: "docs/public",
   },
+  theme: {
+    fonts: {
+      body: { name: "Satoshi", provider: "fontshare" },
+      display: { name: "Satoshi", provider: "fontshare" },
+    },
+  },
   // Keep component previews out of the repository's application examples.
   examples: "docs/public/examples",
   deployment: {
