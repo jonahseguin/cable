@@ -10,6 +10,7 @@ export default defineConfig({
     fonts: {
       body: { name: "Satoshi", provider: "fontshare" },
       display: { name: "Satoshi", provider: "fontshare" },
+      mono: "geist-mono",
     },
   },
   // Keep component previews out of the repository's application examples.
