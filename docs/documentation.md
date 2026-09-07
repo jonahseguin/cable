@@ -25,11 +25,16 @@ documenting. Blume requires Node 22.12 or newer, which fits this repository's
 Node 22 baseline. It builds static HTML and infers routes, navigation, search,
 and page metadata from Markdown files.
 
-Keep Blume at the repository root and use `docs/` as its content root. Configure
-`content.exclude` so internal handoff material such as `DESIGN.md`, this file,
-and any non-public notes are not published. ADRs and `protocol.md` may be
-published once they are written for external readers. This keeps repository
-Markdown canonical and avoids a second docs tree.
+Keep Blume at the repository root and use `docs/public/` as its content root.
+This public subtree keeps internal handoff material such as `DESIGN.md`, this
+file, and non-public notes out of the site by construction. It remains inside
+the repository's canonical `docs/` tree rather than creating a second site
+content directory. ADRs and `protocol.md` may move into the public subtree once
+they are written for external readers.
+
+The first site has no live component previews. Set Blume's `examples` source to
+`docs/public/examples` so it does not scan the repository's runtime examples.
+Create that directory only when a public page needs a component preview.
 
 When adopting it:
 

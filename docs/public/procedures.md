@@ -1,0 +1,89 @@
+---
+title: Implement procedures
+description: Attach procedure handlers to a Cable contract with typed context, boundary validation, declared errors, and reusable middleware for explicit contract leaves.
+---
+
+`implement(contract)` checks that server handlers cover the contract's global procedures. Host-scoped procedures belong in channel implementations.
+
+```ts
+import { c } from "@cable/contract";
+import { CableError, createRpcHandler, implement } from "@cable/core";
+import { z } from "zod";
+
+const api = c.contract({
+  greeting: c.query({
+    input: z.object({ name: z.string() }),
+    output: z.string(),
+    errors: { BLOCKED: z.void() },
+  }),
+});
+
+const procedures = implement(api)
+  .context<{ requestId: string }>()
+  .procedures({
+    greeting: ({ input }) => {
+      if (input.name === "blocked") {
+        throw new CableError("BLOCKED");
+      }
+      return `Hello, ${input.name}`;
+    },
+  });
+
+const rpc = createRpcHandler(procedures, {
+  context: () => ({ requestId: crypto.randomUUID() }),
+});
+
+export default { fetch: rpc.fetch };
+```
+
+## Validation and errors
+
+Cable parses input before middleware and handlers run. It validates output by default, including schema transformations. Set `validateOutput: false` only when handlers already return the output schema's parsed type.
+
+Handlers can throw `CableError` with one of the procedure's declared codes. Unknown thrown values and undeclared codes become sanitized `INTERNAL` failures, and Cable reports them to `onError`.
+
+## Reusable middleware
+
+`builder.procedure` resolves one explicit global contract leaf. Its `.use()` method captures middleware for leaves resolved through that value. Keep the complete contract-shaped object in the single `.procedures()` call.
+
+```ts
+import { c } from "@cable/contract";
+import { CableError, implement } from "@cable/core";
+import { z } from "zod";
+
+const app = c.contract({
+  health: c.query({ input: z.void(), output: z.object({ ok: z.literal(true) }) }),
+  posts: {
+    create: c.mutation({
+      input: z.object({ title: z.string().min(1) }),
+      output: z.object({ id: z.string() }),
+    }),
+  },
+});
+
+interface PostService {
+  create(input: { title: string }): { id: string } | Promise<{ id: string }>;
+}
+
+const builder = implement(app).context<{
+  identity: { role: "admin" | "member" } | null;
+  posts: PostService;
+}>();
+
+const publicProcedure = builder.procedure;
+const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  if (ctx.identity === null) {
+    throw new CableError("UNAUTHORIZED");
+  }
+  return next({ ctx: { ...ctx, identity: ctx.identity } });
+});
+
+export const procedures = builder.procedures({
+  health: publicProcedure(app.health, () => ({ ok: true })),
+  posts: {
+    create: protectedProcedure(app.posts.create, ({ ctx, input }) => ctx.posts.create(input)),
+  },
+});
+```
+
+The resolver accepts a global procedure leaf, never a channel. A resolved leaf runs its captured middleware once. `next({ ctx })` retains the `posts` service while refining `identity` from nullable to authenticated.
