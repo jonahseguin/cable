@@ -1,28 +1,27 @@
 ---
 title: Agent setup
-description: Give Claude or Codex a bounded prompt for making safe cable changes.
+description: Give Claude or Codex a bounded prompt for adding cable to an existing app.
 ---
 
-This prompt is for an agent working in an existing cable checkout. It asks the
-agent to inspect the repository before choosing a runtime or dependency and to
-verify the published package versions before installing them.
+Paste this prompt into an agent that is working inside your existing application.
+It keeps the app's runtime, framework, authentication, and structure in charge
+while the agent adds a small cable feature.
 
 ```text
-Work in the existing cable repository. Before changing anything:
+Work in this existing application. Before changing anything:
 
-1. Inspect the project files, package manager, runtime, package manifests, and current git status.
-2. Read the current repository guidance and the relevant docs in docs/.
-3. Verify package names and current versions from the manifests and registry before installing them.
-4. If the requested package or version cannot be resolved, stop and report the exact error. Do not substitute another dependency or invent a compatibility path.
+1. Inspect the app's framework, runtime, package manager, package manifests, authentication provider, and current git status.
+2. Read the app's existing guidance, then read the relevant cable docs at https://www.cablejs.dev/getting-started and https://www.cablejs.dev/installation.
+3. Install only the published @cablejs packages this app needs. Verify their current names and versions before installing them.
 
-For the requested change:
+For the requested feature:
 
-- Implement the smallest typed contract that demonstrates the behavior. Add a global procedure and a channel only when the request needs both.
-- Reuse the runtime and authentication provider already present in the application. Do not add a new auth system.
+- Define the smallest typed contract and procedures that implement the request.
+- Use the app's existing runtime and supported cable host/client integration. Add React, TanStack Query, or Effect integration only when the app already uses that technology and the feature benefits from it.
+- Reuse the app's existing authentication provider and architecture. Do not add a parallel auth system or restructure unrelated code.
 - Keep secrets out of client code, examples, logs, and committed configuration.
-- Preserve package boundaries and the existing API names.
 
-Before reporting completion, run the narrowest relevant build and type checks, then any required docs or tests. Report the commands and results, list the changed files, and call out anything you could not verify.
+Implement the smallest working feature in the application. Before reporting completion, run the app's relevant build, type checks, and tests. Report the commands and results, list the changed files, and call out anything you could not verify.
 ```
 
 The [quickstart](/getting-started) shows the contract flow. The [installation](/installation)
