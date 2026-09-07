@@ -10,9 +10,9 @@ and durable channels.
 
 ## Start working
 
-Use the Bun version pinned in `package.json` and the recommended Node toolchain in
-`.node-version`. Node 22.18 remains the minimum supported runtime and is checked by
-CI; the full quality and type performance gate uses Node 24.16.
+Use the Bun version pinned in `package.json` and the Node toolchain in
+`.node-version`. Node 22.18 is the minimum supported runtime checked by CI. The
+full quality and type-performance gate uses Node 24.16.
 
 ```sh
 bun install --frozen-lockfile
@@ -37,7 +37,4 @@ using local Git configuration. It does not change global hooks.
 | `bun run generate:perf`    | Regenerate the fixed contract performance workload                              |
 | `bun run ts-perf`          | Enforce the contract and client type-performance budgets                        |
 
-The documentation site is built from `docs/public` with Blume. Packages are
-currently private workspace packages and are not yet available from
-npm; the installation guide shows the supported repository workflow and the
-publication status.
+The documentation site is built from `docs/public` with Blume.

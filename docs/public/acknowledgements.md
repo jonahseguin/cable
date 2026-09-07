@@ -3,23 +3,23 @@ title: Acknowledgements
 description: The projects and ideas that shaped cable's contract and runtime design.
 ---
 
-`cable` builds on a generous TypeScript ecosystem. These projects supplied the
-ideas and tools that made its design possible.
+`cable` draws on the TypeScript ecosystem. The projects below shaped parts of
+its API and runtime design.
 
 ## tRPC
 
-[tRPC](https://trpc.io/) established the contract-shaped API experience that
-inspired cable's procedure layer. In particular, cable borrows the feel of
-builder-based procedures, inferred client inputs and outputs, and reusable
-procedure builders for shared middleware. The [official tRPC documentation](https://trpc.io/docs)
-describes the project as end-to-end type-safe APIs without code generation.
+[tRPC](https://trpc.io/) inspired cable's contract-shaped procedure API. cable
+takes particular inspiration from its builder-based procedures, inferred client
+inputs and outputs, and reusable procedure builders for shared middleware. The
+[official tRPC documentation](https://trpc.io/docs) describes the project as
+end-to-end type-safe APIs without code generation.
 
 The [tRPC source repository](https://github.com/trpc/trpc) is available under
 the [MIT license](https://github.com/trpc/trpc/blob/main/LICENSE).
 
-cable extends that ergonomics into a separate contract package and durable,
-typed channels for actor runtimes. The implementation and protocol are cable's
-own work; this page records design influence rather than code provenance or an
+cable applies those ideas in a separate contract package and adds durable,
+typed channels for actor runtimes. cable's implementation and protocol are its
+own work. This page records design influence, not code provenance or an
 endorsement.
 
 ## Effect
