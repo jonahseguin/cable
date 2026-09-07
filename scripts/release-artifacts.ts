@@ -38,7 +38,7 @@ const stagedManifestSchema = z
     optionalDependencies: z.record(z.string(), z.string()).optional(),
     peerDependencies: z.record(z.string(), z.string()).optional(),
   })
-  .passthrough();
+  .loose();
 
 type PackageManifest = z.infer<typeof packageManifestSchema>;
 
