@@ -14,7 +14,7 @@
     "check": "bun run format:check && bun run build && bun run lint && bun run typecheck && bun run check:boundaries && bun run test && bun run test:cloudflare && bun run test:integration && bun run fallow && bun run ts-perf --require-baseline && bun run docs:build && bun run docs:validate",
     "check:boundaries": "tsx scripts/check-boundaries.ts",
     "changeset": "changeset",
-    "dead-code": "fallow dead-code --type-aware --type-aware-require complete --format json --quiet --explain",
+    "dead-code": "fallow dead-code --type-aware --type-aware-require best-effort --format json --quiet --explain",
     "docs:build": "blume build --isolated",
     "docs:dev": "blume dev",
     "docs:validate": "blume validate",

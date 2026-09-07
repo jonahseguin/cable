@@ -3,8 +3,6 @@ title: Welcome
 description: End-to-end type safety for APIs and realtime.
 ---
 
-End-to-end type safety for APIs and realtime.
-
 Define the contract once. Implement it on the server. Call procedures and exchange typed events from the client.
 
 ```ts title="api.ts"
@@ -23,7 +21,35 @@ export const api = c.contract({
 });
 ```
 
-```ts title="app.ts"
+The server fills in the global procedure and channel behavior separately. The
+same `api` value keeps both implementations tied to the contract.
+
+```ts title="server.ts"
+import { type ChannelImplementation, implement } from "@cablejs/core";
+import { api } from "./api.js";
+
+export const procedures = implement(api)
+  .context<{ readonly userId: string }>()
+  .procedures({
+    profile: ({ ctx, input }) => ({
+      name: input.userId === ctx.userId ? "Mina" : "Guest",
+    }),
+  });
+
+export const chatImplementation = {
+  onClient: {
+    async send(context, { text }) {
+      await context.emit("message", { author: context.identity.userId, text });
+    },
+  },
+  procedures: {},
+} satisfies ChannelImplementation<typeof api.chat, { userId: string }>;
+```
+
+The client uses the same contract for procedure inputs, channel parameters, and
+event payloads.
+
+```ts title="client.ts"
 import { createClient } from "@cablejs/client";
 import { api } from "./api.js";
 
@@ -31,7 +57,7 @@ const client = createClient({ contract: api, url: "/_cable" });
 const profile = await client.profile.query({ userId: "user-1" });
 
 const room = client.chat({ roomId: "general" });
-const unsubscribe = room.on("message", (message) => console.log(message.text));
+const unsubscribe = room.on("message", (message) => console.log(message.author, message.text));
 await room.send({ text: `Hello from ${profile.name}` }, { ack: true });
 
 unsubscribe();
