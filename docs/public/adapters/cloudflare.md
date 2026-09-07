@@ -1,0 +1,50 @@
+---
+title: Cloudflare Durable Objects
+description: Run each Cable channel host in a Cloudflare Durable Object with hibernatable WebSockets, durable storage, edge authentication, and signed private grants.
+---
+
+`@cable/cloudflare` runs one Cable channel host in a Cloudflare Durable Object. `cloudflareHost()` creates the Durable Object class. `createHandler()` creates the Worker edge routes.
+
+```ts
+import { cloudflareHost, createHandler } from "@cable/cloudflare";
+
+export const ChatHost = cloudflareHost(api.chat, chatImplementation, {
+  grantSecret: (env: Env) => env.CABLE_GRANT_SECRET,
+  peer: (env: Env, key) => env.CHAT_HOSTS.getByName(key),
+});
+
+const handler = createHandler(api, procedures, {
+  authenticate: (request, env) => authenticate(request, env),
+  context: ({ identity, hosts }) => ({ identity, hosts }),
+  credentials: { mode: "bearer" },
+  grantSecret: (env) => env.CABLE_GRANT_SECRET,
+  grants: (identity) => grantsFor(identity),
+  hosts: (env) => [{ channel: api.chat, namespace: env.CHAT_HOSTS }],
+  uid: (identity) => identity.userId,
+});
+
+export default { fetch: handler.fetch };
+```
+
+## Request flow
+
+The edge handler authenticates RPC, host-fallback, and WebSocket requests. For an accepted upgrade, it strips caller credentials, signs a private grant, and forwards the request to the Durable Object named for the channel key. The host verifies that grant before accepting the socket.
+
+The adapter uses hibernatable WebSockets, serialized attachments, Durable Object storage and alarms, and RPC for peer calls. Channel state survives a new engine instance because the runtime's sockets and durable storage remain authoritative.
+
+## Run the example
+
+The local example needs both the Worker and Vite processes. Create the Worker secret and start Wrangler in one terminal:
+
+```bash
+(cd examples/chat-cloudflare && cp .dev.vars.example .dev.vars)
+(cd examples/chat-cloudflare && bunx wrangler dev --local)
+```
+
+Set `CABLE_GRANT_SECRET` in `examples/chat-cloudflare/.dev.vars` to at least 32 random characters. Then start Vite in a second terminal:
+
+```bash
+bun --filter @cable/example-chat-cloudflare dev
+```
+
+The local browser identity is only a development bearer token. Replace it with application authentication before deployment. The contract, Worker, and client code live in `examples/chat-cloudflare/src/`.

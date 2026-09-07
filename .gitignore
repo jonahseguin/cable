@@ -4,6 +4,8 @@
 !.env.example
 **/.dev.vars
 .fallow/cache/
+.blume/
+.blume-verify/
 coverage/
 dist/
 node_modules/

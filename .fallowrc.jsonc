@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
   "sealed": true,
-  "entry": ["oxfmt.config.ts"],
+  "entry": ["blume.config.ts", "oxfmt.config.ts"],
   "ignorePatterns": [
     ".agents/**",
     ".claude/**",
