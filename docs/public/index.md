@@ -1,15 +1,40 @@
 ---
-title: cable
-description: Define procedures and durable typed channels once, then use them from your server and TypeScript client.
+title: Welcome
+description: End-to-end type safety for APIs and realtime channels.
 ---
 
-cable is a TypeScript library for procedures and durable typed channels on actor runtimes. Define the API in a shared contract. Your server implements its leaves, and your client calls the same leaves with inferred inputs, outputs, and declared failures.
+Move fast. Stay in sync.
 
-Start with the small procedure flow, then add an authenticated Cloudflare host and a room channel when the application needs live state.
+Define the contract once. Implement it on the server. Call it from a typed client.
+
+```ts
+import { c } from "@cablejs/contract";
+import { z } from "zod";
+
+export const api = c.contract({
+  greeting: c.query({
+    input: z.object({ name: z.string() }),
+    output: z.object({ message: z.string() }),
+  }),
+});
+```
+
+```ts
+import { createClient } from "@cablejs/client";
+import { api } from "./api.js";
+
+const client = createClient({ contract: api, url: "/_cable" });
+const result = await client.greeting.query({ name: "Mina" });
+```
+
+The same contract gives the server and client their types. Add a channel when
+the feature needs ordered events, presence, history, or state owned by one
+durable host.
 
 ## Start here
 
 - [Get started](/getting-started) follows one contract from server handler to client call.
+- [How cable fits together](/architecture) explains contracts, runtimes, hosts, and clients.
 - [Examples](/examples) points to the runnable chat application and its source files.
 - [Define a contract](/contracts) describes global procedures and channel families.
 - [Implement procedures](/procedures) connects global procedures to server code.

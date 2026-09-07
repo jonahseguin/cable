@@ -30,6 +30,7 @@ export default defineConfig({
           "/",
           "/installation",
           "/getting-started",
+          "/architecture",
           "/agent-setup",
           "/examples",
           "/acknowledgements",
@@ -37,7 +38,7 @@ export default defineConfig({
       },
       {
         label: "Build your API",
-        items: ["/contracts", "/procedures", "/authorization", "/organizing-procedures"],
+        items: ["/contracts", "/procedures", "/authorization", "/grants", "/organizing-procedures"],
       },
       { label: "Use in your app", items: ["/client", "/react", "/tanstack-query"] },
       {

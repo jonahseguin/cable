@@ -5,8 +5,8 @@ runtimes.
 
 Define an API once, implement it on the server, and call the same contract from
 typed clients. The public guides cover [installation](docs/public/installation.md),
-[a quickstart](docs/public/getting-started.md), contracts, procedures, clients,
-and durable channels.
+[a quickstart](docs/public/getting-started.md), [architecture](docs/public/architecture.md),
+contracts, procedures, clients, and durable channels.
 
 ## Start working
 

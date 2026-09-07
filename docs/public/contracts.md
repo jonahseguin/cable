@@ -5,6 +5,28 @@ description: Declare global procedures and channel families with Standard Schema
 
 `@cablejs/contract` defines the shared API without importing server code. It accepts Standard Schema v1 validators, including Zod, Valibot, ArkType, and Effect Schema.
 
+## What a contract is
+
+`c.contract()` returns a `Contract<TTree>`. The tree keeps your procedure and
+channel names at runtime and carries their schemas into TypeScript. Pass that
+same value to `implement()` on the server and `createClient()` in the client.
+
+```ts
+const api = c.contract({
+  profile: c.query({
+    input: z.object({}),
+    output: z.object({ name: z.string() }),
+  }),
+});
+
+type Api = typeof api;
+```
+
+`Api` is the contract tree, not a server router. The server still supplies every
+global procedure handler, and the client still chooses its transport endpoint.
+Schemas validate values at the transport boundary; inferred types keep the
+contract names and inputs aligned in application code.
+
 ```ts
 import { c } from "@cablejs/contract";
 import { z } from "zod";
