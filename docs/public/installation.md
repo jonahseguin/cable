@@ -18,7 +18,7 @@ Start with the smallest set that matches your application:
 
 ## Install
 
-For a procedure-only client and server, the intended install is:
+For a procedure-only client and server, install:
 
 ```sh
 bun add @cablejs/contract @cablejs/core @cablejs/client

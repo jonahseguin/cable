@@ -5,8 +5,8 @@ contract contains 200 procedures nested three levels deep and 40 channels. Each
 channel declares four server events, three client events, two host procedures,
 and presence. `client.ts` calls every global procedure through the real typed
 client, creates native TanStack Query options for every procedure, and evaluates
-input, output, and error inference for every node. It also
-opens all 40 typed channel handles and exercises each event listener, client
+input, output, and error inference for every node. It opens all 40 typed
+channel handles and exercises each event listener, client
 event, host procedure, and presence view.
 
 `edge.ts` is a separate server-side type program. It imports the public

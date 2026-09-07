@@ -24,8 +24,8 @@ The manual `.github/workflows/release.yml` remains the only publishing entry
 point. After its artifact audit and OIDC publish succeed, it creates one
 GitHub release per published package with generated notes and a tag in the
 form `@cablejs/package@version`. Existing releases are skipped so a retry does
-not duplicate them. A release failure after npm publication is therefore
-retryable without republishing a matching archive.
+not duplicate them. If the release step fails after npm publication,
+retry it without republishing the same archive.
 
 ## Trusted publishing bootstrap
 

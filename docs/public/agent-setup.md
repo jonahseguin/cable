@@ -3,9 +3,9 @@ title: Agent setup
 description: Give Claude or Codex a bounded prompt for adding cable to an existing app.
 ---
 
-Paste this prompt into an agent that is working inside your existing application.
-It keeps the app's runtime, framework, authentication, and structure in charge
-while the agent adds a small cable feature.
+Paste this prompt into an agent working inside your existing application. It
+asks the agent to use the app's runtime, framework, authentication, and
+structure while adding a small cable feature.
 
 ```text
 Work in this existing application. Before changing anything:
