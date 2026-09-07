@@ -1,8 +1,14 @@
 {
-  "name": "@cable/rivet",
+  "name": "@cablejs/rivet",
   "version": "0.0.0",
   "private": true,
   "description": "Rivet actor adapter, released as beta until hibernation conformance passes.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/rivet"
+  },
   "files": [
     "dist"
   ],

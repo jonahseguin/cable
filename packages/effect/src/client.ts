@@ -1,4 +1,4 @@
-import type { ChannelHandle, Client, ProcedureArguments } from "@cable/client";
+import type { ChannelHandle, Client, ProcedureArguments } from "@cablejs/client";
 import type {
   AnyChannelContract,
   AnyContract,
@@ -12,8 +12,8 @@ import type {
   InferOutput,
   InferSchemaInput,
   InferServerEvent,
-} from "@cable/contract";
-import { isChannelContract, isProcedureContract } from "@cable/contract";
+} from "@cablejs/contract";
+import { isChannelContract, isProcedureContract } from "@cablejs/contract";
 import {
   CableError,
   isCableError,
@@ -21,7 +21,7 @@ import {
   type CableErrorForDeclaration,
   type RpcCall,
   type RpcSuccess,
-} from "@cable/core";
+} from "@cablejs/core";
 import { Cause, Effect, Queue, Stream } from "effect";
 
 /** Every transport and declared failure returned by an Effect client operation. */

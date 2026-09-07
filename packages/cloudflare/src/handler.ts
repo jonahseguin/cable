@@ -1,4 +1,4 @@
-import type { AnyChannelContract, ContractTree } from "@cable/contract";
+import type { AnyChannelContract, ContractTree } from "@cablejs/contract";
 import {
   createEdgeHandler,
   type EdgeHandler,
@@ -7,7 +7,7 @@ import {
   type EdgeHostRegistration,
   type EdgeHostTransport,
   type ImplementedProcedures,
-} from "@cable/core";
+} from "@cablejs/core";
 
 import { encodeGrantHeader } from "./grant-header.js";
 import type { CableDurableObjectNamespace } from "./runtime.js";

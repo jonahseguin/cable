@@ -1,6 +1,6 @@
-import { c } from "@cable/contract";
-import { CableError } from "@cable/core";
-import type { ChannelImplementation } from "@cable/core";
+import { c } from "@cablejs/contract";
+import { CableError } from "@cablejs/core";
+import type { ChannelImplementation } from "@cablejs/core";
 import { z } from "zod";
 
 /** Identity used by the shared Host behavior fixture. */

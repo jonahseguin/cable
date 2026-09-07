@@ -1,6 +1,6 @@
 # M3 Cloudflare conformance handoff
 
-`bun --filter @cable/cloudflare test:workerd` exits successfully with 50 passing
+`bun --filter @cablejs/cloudflare test:workerd` exits successfully with 50 passing
 tests and 2 expected native socket-send-fault skips. The callback path recovers
 only from Workerd's closed-socket tag lookup error by validating the persisted
 attachment; the regression runs without an uncaught tag-access error.
@@ -20,10 +20,10 @@ the wrapper's one eviction before the clock advance.
 Local checks completed here:
 
 ```sh
-bun --filter @cable/cloudflare test
-bun --filter @cable/cloudflare typecheck
+bun --filter @cablejs/cloudflare test
+bun --filter @cablejs/cloudflare typecheck
 bunx vitest run packages/adapter-memory/src/conformance.test.ts
-bun --filter @cable/example-chat-cloudflare test:integration
+bun --filter @cablejs/example-chat-cloudflare test:integration
 ```
 
 The Cloudflare unit suite has 13 passing tests, all three Cloudflare type

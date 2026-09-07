@@ -4,7 +4,7 @@ Status: accepted for M3 implementation
 
 ## Decision
 
-`@cable/cloudflare` will be a thin translation between the web-standard core
+`@cablejs/cloudflare` will be a thin translation between the web-standard core
 and current Cloudflare Durable Objects APIs. Authentication and channel routing
 stay in the edge Worker. A Durable Object owns one canonical channel key and
 runs one core engine over hibernatable sockets, object storage, one alarm, and
@@ -57,7 +57,7 @@ Procedure input uses its input schema input type, and the result uses its output
 schema output type. The peer call carries the current edge identity, grants,
 and optional user ID. The mapped type keeps schema inference at the accessed
 leaf. M3 adds a separate generated edge type program that exercises every
-channel leaf without importing `@cable/core` into the client program. The
+channel leaf without importing `@cablejs/core` into the client program. The
 client and edge programs each enforce the existing strict type-performance
 limits independently.
 

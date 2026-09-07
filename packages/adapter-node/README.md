@@ -1,11 +1,11 @@
-# @cable/adapter-node
+# @cablejs/adapter-node
 
-`@cable/adapter-node` runs Cable procedures and channel hosts in one local Node
+`@cablejs/adapter-node` runs Cable procedures and channel hosts in one local Node
 process. It stores channel state in memory. Restarting the process discards that
 state, so use this adapter for development and local tests.
 
 ```ts
-import { createHandler, nodeHost } from "@cable/adapter-node";
+import { createHandler, nodeHost } from "@cablejs/adapter-node";
 import { createServer } from "node:http";
 
 const secret = process.env.CABLE_GRANT_SECRET;

@@ -8,7 +8,7 @@ import {
   type AnyProcedureContract,
   type ErrorMap,
   type InferSchemaInput,
-} from "@cable/contract";
+} from "@cablejs/contract";
 
 import { channelKey, parseChannelKey } from "../channel-key.js";
 import {

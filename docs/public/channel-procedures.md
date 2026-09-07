@@ -6,7 +6,7 @@ description: Put per-channel operations beside their channel, then call them ove
 Global procedures live in `implement(api).procedures(...)`. Channel procedures belong to the `procedures` map inside `c.channel(...)` because they execute in one resolved channel host. The following continuation belongs in the `api.ts` channel definition from [Build channels](/channels).
 
 ```ts
-import { c } from "@cable/contract";
+import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 // api.ts
@@ -26,7 +26,7 @@ export const api = c.contract({
 ```
 
 ```ts
-import { CableError, type ChannelImplementation } from "@cable/core";
+import { CableError, type ChannelImplementation } from "@cablejs/core";
 import { api } from "./api.js";
 
 interface Identity {

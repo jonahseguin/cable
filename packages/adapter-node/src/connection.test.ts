@@ -1,4 +1,4 @@
-import type { Attachment, ConnectionId, GrantId } from "@cable/core";
+import type { Attachment, ConnectionId, GrantId } from "@cablejs/core";
 import { describe, expect, it } from "vitest";
 
 import { NodeConnection } from "./connection.js";

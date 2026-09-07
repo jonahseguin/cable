@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_release:
+        description: "Publish the committed, prepared versions after every readiness check passes"
+        required: true
+        default: false
+        type: boolean
+      tag:
+        description: "npm dist-tag"
+        required: true
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  readiness:
+    name: Release readiness
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.0
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check release decisions
+        run: bun scripts/release-readiness.ts
+
+      - name: Audit package artifacts
+        run: bun scripts/release-artifacts.ts --configured
+
+  publish:
+    name: Publish to npm
+    needs: readiness
+    if: inputs.confirm_release && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm
+    env:
+      NPM_CONFIG_PROVENANCE: "true"
+      NPM_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.0
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Audit committed release artifacts
+        run: bun scripts/release-artifacts.ts --configured --output "$RUNNER_TEMP/cable-artifacts"
+
+      - name: Publish with npm trusted publishing
+        run: bun scripts/release-publish.ts "$RUNNER_TEMP/cable-artifacts" "$NPM_TAG"

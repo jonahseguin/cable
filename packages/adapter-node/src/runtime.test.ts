@@ -1,5 +1,5 @@
-import { c } from "@cable/contract";
-import { signGrant, type Host, type HostHandlers, type HostKey } from "@cable/core";
+import { c } from "@cablejs/contract";
+import { signGrant, type Host, type HostHandlers, type HostKey } from "@cablejs/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { nodeHost, NodeRuntime, type NodeHandlerHost, type NodeUpgradeSocket } from "./runtime.js";

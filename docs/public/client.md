@@ -3,10 +3,10 @@ title: Use the client
 description: Call Cable procedures and manage typed channels with batched HTTP, reconnecting sockets, presence, durable replay, and explicit resource ownership.
 ---
 
-`@cable/client` imports the shared contract and calls procedures through HTTP batches. It does not import server implementations.
+`@cablejs/client` imports the shared contract and calls procedures through HTTP batches. It does not import server implementations.
 
 ```ts
-import { createClient } from "@cable/client";
+import { createClient } from "@cablejs/client";
 import { api } from "./contract.js";
 
 const client = createClient({

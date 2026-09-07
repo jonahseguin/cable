@@ -1,5 +1,5 @@
 ---
-"@cable/cloudflare": patch
+"@cablejs/cloudflare": patch
 ---
 
 Export `CloudflareHostInstance` for Durable Object namespace bindings that refer

@@ -14,7 +14,7 @@
     "tools/oxlint/anti-slop/**",
     "**/dist/**",
   ],
-  "publicPackages": ["@cable/*"],
+  "publicPackages": ["@cablejs/*"],
   // The local anti-slop plugin imports this package, but that vendored source
   // is intentionally excluded from project analysis.
   "ignoreDependencies": ["@oxlint/plugins"],

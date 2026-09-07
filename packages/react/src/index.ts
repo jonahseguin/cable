@@ -14,4 +14,4 @@ export type {
   MutationOptionsLeaf,
   QueryOptionsLeaf,
 } from "./query-options.js";
-export type { ProcedureError } from "@cable/client";
+export type { ProcedureError } from "@cablejs/client";

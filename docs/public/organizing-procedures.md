@@ -6,7 +6,7 @@ description: Share one contract and one implementation builder while keeping pro
 Keep the contract and builder in dependency roots. Leaf modules import them. One final module assembles the complete procedure-shaped object. This direction prevents a handler from importing the module that imports it.
 
 ```ts title="api.ts"
-import { c } from "@cable/contract";
+import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 export const api = c.contract({
@@ -22,7 +22,7 @@ api.ts <- procedures/index.ts <- procedure-builder.ts, procedures/*
 ```
 
 ```ts title="procedure-builder.ts"
-import { CableError, implement } from "@cable/core";
+import { CableError, implement } from "@cablejs/core";
 
 import { api } from "./api.js";
 

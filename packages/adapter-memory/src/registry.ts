@@ -1,4 +1,4 @@
-import type { HostHandlers, HostKey, PeerMessage, Peers } from "@cable/core";
+import type { HostHandlers, HostKey, PeerMessage, Peers } from "@cablejs/core";
 
 /** A registered in-memory Host that can receive peer messages. */
 export interface MemoryPeerTarget {

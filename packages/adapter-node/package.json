@@ -1,8 +1,14 @@
 {
-  "name": "@cable/adapter-node",
+  "name": "@cablejs/adapter-node",
   "version": "0.0.0",
   "private": true,
   "description": "Node development host and WebSocket adapter.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/adapter-node"
+  },
   "files": [
     "dist"
   ],
@@ -19,12 +25,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*",
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*",
     "ws": "8.21.0"
   },
   "devDependencies": {
-    "@cable/conformance": "workspace:*",
+    "@cablejs/conformance": "workspace:*",
     "@types/node": "22.20.1",
     "@types/ws": "8.18.1",
     "zod": "4.5.4"

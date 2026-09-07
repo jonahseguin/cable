@@ -8,14 +8,14 @@ import type {
   Contract,
   ContractTree,
   InferSchemaInput,
-} from "@cable/contract";
+} from "@cablejs/contract";
 import {
   implement,
   type CableError,
   type ImplementedProcedures,
   type ProcedureHandlerOptions,
   type ProcedureImplementations,
-} from "@cable/core";
+} from "@cablejs/core";
 import { Cause, Effect, Exit } from "effect";
 import type { Layer } from "effect";
 

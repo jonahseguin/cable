@@ -1,4 +1,4 @@
-import { isChannelContract, isProcedureContract, isContract } from "@cable/contract";
+import { isChannelContract, isProcedureContract, isContract } from "@cablejs/contract";
 import type {
   InferInput,
   InferOutput,
@@ -10,9 +10,9 @@ import type {
   ContractNode,
   ContractTree,
   QueryTransport,
-} from "@cable/contract";
-import { CableError } from "@cable/core";
-import type { BuiltinCode, RpcCall, RpcSuccess } from "@cable/core";
+} from "@cablejs/contract";
+import { CableError } from "@cablejs/core";
+import type { BuiltinCode, RpcCall, RpcSuccess } from "@cablejs/core";
 
 import { batchLink } from "./batch-link.js";
 import { ChannelPool } from "./channel-pool.js";

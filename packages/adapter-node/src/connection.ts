@@ -1,4 +1,4 @@
-import type { Attachment, Connection, ConnectionId } from "@cable/core";
+import type { Attachment, Connection, ConnectionId } from "@cablejs/core";
 
 /** The subset of a `ws` socket used by the runtime-neutral Connection wrapper. */
 export interface NodeSocket {

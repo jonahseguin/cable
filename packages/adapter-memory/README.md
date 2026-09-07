@@ -4,10 +4,10 @@ Run procedures in process while retaining the HTTP transport's JSON semantics.
 This is useful for integration tests without starting an HTTP server.
 
 ```ts
-import { createMemoryLink } from "@cable/adapter-memory";
-import { createClient } from "@cable/client";
-import { c } from "@cable/contract";
-import { implement } from "@cable/core";
+import { createMemoryLink } from "@cablejs/adapter-memory";
+import { createClient } from "@cablejs/client";
+import { c } from "@cablejs/contract";
+import { implement } from "@cablejs/core";
 import { z } from "zod";
 
 const api = c.contract({

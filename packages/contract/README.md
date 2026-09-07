@@ -1,11 +1,11 @@
-# @cable/contract
+# @cablejs/contract
 
-`@cable/contract` defines procedures and channel families without importing
+`@cablejs/contract` defines procedures and channel families without importing
 server code. It accepts any Standard Schema v1 validator, including Zod,
 Valibot, ArkType, and Effect Schema.
 
 ```ts
-import { c, type InferInput, type InferServerEvent } from "@cable/contract";
+import { c, type InferInput, type InferServerEvent } from "@cablejs/contract";
 import { z } from "zod";
 
 const Message = z.object({

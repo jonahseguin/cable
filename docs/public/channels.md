@@ -6,7 +6,7 @@ description: Define one durable channel family, implement its server behavior, a
 A channel is one parameterized host family. `chat.{roomId}` gives each room its own ordered event log, presence set, and host state.
 
 ```ts
-import { c } from "@cable/contract";
+import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 export const api = c.contract({
@@ -29,7 +29,7 @@ The `server` map declares events clients receive. The `client` map declares comm
 ## Implement the host
 
 ```ts
-import { CableError, type ChannelImplementation } from "@cable/core";
+import { CableError, type ChannelImplementation } from "@cablejs/core";
 import { api } from "./api.js";
 
 export const chatImplementation = {

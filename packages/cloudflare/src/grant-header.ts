@@ -1,4 +1,4 @@
-import type { SignedGrant } from "@cable/core";
+import type { SignedGrant } from "@cablejs/core";
 
 /** Serialize a signed grant for the private edge-to-host request header. */
 export function encodeGrantHeader(grant: SignedGrant): string {

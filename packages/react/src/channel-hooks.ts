@@ -1,5 +1,5 @@
-import type { InferChannel, ChannelStatus, PresenceMember, Unsubscribe } from "@cable/client";
-import type { InferServerEvent } from "@cable/contract";
+import type { InferChannel, ChannelStatus, PresenceMember, Unsubscribe } from "@cablejs/client";
+import type { InferServerEvent } from "@cablejs/contract";
 import { hashKey } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 

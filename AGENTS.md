@@ -30,9 +30,9 @@ Never describe a planned API as available.
 
 - Dependency direction is `contract <- core <- adapters/client/effect`,
   `client <- react`, and `core <- conformance`.
-- `@cable/contract` has no runtime dependencies. Its only allowed package is
+- `@cablejs/contract` has no runtime dependencies. Its only allowed package is
   the type-only `@standard-schema/spec` dependency.
-- `@cable/core` and `@cable/client` use web APIs. Node, Cloudflare, and Rivet
+- `@cablejs/core` and `@cablejs/client` use web APIs. Node, Cloudflare, and Rivet
   APIs belong in their adapter packages. `ws` belongs only in `adapter-node`.
 - `references/` is read-only research material. Follow
   [`references/README.md`](references/README.md) for pins and updates. Do not

@@ -1,7 +1,7 @@
 /* oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters,
 anti-slop/no-unknown-returns, anti-slop/no-unsafe-dictionary-type -- Core Storage
 deliberately persists opaque engine values; parsing belongs to the engine boundary. */
-import type { Storage, StorageListOptions } from "@cable/core";
+import type { Storage, StorageListOptions } from "@cablejs/core";
 
 function copy(value: unknown): unknown {
   return structuredClone(value);

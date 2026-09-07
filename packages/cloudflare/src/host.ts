@@ -1,6 +1,6 @@
 /* oxlint-disable anti-slop/no-runtime-typeof -- hibernatableSocket checks the
 two Cloudflare extension methods before this adapter uses them. */
-import type { Host, HostKey, HostLimits, PeerMessage, Peers, Schedule } from "@cable/core";
+import type { Host, HostKey, HostLimits, PeerMessage, Peers, Schedule } from "@cablejs/core";
 
 import { CloudflareConnection } from "./connection.js";
 import type {

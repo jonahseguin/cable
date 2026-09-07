@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import { createMemoryHost } from "@cable/adapter-memory";
-import { createClient } from "@cable/client";
-import type { ChannelHandle, ChannelHistoryPage } from "@cable/client";
-import { c } from "@cable/contract";
-import type { InferServerEvent } from "@cable/contract";
-import { resolveChannel, signGrant } from "@cable/core";
+import { createMemoryHost } from "@cablejs/adapter-memory";
+import { createClient } from "@cablejs/client";
+import type { ChannelHandle, ChannelHistoryPage } from "@cablejs/client";
+import { c } from "@cablejs/contract";
+import type { InferServerEvent } from "@cablejs/contract";
+import { resolveChannel, signGrant } from "@cablejs/core";
 import { act, createElement, StrictMode, useEffect } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";

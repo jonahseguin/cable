@@ -1,5 +1,5 @@
-import type { InferChannelParams, InferOutput } from "@cable/contract";
-import { implement, type EdgeHosts } from "@cable/core";
+import type { InferChannelParams, InferOutput } from "@cablejs/contract";
+import { implement, type EdgeHosts } from "@cablejs/core";
 
 import { api, type Api } from "./contract.js";
 

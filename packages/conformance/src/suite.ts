@@ -1,4 +1,9 @@
-import { decodeHostFrame, encodeClientFrame, type HostFrame, type PeerMessage } from "@cable/core";
+import {
+  decodeHostFrame,
+  encodeClientFrame,
+  type HostFrame,
+  type PeerMessage,
+} from "@cablejs/core";
 import { describe, expect, it } from "vitest";
 
 import type {

@@ -1,4 +1,4 @@
-import type { AnyChannelContract } from "@cable/contract";
+import type { AnyChannelContract } from "@cablejs/contract";
 import {
   createEngine,
   parseChannelKey,
@@ -12,7 +12,7 @@ import {
   type PeerMessage,
   type SignedGrant,
   type UpgradeResult,
-} from "@cable/core";
+} from "@cablejs/core";
 
 import { NodeConnection, type NodeSocket } from "./connection.js";
 import { NodeSchedule } from "./schedule.js";

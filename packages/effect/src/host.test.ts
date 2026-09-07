@@ -4,8 +4,8 @@ import {
   MemoryHostRegistry,
   MemorySocket,
   MemoryStorage,
-} from "@cable/adapter-memory";
-import { c } from "@cable/contract";
+} from "@cablejs/adapter-memory";
+import { c } from "@cablejs/contract";
 import {
   CableError,
   encodeClientFrame,
@@ -13,7 +13,7 @@ import {
   signGrant,
   type Host,
   type HostHandlers,
-} from "@cable/core";
+} from "@cablejs/core";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";

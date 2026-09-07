@@ -8,7 +8,7 @@ import type {
   InferOutput,
   ProcedureArguments,
   ProcedureError,
-} from "@cable/client";
+} from "@cablejs/client";
 import { queryOptions } from "@tanstack/react-query";
 import type {
   MutationOptions,

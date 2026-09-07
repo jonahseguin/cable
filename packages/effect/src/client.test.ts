@@ -1,7 +1,7 @@
-import { createMemoryHost } from "@cable/adapter-memory";
-import { createClient } from "@cable/client";
-import { c } from "@cable/contract";
-import { CableError, resolveChannel, signGrant } from "@cable/core";
+import { createMemoryHost } from "@cablejs/adapter-memory";
+import { createClient } from "@cablejs/client";
+import { c } from "@cablejs/contract";
+import { CableError, resolveChannel, signGrant } from "@cablejs/core";
 import { Effect, Fiber, Stream } from "effect";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";

@@ -1,6 +1,6 @@
 ---
-"@cable/client": minor
-"@cable/adapter-memory": minor
+"@cablejs/client": minor
+"@cablejs/adapter-memory": minor
 ---
 
 Add the typed procedure client, bounded HTTP batching with response ID validation,

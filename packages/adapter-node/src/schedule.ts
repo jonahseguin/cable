@@ -1,4 +1,4 @@
-import type { Schedule } from "@cable/core";
+import type { Schedule } from "@cablejs/core";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
 

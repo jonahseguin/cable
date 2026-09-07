@@ -1,4 +1,4 @@
-import { createCableQuery } from "@cable/react";
+import { createCableQuery } from "@cablejs/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { ReactNode } from "react";

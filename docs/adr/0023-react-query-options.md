@@ -2,7 +2,7 @@
 
 Status: accepted for M4, 2026-09-05.
 
-`@cable/react` exposes `createCableQuery(client)`, a shallow cached proxy that
+`@cablejs/react` exposes `createCableQuery(client)`, a shallow cached proxy that
 produces native TanStack Query options. Query leaves provide `queryKey(input)`
 and `queryOptions(input)` with the stable key `['cable', path, input]`.
 Mutation leaves provide `mutationOptions()` and receive their input from

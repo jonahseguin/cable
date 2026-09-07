@@ -4,7 +4,7 @@ import {
   isProcedureContract,
   type AnyChannelContract,
   type ContractTree,
-} from "@cable/contract";
+} from "@cablejs/contract";
 
 import { parseChannelKey } from "../channel-key.js";
 import { CableError, isCableError } from "../errors.js";

@@ -1,12 +1,12 @@
-# `@cable/core`
+# `@cablejs/core`
 
-`@cable/core` runs contract procedures through Standard Schema validation and
+`@cablejs/core` runs contract procedures through Standard Schema validation and
 exposes the same runtime to server callers, in-memory links, and web-standard
 HTTP handlers. It has no Node or Bun runtime dependency.
 
 ```ts
-import { c } from "@cable/contract";
-import { CableError, createRpcHandler, implement } from "@cable/core";
+import { c } from "@cablejs/contract";
+import { CableError, createRpcHandler, implement } from "@cablejs/core";
 import { z } from "zod";
 
 const api = c.contract({
@@ -87,8 +87,13 @@ presence, grants, and timers in Host storage. Rebuilding the handlers after
 hibernation does not reset channel state.
 
 ```ts
-import { c } from "@cable/contract";
-import { createEngine, type ChannelImplementation, type GrantSecret, type Host } from "@cable/core";
+import { c } from "@cablejs/contract";
+import {
+  createEngine,
+  type ChannelImplementation,
+  type GrantSecret,
+  type Host,
+} from "@cablejs/core";
 import { z } from "zod";
 
 const room = c.channel("rooms.{roomId}", {

@@ -4,7 +4,7 @@ The procedure client imports your shared contract type and calls the portable RP
 runtime through HTTP batches or an in-process link. It never imports server types.
 
 ```ts
-import { createClient } from "@cable/client";
+import { createClient } from "@cablejs/client";
 import type { Api } from "./contract.js";
 
 const client = createClient<Api>({

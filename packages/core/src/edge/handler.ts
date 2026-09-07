@@ -1,6 +1,6 @@
 /* oxlint-disable anti-slop/no-unknown-parameters -- HTTP, JSON, authentication,
 and adapter results are narrowed at this runtime-neutral edge boundary. */
-import type { ContractTree } from "@cable/contract";
+import type { ContractTree } from "@cablejs/contract";
 
 import { resolveChannel } from "../channel-key.js";
 import { CableError, isCableError } from "../errors.js";

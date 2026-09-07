@@ -1,7 +1,7 @@
-import { createMemoryHost } from "@cable/adapter-memory";
-import type { MemoryHost, MemorySocket } from "@cable/adapter-memory";
-import { c } from "@cable/contract";
-import { CableError, resolveChannel, signGrant } from "@cable/core";
+import { createMemoryHost } from "@cablejs/adapter-memory";
+import type { MemoryHost, MemorySocket } from "@cablejs/adapter-memory";
+import { c } from "@cablejs/contract";
+import { CableError, resolveChannel, signGrant } from "@cablejs/core";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod";
 

@@ -4,7 +4,7 @@ import type {
   HostWireFrame,
   PeerMessage,
   StorageListOptions,
-} from "@cable/core";
+} from "@cablejs/core";
 
 /** Grant case requested by a shared conformance scenario. */
 export type ConformanceGrant = "expired" | "invalid" | "valid" | "valid-other" | "wrong-host";

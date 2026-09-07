@@ -1,4 +1,4 @@
-import type { Storage, StorageListOptions } from "@cable/core";
+import type { Storage, StorageListOptions } from "@cablejs/core";
 
 /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns -- Core Storage deliberately persists opaque values; schema parsing belongs to the engine boundary. */
 function copyValue(value: unknown): unknown {

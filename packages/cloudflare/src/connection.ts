@@ -2,7 +2,7 @@
 anti-slop/no-unsafe-dictionary-type, anti-slop/no-chained-type-assertions --
 Cloudflare returns structured-clone data as unknown; parseAttachment checks the
 complete persisted shape before the engine receives it. */
-import type { Attachment, Connection, ConnectionId } from "@cable/core";
+import type { Attachment, Connection, ConnectionId } from "@cablejs/core";
 
 import type { CloudflareSocketState, HibernatableSocket } from "./runtime.js";
 

@@ -1,5 +1,5 @@
 ---
-"@cable/client": patch
+"@cablejs/client": patch
 ---
 
 Release pooled channel resources when the last subscription or operation on a

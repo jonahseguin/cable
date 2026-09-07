@@ -1,5 +1,5 @@
-import { CableError, decodeHostFrame, encodeClientFrame, encodeInput } from "@cable/core";
-import type { ClientFrame, HostFrame, RpcCall } from "@cable/core";
+import { CableError, decodeHostFrame, encodeClientFrame, encodeInput } from "@cablejs/core";
+import type { ClientFrame, HostFrame, RpcCall } from "@cablejs/core";
 
 import type { ChannelSocket, ChannelStatus, SocketOptions, Unsubscribe } from "./channel-types.js";
 

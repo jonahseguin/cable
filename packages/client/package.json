@@ -1,8 +1,14 @@
 {
-  "name": "@cable/client",
+  "name": "@cablejs/client",
   "version": "0.0.0",
   "private": true,
   "description": "Typed procedure proxy, HTTP links, and per-host resumable sockets.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/client"
+  },
   "files": [
     "dist"
   ],
@@ -19,11 +25,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*"
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*"
   },
   "devDependencies": {
-    "@cable/adapter-memory": "workspace:*",
+    "@cablejs/adapter-memory": "workspace:*",
     "zod": "4.5.4"
   }
 }

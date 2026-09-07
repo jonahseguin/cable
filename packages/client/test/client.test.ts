@@ -1,6 +1,6 @@
-import { createMemoryLink } from "@cable/adapter-memory";
-import { c } from "@cable/contract";
-import { CableError, createRpcHandler, implement } from "@cable/core";
+import { createMemoryLink } from "@cablejs/adapter-memory";
+import { c } from "@cablejs/contract";
+import { CableError, createRpcHandler, implement } from "@cablejs/core";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 

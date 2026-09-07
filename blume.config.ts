@@ -1,10 +1,10 @@
 import { defineConfig } from "blume";
 
 export default defineConfig({
-  title: "Cable",
+  title: "cable",
   description: "Contract-first procedures and durable typed channels for actor runtimes.",
   banner:
-    "Preview documentation. Cable packages are private and unpublished; the examples run from this repository.",
+    "Preview documentation. cable packages are private and unpublished; the examples run from this repository.",
   content: {
     root: "docs/public",
   },
@@ -19,7 +19,17 @@ export default defineConfig({
   },
   navigation: {
     sidebar: [
-      { label: "Get started", items: ["/", "/getting-started", "/examples"] },
+      {
+        label: "Get started",
+        items: [
+          "/",
+          "/installation",
+          "/getting-started",
+          "/agent-setup",
+          "/examples",
+          "/acknowledgements",
+        ],
+      },
       {
         label: "Build your API",
         items: ["/contracts", "/procedures", "/authorization", "/organizing-procedures"],

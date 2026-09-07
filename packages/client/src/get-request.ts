@@ -1,5 +1,5 @@
-import { decodeResult, encodeInput } from "@cable/core";
-import type { RpcCall, RpcResult } from "@cable/core";
+import { decodeResult, encodeInput } from "@cablejs/core";
+import type { RpcCall, RpcResult } from "@cablejs/core";
 
 import { httpError } from "./http-error.js";
 import type { LinkContext } from "./link.js";

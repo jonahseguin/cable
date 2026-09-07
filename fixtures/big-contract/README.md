@@ -10,7 +10,7 @@ opens all 40 typed channel handles and exercises each event listener, client
 event, host procedure, and presence view.
 
 `edge.ts` is a separate server-side type program. It imports the public
-`EdgeHosts` type from `@cable/core` and exercises all 40 channel leaves: four
+`EdgeHosts` type from `@cablejs/core` and exercises all 40 channel leaves: four
 server-event `emit` calls and both host-procedure `call` methods per channel.
 It stays out of the client program so the client boundary check remains valid.
 

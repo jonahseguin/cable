@@ -1,4 +1,4 @@
-import type { AnyChannelContract } from "@cable/contract";
+import type { AnyChannelContract } from "@cablejs/contract";
 import {
   createEngine,
   type ChannelImplementation,
@@ -10,7 +10,7 @@ import {
   type HostLimits,
   type SignedGrant,
   type TimerPayloads,
-} from "@cable/core";
+} from "@cablejs/core";
 
 import { ManualClock, type MemorySchedule } from "./clock.js";
 import { MemoryHostRegistry } from "./registry.js";

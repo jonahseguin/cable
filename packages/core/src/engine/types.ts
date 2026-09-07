@@ -4,7 +4,7 @@ import type {
   InferChannelParams,
   InferSchemaInput,
   InferSchemaOutput,
-} from "@cable/contract";
+} from "@cablejs/contract";
 
 import type { ChannelWireError } from "../channel-protocol.js";
 import type { GrantSecret } from "../grant.js";

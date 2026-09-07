@@ -3,10 +3,10 @@ title: Define a contract
 description: Declare global procedures and channel families with Standard Schema validators in one shared API.
 ---
 
-`@cable/contract` defines the shared API without importing server code. It accepts Standard Schema v1 validators, including Zod, Valibot, ArkType, and Effect Schema.
+`@cablejs/contract` defines the shared API without importing server code. It accepts Standard Schema v1 validators, including Zod, Valibot, ArkType, and Effect Schema.
 
 ```ts
-import { c } from "@cable/contract";
+import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 const Message = z.object({
@@ -61,7 +61,7 @@ Channel patterns cannot overlap. Contract keys cannot contain `.` or `/`, and ch
 Inference helpers work on one contract node at a time:
 
 ```ts
-import type { InferInput, InferServerEvent } from "@cable/contract";
+import type { InferInput, InferServerEvent } from "@cablejs/contract";
 
 type ListInput = InferInput<typeof api.posts.list>;
 type MessageEvent = InferServerEvent<typeof api.chat, "message">;

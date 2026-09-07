@@ -8,7 +8,7 @@ import {
   type ConformanceGrant,
   type ConformanceSocket,
   type TemporalHostConformanceDriver,
-} from "@cable/conformance";
+} from "@cablejs/conformance";
 import {
   channelKey,
   decodeHostFrame,
@@ -19,7 +19,7 @@ import {
   type GrantId,
   type HostWireFrame,
   type SignedGrant,
-} from "@cable/core";
+} from "@cablejs/core";
 import { describe, expect, it } from "vitest";
 
 import { ManualClock } from "./clock.js";

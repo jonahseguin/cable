@@ -3,15 +3,15 @@ import {
   CONFORMANCE_POLICY,
   conformanceChannel,
   createConformanceImplementation,
-} from "@cable/conformance";
-import { c } from "@cable/contract";
+} from "@cablejs/conformance";
+import { c } from "@cablejs/contract";
 import {
   CableError,
   implement,
   type HostLimits,
   type PeerMessage,
   type StorageListOptions,
-} from "@cable/core";
+} from "@cablejs/core";
 import { z } from "zod";
 
 import { createCloudflareHostClass } from "../src/cloudflare-host.js";

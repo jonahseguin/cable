@@ -1,5 +1,5 @@
 ---
-"@cable/core": minor
+"@cablejs/core": minor
 ---
 
 Add reusable global-procedure resolvers. Resolvers capture middleware for an

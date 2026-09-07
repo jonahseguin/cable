@@ -6,8 +6,8 @@ description: Attach global procedure handlers to a Cable contract with typed con
 `implement(contract)` checks that server handlers cover every global procedure. Procedures declared inside a channel belong to that channel's implementation.
 
 ```ts
-import { c } from "@cable/contract";
-import { CableError, createRpcHandler, implement } from "@cable/core";
+import { c } from "@cablejs/contract";
+import { CableError, createRpcHandler, implement } from "@cablejs/core";
 import { z } from "zod";
 
 const api = c.contract({
@@ -47,8 +47,8 @@ Handlers can throw `CableError` with one of the procedure's declared codes. Unkn
 `builder.procedure` resolves one explicit global contract leaf. Its `.use()` method captures middleware for leaves resolved through that value. Keep the complete contract-shaped object in the single `.procedures()` call.
 
 ```ts
-import { c } from "@cable/contract";
-import { CableError, implement } from "@cable/core";
+import { c } from "@cablejs/contract";
+import { CableError, implement } from "@cablejs/core";
 import { z } from "zod";
 
 const app = c.contract({

@@ -1,5 +1,5 @@
-import { CableError, implement } from "@cable/core";
-import type { ChannelImplementation } from "@cable/core";
+import { CableError, implement } from "@cablejs/core";
+import type { ChannelImplementation } from "@cablejs/core";
 
 import { api } from "./api.js";
 

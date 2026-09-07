@@ -1,4 +1,4 @@
-import type { Attachment, Connection, ConnectionId } from "@cable/core";
+import type { Attachment, Connection, ConnectionId } from "@cablejs/core";
 
 const CONNECTING = 0;
 const OPEN = 1;

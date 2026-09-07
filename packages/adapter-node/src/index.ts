@@ -1,5 +1,5 @@
-import type { ContractTree } from "@cable/contract";
-import type { EdgeContract, ImplementedProcedures } from "@cable/core";
+import type { ContractTree } from "@cablejs/contract";
+import type { EdgeContract, ImplementedProcedures } from "@cablejs/core";
 
 import {
   createNodeHandlerWithRuntime,

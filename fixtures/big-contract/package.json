@@ -1,14 +1,14 @@
 {
-  "name": "@cable/fixture-big-contract",
+  "name": "@cablejs/fixture-big-contract",
   "version": "0.0.0",
   "private": true,
   "description": "Deterministic workload for the M1 contract and client performance budget.",
   "type": "module",
   "dependencies": {
-    "@cable/client": "workspace:*",
-    "@cable/contract": "workspace:*",
-    "@cable/core": "workspace:*",
-    "@cable/react": "workspace:*",
+    "@cablejs/client": "workspace:*",
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*",
+    "@cablejs/react": "workspace:*",
     "@tanstack/react-query": "5.102.8"
   },
   "devDependencies": {

@@ -124,7 +124,7 @@ CI run `34011847336` passed the Node 22 compatibility job and full quality gate.
 
 ## M4 acceptance
 
-`@cable/react` provides native TanStack Query options and React channel hooks.
+`@cablejs/react` provides native TanStack Query options and React channel hooks.
 The chat example uses both, including an SSR-scoped `QueryClient`. The local
 quality gate passes 226 root tests, 13 Cloudflare unit tests, 46 workerd tests
 with 2 expected native socket-send-fault skips, and the chat integration smoke.
@@ -138,7 +138,7 @@ is active.
 
 ## M5 acceptance
 
-`@cable/adapter-node` now exposes a Node HTTP and WebSocket handler with a
+`@cablejs/adapter-node` now exposes a Node HTTP and WebSocket handler with a
 per-handler in-memory registry. Its runtime evicts idle engines after five
 minutes while retaining in-memory storage and scheduled work for that handler.
 The chat example has a Node launcher and Vite proxy that run without Wrangler.

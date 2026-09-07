@@ -1,4 +1,4 @@
-import { cloudflareHost, createHandler, type CloudflareHostInstance } from "@cable/cloudflare";
+import { cloudflareHost, createHandler, type CloudflareHostInstance } from "@cablejs/cloudflare";
 
 import { api } from "./api.js";
 import {

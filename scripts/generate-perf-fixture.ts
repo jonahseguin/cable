@@ -110,7 +110,7 @@ function contractSource(): string {
     { length: channelCount },
     (_, index) => `${indent(channel(index), 2)},`,
   ).join("\n");
-  return `import { c } from "@cable/contract";
+  return `import { c } from "@cablejs/contract";
 import { z } from "zod";
 
 const forbiddenError = z.object({ resource: z.string() });
@@ -307,10 +307,10 @@ function clientSource(): string {
   InferOutput,
   InferPresence,
   InferServerEvent,
-} from "@cable/contract";
-import { createClient } from "@cable/client";
-import type { ChannelStatus, Link, PresenceMember } from "@cable/client";
-import { createCableQuery } from "@cable/react";
+} from "@cablejs/contract";
+import { createClient } from "@cablejs/client";
+import type { ChannelStatus, Link, PresenceMember } from "@cablejs/client";
+import { createCableQuery } from "@cablejs/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { api, type Api } from "./contract.js";
@@ -336,7 +336,7 @@ ${channels}
 
 function backendSource(): string {
   return `import { api, type Api } from "./contract.js";
-import { implement } from "@cable/core";
+import { implement } from "@cablejs/core";
 
 export interface BackendOnlyContext {
   readonly secret: string;
@@ -359,8 +359,8 @@ function edgeSource(): string {
   const channels = Array.from({ length: channelCount }, (_, index) =>
     edgeChannelExercise(index),
   ).join("\n\n");
-  return `import type { InferChannelParams, InferOutput } from "@cable/contract";
-import { implement, type EdgeHosts } from "@cable/core";
+  return `import type { InferChannelParams, InferOutput } from "@cablejs/contract";
+import { implement, type EdgeHosts } from "@cablejs/core";
 
 import { api, type Api } from "./contract.js";
 
