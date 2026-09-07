@@ -1,14 +1,15 @@
 # Publishing cable
 
-Publishing is deliberately blocked until the remaining release prerequisites in this document are complete. MIT is selected, and the `cablejs` npm organization is owned by `j0nah`.
+Publishing requires a reviewed version change, public package metadata, and a
+configured npm trusted publisher for each package.
 
 ## Before the first release
 
-1. Keep the verified `cablejs` organization ownership separate from registry availability checks. Ownership is established; package publication is not.
-2. Keep `@cablejs/rivet` withheld until M6 hibernation conformance passes. `@cablejs/conformance` is an internal test suite. `@cablejs/effect` is an artifact candidate, with its current Effect 4 RC peer support reviewed before publication.
-3. Prepare versions in a reviewed commit with `bunx changeset version`. Deliberately change selected package manifests from `private: true`, choose final versions, and set Changesets access to public packages in that commit.
-4. Make the GitHub repository public before relying on public npm provenance.
-5. Create and protect the `npm` GitHub environment before enabling the publish job. Required reviewers belong on that environment; do not create an unprotected fallback.
+1. Prepare versions in a reviewed commit with `bunx changeset version`, remove
+   deliberate package privacy flags, and set scoped packages to public access.
+2. Make the GitHub repository public before relying on public npm provenance.
+3. Create and protect the `npm` GitHub environment before enabling the publish
+   job; do not create an unprotected fallback.
 
 ## Changesets and GitHub releases
 
@@ -33,16 +34,16 @@ npm trusted publishing uses GitHub Actions OpenID Connect. It needs Node 22.14 o
 Configure one npm trusted publisher for each package in the npm package
 settings. The exact GitHub Actions fields are:
 
-- GitHub organization or user: `jonahseguin` (the npm package owner is the `cablejs` organization, owned by `j0nah`)
+- GitHub organization or user: `jonahseguin`
 - Repository: `cable`
 - Workflow filename: `release.yml`
 - Environment name: `npm`
 
 The first-package limitation is that npm exposes trusted-publisher settings on
-an existing package. An npm owner must create each package and configure this
-publisher once before the workflow can publish it. That bootstrap does not add
-an npm token path to the repository. The workflow uses `id-token: write`, npm
-CLI OIDC detection, and no `NPM_TOKEN` fallback. npm supports this trust
+an existing package. Create each package once through an authenticated npm
+publish with 2FA, then configure this publisher before the workflow can publish
+subsequent versions. That bootstrap does not add an npm token path to the
+repository. The workflow uses `id-token: write`, npm CLI OIDC detection, and no `NPM_TOKEN` fallback. npm supports this trust
 relationship from a private GitHub repository, but it will not generate a
 public provenance attestation until the repository and package are public. See
 npm's [trusted publishing documentation](https://docs.npmjs.com/trusted-publishers)
@@ -50,13 +51,13 @@ for the current provider fields and version requirements.
 
 ## Artifact audit
 
-Run this while packages are still private to inspect the M1 through M5 candidates without contacting npm:
+Run this before publication to inspect the selected package artifacts without contacting npm:
 
 ```sh
 bun scripts/release-artifacts.ts --all-eligible
 ```
 
-The audit builds packages in dependency order, runs `bun pm pack`, and verifies a second build produces byte-identical archives. It rejects vendored or reference material, checks every export target and declaration file, rejects a packed `workspace:` dependency, and requires each internal packed dependency to use its exact release version. It then imports each extracted tarball through its published entry point. Cloudflare's workerd suite resolves the extracted public entry and its packed Cable dependencies through explicit aliases, so it cannot fall back to workspace packages. It excludes Rivet and the internal conformance suite.
+The audit builds the configured packages in dependency order, runs `bun pm pack`, and verifies a second build produces byte-identical archives. It rejects vendored or reference material, checks every export target and declaration file, rejects a packed `workspace:` dependency, and requires each internal packed dependency to use its exact release version. It then imports each extracted tarball through its published entry point. Cloudflare's workerd suite resolves the extracted public entry and its packed Cable dependencies through explicit aliases, so it cannot fall back to workspace packages.
 
 After the package list and metadata are deliberate, run:
 
@@ -69,4 +70,4 @@ bun scripts/release-artifacts.ts --configured
 
 `.github/workflows/release.yml` runs only when manually dispatched from `main`. Its readiness job stops before npm writes when package selection, visibility, licensing, or metadata are incomplete. The publish job refers to an `npm` GitHub environment. That environment and its protection rules are not configured by this repository; an operator must create and protect it before release. A missing environment must not be treated as protected.
 
-The publish job audits Bun-generated tarballs from the committed release versions and publishes those exact tarballs with provenance enabled in dependency order. Before publishing, it compares each registry version's integrity and SHA-1 checksum with the archive. Matching versions are skipped for a safe retry; mismatches and non-404 lookup errors stop the run before any new publish. Changesets does not run versioning in this workflow and does not create package-version commits. The post-publish release step creates GitHub releases and generated notes; it does not create credentials or a fallback publishing path.
+The publish job audits Bun-generated tarballs from the committed release versions and publishes those exact tarballs through npm OIDC in dependency order. npm generates provenance for public packages from public repositories; private repositories do not receive a public provenance attestation. Before publishing, the workflow compares each registry version's integrity and SHA-1 checksum with the archive. Matching versions are skipped for a safe retry; mismatches and non-404 lookup errors stop the run before any new publish. Changesets does not run versioning in this workflow and does not create package-version commits. The post-publish release step creates GitHub releases and generated notes; it does not create credentials or a fallback publishing path.
