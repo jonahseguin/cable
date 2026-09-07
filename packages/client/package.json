@@ -28,8 +28,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cablejs/contract": "0.1.0",
-    "@cablejs/core": "0.1.0"
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*"
   },
   "devDependencies": {
     "@cablejs/adapter-memory": "workspace:*",

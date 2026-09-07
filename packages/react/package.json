@@ -28,7 +28,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cablejs/client": "0.1.0"
+    "@cablejs/client": "workspace:*"
   },
   "devDependencies": {
     "@cablejs/adapter-memory": "workspace:*",

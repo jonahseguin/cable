@@ -32,8 +32,8 @@
     "types:generate": "wrangler types --config wrangler.test.jsonc --env-interface CloudflareTestEnv worker-configuration.d.ts"
   },
   "dependencies": {
-    "@cablejs/contract": "0.1.0",
-    "@cablejs/core": "0.1.0"
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*"
   },
   "devDependencies": {
     "@cablejs/conformance": "workspace:*",

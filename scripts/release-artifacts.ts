@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import {
   access,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -337,27 +338,68 @@ async function emptyOutputDirectory(directory: string): Promise<void> {
     throw new Error(`Artifact output directory is not empty: ${directory}`);
 }
 
-async function packArchive(pkg: WorkspacePackage, destination: string): Promise<string> {
+async function packArchive(
+  pkg: WorkspacePackage,
+  destination: string,
+  selected: ReadonlyMap<string, WorkspacePackage>,
+): Promise<string> {
+  const staging = await mkdtemp(join(tmpdir(), "cable-release-pack-"));
+  await cp(pkg.directory, staging, {
+    recursive: true,
+    filter(source) {
+      return !source.includes("/node_modules/");
+    },
+  });
+  const stagedManifestPath = join(staging, "package.json");
+  const stagedManifest = JSON.parse(await readFile(stagedManifestPath, "utf8")) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
+    peerDependencies?: Record<string, string>;
+  };
+  for (const field of [
+    "dependencies",
+    "devDependencies",
+    "optionalDependencies",
+    "peerDependencies",
+  ] as const) {
+    for (const [name, version] of Object.entries(stagedManifest[field] ?? {})) {
+      const dependency = selected.get(name);
+      if (dependency !== undefined && version.startsWith("workspace:")) {
+        stagedManifest[field]![name] = dependency.manifest.version;
+      }
+    }
+  }
+  delete stagedManifest.devDependencies;
+  await writeFile(stagedManifestPath, `${JSON.stringify(stagedManifest, undefined, 2)}\n`);
   const before = new Set(await readdir(destination));
-  run(
-    "bun",
-    ["pm", "pack", "--ignore-scripts", "--quiet", "--destination", destination],
-    pkg.directory,
-  );
-  const archives = (await readdir(destination))
-    .filter((name) => !before.has(name) && name.endsWith(".tgz"))
-    .map((name) => join(destination, name));
-  const [archive] = archives;
-  if (archive === undefined || archives.length !== 1)
-    throw new Error(`${pkg.manifest.name} did not produce exactly one archive.`);
-  return archive;
+  try {
+    run(
+      "bun",
+      ["pm", "pack", "--ignore-scripts", "--quiet", "--destination", destination],
+      staging,
+    );
+    const archives = (await readdir(destination))
+      .filter((name) => !before.has(name) && name.endsWith(".tgz"))
+      .map((name) => join(destination, name));
+    const [archive] = archives;
+    if (archive === undefined || archives.length !== 1)
+      throw new Error(`${pkg.manifest.name} did not produce exactly one archive.`);
+    return archive;
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
 }
 
-async function verifyReproducibleArchive(pkg: WorkspacePackage, archive: string): Promise<void> {
+async function verifyReproducibleArchive(
+  pkg: WorkspacePackage,
+  archive: string,
+  selected: ReadonlyMap<string, WorkspacePackage>,
+): Promise<void> {
   const destination = await mkdtemp(join(tmpdir(), "cable-release-reproducibility-"));
   try {
     run("bun", ["run", "build"], pkg.directory);
-    const repeated = await packArchive(pkg, destination);
+    const repeated = await packArchive(pkg, destination, selected);
     const [first, second] = await Promise.all([readFile(archive), readFile(repeated)]);
     if (!first.equals(second))
       throw new Error(`${pkg.manifest.name} Bun archive is not reproducible.`);
@@ -392,8 +434,8 @@ try {
     if (pkg.manifest.scripts?.["build"] === undefined)
       throw new Error(`${pkg.manifest.name} has no build script.`);
     run("bun", ["run", "build"], pkg.directory);
-    const archive = await packArchive(pkg, destination);
-    await verifyReproducibleArchive(pkg, archive);
+    const archive = await packArchive(pkg, destination, selected);
+    await verifyReproducibleArchive(pkg, archive, selected);
     auditPackedFiles(pkg, archive, selected);
     tarballs.set(pkg.manifest.name, archive);
     await pack(index + 1);

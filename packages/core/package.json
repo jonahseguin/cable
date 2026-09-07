@@ -28,7 +28,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cablejs/contract": "0.1.0"
+    "@cablejs/contract": "workspace:*"
   },
   "devDependencies": {
     "zod": "4.5.4"
