@@ -31,6 +31,12 @@ const packageManifestSchema = z.object({
   exports: z.record(z.string(), z.union([z.string(), z.record(z.string(), z.string())])).optional(),
   scripts: z.record(z.string(), z.string()).optional(),
 });
+const stagedManifestSchema = z.object({
+  dependencies: z.record(z.string(), z.string()).optional(),
+  devDependencies: z.record(z.string(), z.string()).optional(),
+  optionalDependencies: z.record(z.string(), z.string()).optional(),
+  peerDependencies: z.record(z.string(), z.string()).optional(),
+});
 
 type PackageManifest = z.infer<typeof packageManifestSchema>;
 
@@ -351,22 +357,21 @@ async function packArchive(
     },
   });
   const stagedManifestPath = join(staging, "package.json");
-  const stagedManifest = JSON.parse(await readFile(stagedManifestPath, "utf8")) as {
-    dependencies?: Record<string, string>;
-    devDependencies?: Record<string, string>;
-    optionalDependencies?: Record<string, string>;
-    peerDependencies?: Record<string, string>;
-  };
+  const stagedManifest = stagedManifestSchema.parse(
+    JSON.parse(await readFile(stagedManifestPath, "utf8")),
+  );
   for (const field of [
     "dependencies",
     "devDependencies",
     "optionalDependencies",
     "peerDependencies",
   ] as const) {
-    for (const [name, version] of Object.entries(stagedManifest[field] ?? {})) {
+    const dependencies = stagedManifest[field];
+    if (dependencies === undefined) continue;
+    for (const [name, version] of Object.entries(dependencies)) {
       const dependency = selected.get(name);
       if (dependency !== undefined && version.startsWith("workspace:")) {
-        stagedManifest[field]![name] = dependency.manifest.version;
+        dependencies[name] = dependency.manifest.version;
       }
     }
   }
