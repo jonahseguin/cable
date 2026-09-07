@@ -1,7 +1,7 @@
 {
   "name": "@cablejs/cloudflare",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "private": false,
   "description": "Durable Objects host, authenticated edge handler, and workerd conformance.",
   "license": "MIT",
   "repository": {
@@ -20,6 +20,9 @@
       "import": "./dist/index.mjs"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown src/index.ts --format esm --dts --clean",
     "test": "vitest run src --config vitest.unit.config.ts",
@@ -29,8 +32,8 @@
     "types:generate": "wrangler types --config wrangler.test.jsonc --env-interface CloudflareTestEnv worker-configuration.d.ts"
   },
   "dependencies": {
-    "@cablejs/contract": "workspace:*",
-    "@cablejs/core": "workspace:*"
+    "@cablejs/contract": "0.1.0",
+    "@cablejs/core": "0.1.0"
   },
   "devDependencies": {
     "@cablejs/conformance": "workspace:*",

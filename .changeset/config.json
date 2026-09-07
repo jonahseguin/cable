@@ -1,9 +1,14 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
-  "access": "restricted",
+  "access": "public",
   "baseBranch": "main",
   "bumpVersionsWithWorkspaceProtocolOnly": true,
-  "changelog": ["@changesets/changelog-github", { "repo": "jonahseguin/cable" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "jonahseguin/cable"
+    }
+  ],
   "commit": false,
   "fixed": [],
   "ignore": ["@cablejs/conformance", "@cablejs/rivet"],

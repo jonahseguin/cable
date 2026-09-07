@@ -1,0 +1,30 @@
+# @cablejs/core
+
+## 0.1.0
+
+### Minor Changes
+
+- [`fb7a0f0`](https://github.com/jonahseguin/cable/commit/fb7a0f052ea2f3be139bbab1a06b78083cf2556b) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Add channel frame codecs, portable host interfaces, canonical channel keys, and
+  HMAC-signed grants. Reject channel member collisions and overlapping channel
+  patterns when contracts are built.
+
+- [`6d680ce`](https://github.com/jonahseguin/cable/commit/6d680ceafab14a0fe3ef82898fb838e4a5843333) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Add typed Cable errors, Standard Schema procedure validation, middleware context
+  composition, server callers, portable RPC batch codecs, and a web-standard HTTP
+  handler with bounded request parsing.
+
+  Add the portable durable channel engine with authenticated upgrades, ordered
+  replay, presence, targeted delivery, host procedures, namespaced storage,
+  history pages, and durable timer retries. Engine state survives handler
+  reconstruction, and the wire-size checks run before durable event or presence
+  writes.
+
+- [`dbbe1e2`](https://github.com/jonahseguin/cable/commit/dbbe1e21f6a888bff345794d68f11a095ad46b6c) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Add reusable global-procedure resolvers. Resolvers capture middleware for an
+  explicit contract leaf and preserve its context, input, output, and declared
+  errors inside the existing complete `.procedures()` assembly.
+
+### Patch Changes
+
+- [`3a32e79`](https://github.com/jonahseguin/cable/commit/3a32e796ebaeb32821e4bcb1f929d1b2d99b88d6) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Prevent middleware from executing a mutation twice, sanitize malformed GET results, and
+  reject success envelopes returned with failing HTTP statuses.
+- Updated dependencies [[`fb7a0f0`](https://github.com/jonahseguin/cable/commit/fb7a0f052ea2f3be139bbab1a06b78083cf2556b), [`6d680ce`](https://github.com/jonahseguin/cable/commit/6d680ceafab14a0fe3ef82898fb838e4a5843333), [`c866a7a`](https://github.com/jonahseguin/cable/commit/c866a7a1cd0cd082fb226737eab01ab1141904fa)]:
+  - @cablejs/contract@0.1.0

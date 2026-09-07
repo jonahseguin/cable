@@ -1,7 +1,7 @@
 {
   "name": "@cablejs/core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "private": false,
   "description": "Portable procedure runtime, wire codec, Host interfaces, and durable channel engine.",
   "license": "MIT",
   "repository": {
@@ -20,12 +20,15 @@
       "import": "./dist/index.mjs"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cablejs/contract": "workspace:*"
+    "@cablejs/contract": "0.1.0"
   },
   "devDependencies": {
     "zod": "4.5.4"

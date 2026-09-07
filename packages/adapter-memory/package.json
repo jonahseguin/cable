@@ -1,7 +1,7 @@
 {
   "name": "@cablejs/adapter-memory",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "private": false,
   "description": "In-process transport and deterministic hosts with simulated hibernation.",
   "license": "MIT",
   "repository": {
@@ -20,13 +20,16 @@
       "import": "./dist/index.mjs"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cablejs/contract": "workspace:*",
-    "@cablejs/core": "workspace:*"
+    "@cablejs/contract": "0.1.0",
+    "@cablejs/core": "0.1.0"
   },
   "devDependencies": {
     "@cablejs/conformance": "workspace:*"
