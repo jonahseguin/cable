@@ -8,7 +8,7 @@ Publishing is deliberately blocked until the remaining release prerequisites in 
 2. Keep `@cablejs/rivet` withheld until M6 hibernation conformance passes. `@cablejs/conformance` is an internal test suite. `@cablejs/effect` is an artifact candidate, with its current Effect 4 RC peer support reviewed before publication.
 3. Prepare versions in a reviewed commit with `bunx changeset version`. Deliberately change selected package manifests from `private: true`, choose final versions, and set Changesets access to public packages in that commit.
 4. Make the GitHub repository public before relying on public npm provenance.
-5. Keep the `npm` GitHub environment absent until the repository plan supports required reviewers. On 2026-09-07, GitHub rejected the guarded environment request with HTTP 422 because this private repository does not support that rule. GitHub created an unprotected environment despite the rejection; it was deleted and the environment list was verified empty. Do not create an unprotected fallback.
+5. Create and protect the `npm` GitHub environment before enabling the publish job. Required reviewers belong on that environment; do not create an unprotected fallback.
 
 ## Changesets and GitHub releases
 
@@ -33,7 +33,7 @@ npm trusted publishing uses GitHub Actions OpenID Connect. It needs Node 22.14 o
 Configure one npm trusted publisher for each package in the npm package
 settings. The exact GitHub Actions fields are:
 
-- Organization or user: `jonahseguin`
+- GitHub organization or user: `jonahseguin` (the npm package owner is the `cablejs` organization, owned by `j0nah`)
 - Repository: `cable`
 - Workflow filename: `release.yml`
 - Environment name: `npm`
