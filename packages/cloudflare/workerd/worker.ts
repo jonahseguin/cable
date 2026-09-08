@@ -83,7 +83,7 @@ const edgeHandler = createHandler(edgeApi, edgeProcedures, {
   credentials: { mode: "bearer" },
   grantSecret: (_env: ConformanceEnv) => grantSecret,
   grants: (_identity, _key, params) => {
-    if (params.roomId === "server-push-deny") throw new CableError("FORBIDDEN");
+    if (params["roomId"] === "server-push-deny") throw new CableError("FORBIDDEN");
     return ["connect"];
   },
   hosts(env: ConformanceEnv) {

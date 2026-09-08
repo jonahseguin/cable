@@ -62,7 +62,7 @@ export const conformanceChannel = c.channel("conformance.{roomId}", {
   server: {
     message: z.object({
       source: z.enum(["client", "procedure", "timer"]),
-      text: z.string(),
+      text: z.string().trim().min(1),
     }),
   },
 });

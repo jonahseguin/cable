@@ -176,6 +176,56 @@ describe("Cloudflare Durable Object conformance", () => {
     await expect(fallback.text()).resolves.toContain("out:FALLBACK");
   });
 
+  it("pushes validated server events through the public host facade", async () => {
+    const roomId = `server-push-${String(Date.now())}`;
+    const { socket, stub } = await openNativeSocket(roomId);
+    const eventMessage = nextMessage(socket);
+    const pushed = await SELF.fetch(
+      new Request("https://conformance.invalid/__cable_test/server-push", {
+        body: JSON.stringify({ roomId, text: "from edge" }),
+        method: "POST",
+      }),
+    );
+    expect(pushed.status).toBe(200);
+    await expect(pushed.json()).resolves.toEqual({ seq: 1 });
+    expect(decodeHostFrame(await eventMessage)).toMatchObject({
+      d: { source: "procedure", text: "from edge" },
+      ev: "message",
+      seq: 1,
+      t: "ev",
+    });
+    await expect(
+      runInDurableObject(stub, (_instance, state) => state.storage.get("meta:seq")),
+    ).resolves.toBe(1);
+  });
+
+  it("rejects invalid server events and denies a configured server push grant", async () => {
+    const invalidRoom = `server-push-invalid-${String(Date.now())}`;
+    const invalid = await SELF.fetch(
+      new Request("https://conformance.invalid/__cable_test/server-push", {
+        body: JSON.stringify({ roomId: 42, text: "invalid" }),
+        method: "POST",
+      }),
+    );
+    expect(invalid.status).toBe(400);
+    await expect(invalid.json()).resolves.toEqual({ code: "BAD_REQUEST" });
+    await expect(
+      runInDurableObject(
+        env.CABLE_HOSTS.getByName(channelKey(conformanceChannel, { roomId: invalidRoom })),
+        (_instance, state) => state.storage.get("meta:seq"),
+      ),
+    ).resolves.toBeUndefined();
+
+    const denied = await SELF.fetch(
+      new Request("https://conformance.invalid/__cable_test/server-push", {
+        body: JSON.stringify({ roomId: "server-push-deny", text: "blocked" }),
+        method: "POST",
+      }),
+    );
+    expect(denied.status).toBe(403);
+    await expect(denied.json()).resolves.toEqual({ code: "FORBIDDEN" });
+  });
+
   it("drives a real host through the test-only conformance driver after hibernation", async () => {
     const driver = await createWorkerdConformanceDriver("driver-smoke");
     expect(driver.capabilities.injectSendFailure).toBe(false);
