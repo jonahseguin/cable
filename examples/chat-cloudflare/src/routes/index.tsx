@@ -8,6 +8,9 @@ import { RoomConversation, RoomStatus } from "../room-conversation.js";
 
 export const Route = createFileRoute("/")({ component: Chat });
 
+type ErrorSource = "identity" | "room" | "send";
+type ChatError = { readonly source: ErrorSource; readonly message: string };
+
 function Chat(): ReactNode {
   const initialName =
     typeof window === "undefined"
@@ -16,17 +19,32 @@ function Chat(): ReactNode {
   const [name, setName] = useState(initialName);
   const [draftName, setDraftName] = useState(initialName);
   const [roomId, setRoomId] = useState("lobby");
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<ChatError>();
   const activeName = useRef(initialName);
-  const reportErrorFor = useCallback((owner: string, message: string) => {
-    if (activeName.current === owner) setError(message);
+  const reportErrorFor = useCallback((owner: string, source: ErrorSource, message: string) => {
+    if (activeName.current === owner) setError({ source, message });
   }, []);
-  const reportError = useCallback(
+  const reportIdentityError = useCallback(
     (message: string) => {
-      reportErrorFor(name, message);
+      reportErrorFor(name, "identity", message);
     },
     [name, reportErrorFor],
   );
+  const reportRoomError = useCallback(
+    (message: string) => {
+      reportErrorFor(name, "room", message);
+    },
+    [name, reportErrorFor],
+  );
+  const reportSendError = useCallback(
+    (message: string) => {
+      reportErrorFor(name, "send", message);
+    },
+    [name, reportErrorFor],
+  );
+  const clearError = useCallback((source: ErrorSource) => {
+    setError((current) => (current?.source === source ? undefined : current));
+  }, []);
   const commitName = useCallback(() => {
     const next = draftName.trim();
     setName(next.length === 0 ? "Guest" : next);
@@ -73,13 +91,20 @@ function Chat(): ReactNode {
             />
           </label>
         </div>
-        <ChatSession cable={cable} name={name} reportError={reportError} />
-        {error === undefined ? undefined : <p className="error">{error}</p>}
+        <ChatSession
+          cable={cable}
+          clearError={clearError}
+          name={name}
+          reportError={reportIdentityError}
+        />
+        {error === undefined ? undefined : <p className="error">{error.message}</p>}
         <RoomConversation
           cable={cable}
           key={`${roomId}:${name}`}
           name={name}
-          reportError={reportError}
+          clearError={clearError}
+          reportError={reportRoomError}
+          reportSendError={reportSendError}
           roomId={roomId}
         />
       </section>

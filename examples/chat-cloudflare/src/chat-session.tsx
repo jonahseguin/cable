@@ -9,10 +9,12 @@ import type { createCable } from "./chat-client.js";
 /** Keeps the browser's local identity token and session label in sync. */
 export function ChatSession({
   cable,
+  clearError,
   name,
   reportError,
 }: {
   readonly cable: ReturnType<typeof createCable>;
+  readonly clearError: (source: "identity" | "room" | "send") => void;
   readonly name: string;
   readonly reportError: (message: string) => void;
 }): ReactNode {
@@ -30,6 +32,10 @@ export function ChatSession({
   useEffect(() => {
     if (identity.error instanceof Error) reportError(identity.error.message);
   }, [identity.error, reportError]);
+
+  useEffect(() => {
+    if (identity.data !== undefined) clearError("identity");
+  }, [clearError, identity.data]);
 
   return <p className="identity">Signed in locally as {identity.data?.name ?? name}</p>;
 }

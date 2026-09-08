@@ -46,13 +46,17 @@ export function RoomStatus({
 /** Displays one channel instance and owns its history, presence, and send flow. */
 export function RoomConversation({
   cable,
+  clearError,
   name,
   reportError,
+  reportSendError,
   roomId,
 }: {
   readonly cable: ReturnType<typeof createCable>;
+  readonly clearError: (source: "identity" | "room" | "send") => void;
   readonly name: string;
   readonly reportError: (message: string) => void;
+  readonly reportSendError: (message: string) => void;
   readonly roomId: string;
 }): ReactNode {
   const [draft, setDraft] = useState("");
@@ -72,6 +76,10 @@ export function RoomConversation({
   useEffect(() => {
     updatePresence({ name });
   }, [name, updatePresence]);
+
+  useEffect(() => {
+    if (status === "open") clearError("room");
+  }, [clearError, status]);
 
   useEvent(room, "message", (message, metadata) => {
     if (metadata.seq === undefined) return;
@@ -129,10 +137,11 @@ export function RoomConversation({
     void room.send({ text }, { ack: true }).then(
       () => {
         setDraft("");
+        clearError("send");
         return undefined;
       },
       (cause: unknown) => {
-        reportError(cause instanceof Error ? cause.message : "Message failed to send.");
+        reportSendError(cause instanceof Error ? cause.message : "Message failed to send.");
         return undefined;
       },
     );
