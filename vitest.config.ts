@@ -6,7 +6,7 @@ export default defineConfig({
       exclude: ["references/**", "tools/oxlint/anti-slop/**"],
     },
     exclude: ["**/dist/**", "**/node_modules/**", "references/**", "tools/oxlint/anti-slop/**"],
-    include: ["packages/**/*.test.ts", "scripts/**/*.test.ts"],
+    include: ["packages/**/*.test.ts", "fixtures/**/*.test.ts", "scripts/**/*.test.ts"],
     passWithNoTests: true,
   },
 });

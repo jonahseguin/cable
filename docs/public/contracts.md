@@ -5,6 +5,19 @@ description: Declare global procedures and channel families with Standard Schema
 
 `@cablejs/contract` defines the shared API without importing server code. It accepts Standard Schema v1 validators, including Zod, Valibot, ArkType, and Effect Schema.
 
+## Validator compatibility
+
+The repository runs a small compatibility fixture against the pinned versions below. Each validator is exercised for procedure input transforms, channel parameters, server events, client event input, and inferred input/output types.
+
+| Validator     | Tested version | Async transform coverage           |
+| ------------- | -------------- | ---------------------------------- |
+| Zod           | 4.5.4          | Yes                                |
+| Valibot       | 1.4.2          | Yes                                |
+| ArkType       | 2.2.3          | Synchronous morphs                 |
+| Effect Schema | 4.0.0-rc.112   | Synchronous schemas and transforms |
+
+`validate()` awaits Standard Schema results, so async schemas work when the validator returns a promise. Parsed values still cross cable's JSON transport boundary. Keep procedure and event outputs JSON-compatible, and use the transport's documented limits for dates, binary data, and other non-JSON values.
+
 ## What a contract is
 
 `c.contract()` returns a `Contract<TTree>`. The tree keeps your procedure and
