@@ -99,7 +99,21 @@ const BaseConformanceHost = createCloudflareHostClass(
 );
 
 /** Durable Object used only by the real-workerd adapter conformance harness. */
+interface SubclassContextProbe {
+  readonly objectName: string;
+  readonly hasEnvBinding: boolean;
+}
+
 export class ConformanceHost extends BaseConformanceHost {
+  public async __cable_test_subclass_context(): Promise<SubclassContextProbe> {
+    // oxlint-disable-next-line typescript/no-unsafe-member-access -- Cloudflare's native DurableObject context is typed by the workerd compiler, not the root lint program.
+    const hasEnvBinding = this.env.CABLE_HOSTS !== undefined;
+    // oxlint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-call, typescript/no-unsafe-member-access -- Cloudflare's native DurableObject context is typed by the workerd compiler, not the root lint program.
+    const objectName = this.ctx.id.toString();
+    // oxlint-disable-next-line typescript/no-unsafe-assignment -- The named probe type documents the native Cloudflare values returned over test RPC.
+    return { hasEnvBinding, objectName };
+  }
+
   public async __cable_test_attachment_limit_probe(): Promise<string | null> {
     try {
       const socket = this.sockets().at(0);

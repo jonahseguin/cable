@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 
 import type { createCable } from "./chat-client.js";
 
+type ChatRoom = ReturnType<ReturnType<typeof createCable>["chat"]>;
+
 type ChatHistoryEvent = {
   readonly at: number;
   readonly d: { readonly text: string; readonly user: string };
@@ -43,43 +45,17 @@ export function RoomStatus({
   return <span className={`status status-${status}`}>{status}</span>;
 }
 
-/** Displays one channel instance and owns its history, presence, and send flow. */
-export function RoomConversation({
-  cable,
-  clearError,
-  name,
-  reportError,
-  reportSendError,
-  roomId,
-}: {
-  readonly cable: ReturnType<typeof createCable>;
-  readonly clearError: (source: "identity" | "room" | "send") => void;
-  readonly name: string;
-  readonly reportError: (message: string) => void;
-  readonly reportSendError: (message: string) => void;
-  readonly roomId: string;
-}): ReactNode {
-  const [draft, setDraft] = useState("");
-  const queryClient = useQueryClient();
-  const room = useChannel(cable.chat, { roomId });
-  const status = useChannelStatus(room);
-  // oxlint-disable-next-line typescript/unbound-method -- The hook owns the channel methods and returns a stable updater.
-  const { others, update: updatePresence } = usePresence(room);
+function useRoomHistory(
+  room: ChatRoom,
+  historyKey: readonly [string, string, string],
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
   const pendingLive = useRef(new Map<number, ChatHistoryEvent>());
-  const historyKey = useMemo(() => ["cable", "chat.history", roomId] as const, [roomId]);
   const history = useQuery({
     enabled: typeof window !== "undefined",
     queryFn: () => room.history.load({ limit: 100 }),
     queryKey: historyKey,
   });
-
-  useEffect(() => {
-    updatePresence({ name });
-  }, [name, updatePresence]);
-
-  useEffect(() => {
-    if (status === "open") clearError("room");
-  }, [clearError, status]);
 
   useEvent(room, "message", (message, metadata) => {
     if (metadata.seq === undefined) return;
@@ -109,6 +85,42 @@ export function RoomConversation({
       return mergeHistory(page, pending);
     });
   }, [history.data, historyKey, queryClient]);
+
+  return history;
+}
+
+/** Displays one channel instance and owns its history, presence, and send flow. */
+export function RoomConversation({
+  cable,
+  clearError,
+  name,
+  reportError,
+  reportSendError,
+  roomId,
+}: {
+  readonly cable: ReturnType<typeof createCable>;
+  readonly clearError: (source: "identity" | "room" | "send") => void;
+  readonly name: string;
+  readonly reportError: (message: string) => void;
+  readonly reportSendError: (message: string) => void;
+  readonly roomId: string;
+}): ReactNode {
+  const [draft, setDraft] = useState("");
+  const queryClient = useQueryClient();
+  const room = useChannel(cable.chat, { roomId });
+  const status = useChannelStatus(room);
+  // oxlint-disable-next-line typescript/unbound-method -- The hook owns the channel methods and returns a stable updater.
+  const { others, update: updatePresence } = usePresence(room);
+  const historyKey = useMemo(() => ["cable", "chat.history", roomId] as const, [roomId]);
+  const history = useRoomHistory(room, historyKey, queryClient);
+
+  useEffect(() => {
+    updatePresence({ name });
+  }, [name, updatePresence]);
+
+  useEffect(() => {
+    if (status === "open") clearError("room");
+  }, [clearError, status]);
 
   useEffect(
     () =>

@@ -40,40 +40,45 @@ export interface CloudflareRuntimeOptions<TEnv> extends CloudflareHostOptions<TE
  * Use this type for a `DurableObjectNamespace` binding when the generated class
  * needs its environment to refer back to that namespace.
  */
-export type CloudflareHostInstance<TEnv> = DurableObject<TEnv> & CableDurableObject;
+export type CloudflareHostInstance<TEnv> = CloudflareHostBase<TEnv>;
 
 /** A Durable Object class generated for one channel contract. */
 export type CloudflareDurableObjectClass<TEnv> = new (
   state: DurableObjectState,
   env: TEnv,
-) => DurableObject<TEnv> & CableDurableObject;
+) => CloudflareHostBase<TEnv>;
 
-/** @internal Construction type that lets the workerd-only subclass use test probes. */
-export class CloudflareHostTestBase<TEnv>
+/**
+ * Base class implemented by a generated Cable Durable Object.
+ *
+ * Extend the class returned by {@link cloudflareHost} when the object needs
+ * application RPC methods or additional Durable Object lifecycle behavior.
+ * Cable owns `fetch`, hibernation callbacks, alarms, and the protected host
+ * engine; subclasses must call `super` for any overridden lifecycle method.
+ */
+export abstract class CloudflareHostBase<TEnv>
   extends DurableObject<TEnv>
   implements CableDurableObject
 {
-  protected readonly cableHost!: CloudflareHost<TEnv>;
-
   protected connection(_socket: WebSocket): CloudflareConnection {
-    throw new Error("Cloudflare Host test base cannot receive runtime callbacks.");
+    throw new Error("Cloudflare Host base cannot receive runtime callbacks.");
   }
 
   protected sockets(): WebSocket[] {
-    throw new Error("Cloudflare Host test base cannot inspect runtime sockets.");
+    throw new Error("Cloudflare Host base cannot inspect runtime sockets.");
   }
 
   // oxlint-disable-next-line anti-slop/no-unknown-returns -- The Durable Object RPC result is parsed by its operation-specific caller.
   public __cable_peer(_message: PeerMessage): Promise<unknown> {
-    throw new Error("Cloudflare Host test base cannot receive peer calls.");
+    throw new Error("Cloudflare Host base cannot receive peer calls.");
   }
 
   public override alarm(): Promise<void> {
-    throw new Error("Cloudflare Host test base cannot receive alarms.");
+    throw new Error("Cloudflare Host base cannot receive alarms.");
   }
 
   public override fetch(_request: Request): Promise<Response> {
-    throw new Error("Cloudflare Host test base cannot receive requests.");
+    throw new Error("Cloudflare Host base cannot receive requests.");
   }
 
   public override webSocketClose(
@@ -82,20 +87,25 @@ export class CloudflareHostTestBase<TEnv>
     _reason: string,
     _wasClean: boolean,
   ): Promise<void> {
-    throw new Error("Cloudflare Host test base cannot receive socket callbacks.");
+    throw new Error("Cloudflare Host base cannot receive socket callbacks.");
   }
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Cloudflare supplies arbitrary callback errors to the core error boundary.
   public override webSocketError(_socket: WebSocket, _error: unknown): Promise<void> {
-    throw new Error("Cloudflare Host test base cannot receive socket callbacks.");
+    throw new Error("Cloudflare Host base cannot receive socket callbacks.");
   }
 
   public override webSocketMessage(
     _socket: WebSocket,
     _message: string | ArrayBuffer,
   ): Promise<void> {
-    throw new Error("Cloudflare Host test base cannot receive socket callbacks.");
+    throw new Error("Cloudflare Host base cannot receive socket callbacks.");
   }
+}
+
+/** @internal Construction seam used by the workerd adapter conformance suite. */
+abstract class CloudflareHostTestBase<TEnv> extends CloudflareHostBase<TEnv> {
+  protected readonly cableHost!: CloudflareHost<TEnv>;
 }
 
 /** @internal Class shape returned by the workerd-only construction seam. */
@@ -137,8 +147,7 @@ export function createCloudflareHostClass<
   options: CloudflareRuntimeOptions<TEnv>,
 ): CloudflareHostTestClass<TEnv> {
   return class CableCloudflareDurableObject extends CloudflareHostTestBase<TEnv> {
-    /** @internal Test-only subclasses expose serializable conformance probes. */
-    protected override readonly cableHost: CloudflareHost<TEnv>;
+    declare protected readonly cableHost: CloudflareHost<TEnv>;
     private readonly handlers: ReturnType<typeof createEngine>;
 
     public constructor(state: DurableObjectState, env: TEnv) {

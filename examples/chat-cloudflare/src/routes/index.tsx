@@ -11,14 +11,7 @@ export const Route = createFileRoute("/")({ component: Chat });
 type ErrorSource = "identity" | "room" | "send";
 type ChatError = { readonly source: ErrorSource; readonly message: string };
 
-function Chat(): ReactNode {
-  const initialName =
-    typeof window === "undefined"
-      ? "Guest"
-      : (window.sessionStorage.getItem(identityKey) ?? "Guest");
-  const [name, setName] = useState(initialName);
-  const [draftName, setDraftName] = useState(initialName);
-  const [roomId, setRoomId] = useState("lobby");
+function useChatErrors(initialName: string, name: string) {
   const [error, setError] = useState<ChatError>();
   const activeName = useRef(initialName);
   const reportErrorFor = useCallback((owner: string, source: ErrorSource, message: string) => {
@@ -45,15 +38,44 @@ function Chat(): ReactNode {
   const clearError = useCallback((source: ErrorSource) => {
     setError((current) => (current?.source === source ? undefined : current));
   }, []);
+  const clearAllErrors = useCallback(() => {
+    setError(undefined);
+  }, []);
+  useEffect(() => {
+    activeName.current = name;
+    clearAllErrors();
+  }, [clearAllErrors, name]);
+  return {
+    clearAllErrors,
+    clearError,
+    error,
+    reportIdentityError,
+    reportRoomError,
+    reportSendError,
+  };
+}
+
+function Chat(): ReactNode {
+  const initialName =
+    typeof window === "undefined"
+      ? "Guest"
+      : (window.sessionStorage.getItem(identityKey) ?? "Guest");
+  const [name, setName] = useState(initialName);
+  const [draftName, setDraftName] = useState(initialName);
+  const [roomId, setRoomId] = useState("lobby");
+  const {
+    clearAllErrors,
+    clearError,
+    error,
+    reportIdentityError,
+    reportRoomError,
+    reportSendError,
+  } = useChatErrors(initialName, name);
   const commitName = useCallback(() => {
     const next = draftName.trim();
     setName(next.length === 0 ? "Guest" : next);
-    setError(undefined);
-  }, [draftName]);
-  useEffect(() => {
-    activeName.current = name;
-    setError(undefined);
-  }, [name]);
+    clearAllErrors();
+  }, [clearAllErrors, draftName]);
   const cable = useMemo(() => createCable(name), [name]);
 
   return (

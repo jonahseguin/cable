@@ -15,6 +15,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { createWorkerdConformanceDriver } from "./driver.js";
+import type { ConformanceHost } from "./worker.js";
 
 const grantSecret = "cloudflare-conformance-secret-material-32-bytes";
 
@@ -74,6 +75,21 @@ describe("Cloudflare Durable Object conformance", () => {
   it("imports the built public Cloudflare entry in workerd", () => {
     expect(cloudflarePublic.cloudflareHost).toBeTypeOf("function");
     expect(cloudflarePublic.createHandler).toBeTypeOf("function");
+  });
+
+  it("allows a generated host subclass to use native Durable Object context", async () => {
+    const roomId = `subclass-${String(Date.now())}`;
+    const key = channelKey(conformanceChannel, { roomId });
+    // SAFETY: The conformance Worker binds this generated class, whose custom RPC is defined on ConformanceHost.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Workerd's generated namespace omits test-only RPC declarations.
+    const stub = env.CABLE_HOSTS.getByName(key) as DurableObjectStub &
+      Pick<ConformanceHost, "__cable_test_subclass_context">;
+
+    // oxlint-disable-next-line eslint/no-underscore-dangle -- This is the explicit test-only RPC on the conformance subclass.
+    const probe = await stub.__cable_test_subclass_context();
+    expect(probe.hasEnvBinding).toBe(true);
+    expect(probe.objectName).toBeTypeOf("string");
+    expect(probe.objectName.length).toBeGreaterThan(0);
   });
 
   it("routes public handler requests without waking rejected hosts", async () => {

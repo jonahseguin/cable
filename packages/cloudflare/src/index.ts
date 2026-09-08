@@ -1,5 +1,6 @@
 export {
   cloudflareHost,
+  CloudflareHostBase,
   type CloudflareDurableObjectClass,
   type CloudflareHostInstance,
   type CloudflareHostOptions,

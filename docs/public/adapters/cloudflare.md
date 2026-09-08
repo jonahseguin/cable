@@ -48,6 +48,33 @@ In cookie mode, set `credentials: { mode: "cookie", origins: ["https://app.examp
 
 The adapter uses hibernatable WebSockets, serialized attachments, Durable Object storage and alarms, and RPC for peer calls. Keep application state in `context.storage`, not object fields, because hibernation creates a new engine instance.
 
+## Extend the Durable Object
+
+`cloudflareHost()` returns a Durable Object class. Extend that class when the
+object needs an application RPC method or an additional lifecycle hook. The
+generated class still owns Cable's upgrade, socket, and alarm handling.
+
+```ts
+const CableChatHost = cloudflareHost(api.chat, chatImplementation, options);
+
+export class ChatHost extends CableChatHost {
+  async objectName(): Promise<string> {
+    return this.ctx.id.toString();
+  }
+
+  override async alarm(): Promise<void> {
+    await super.alarm();
+    // Run application alarm work after Cable restores its durable state.
+  }
+}
+```
+
+Keep durable application data in `this.ctx.storage` or the channel context's
+`storage`. Do not replace `fetch`, WebSocket callbacks, or `alarm` without
+calling the generated implementation through `super`; those methods restore
+Cable state after hibernation. The class's `env` property is the same Worker
+environment passed to the generated host.
+
 ## Run the example
 
 The local example needs both the Worker and Vite processes. Create the Worker secret and start Wrangler in one terminal:
