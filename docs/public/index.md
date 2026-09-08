@@ -3,7 +3,7 @@ title: Welcome
 description: End-to-end type safety for APIs and realtime.
 ---
 
-Define the contract once. Implement it on the server. Call procedures and exchange typed events from the client.
+Define the contract once. The server and client use the same types for RPC and realtime events.
 
 ```ts title="api.ts"
 import { c } from "@cablejs/contract";
@@ -21,52 +21,18 @@ export const api = c.contract({
 });
 ```
 
-The server fills in the global procedure and channel behavior separately. The
-same `api` value keeps both implementations tied to the contract.
-
-```ts title="server.ts"
-import { type ChannelImplementation, implement } from "@cablejs/core";
-import { api } from "./api.js";
-
-export const procedures = implement(api)
-  .context<{ readonly userId: string }>()
-  .procedures({
-    profile: ({ ctx, input }) => ({
-      name: input.userId === ctx.userId ? "Mina" : "Guest",
-    }),
-  });
-
-export const chatImplementation = {
-  onClient: {
-    async send(context, { text }) {
-      await context.emit("message", { author: context.identity.userId, text });
-    },
-  },
-  procedures: {},
-} satisfies ChannelImplementation<typeof api.chat, { userId: string }>;
-```
-
-The client uses the same contract for procedure inputs, channel parameters, and
-event payloads.
-
 ```ts title="client.ts"
 import { createClient } from "@cablejs/client";
 import { api } from "./api.js";
 
 const client = createClient({ contract: api, url: "/_cable" });
 const profile = await client.profile.query({ userId: "user-1" });
-
 const room = client.chat({ roomId: "general" });
-const unsubscribe = room.on("message", (message) => console.log(message.author, message.text));
+room.on("message", (message) => console.log(message.author, message.text));
 await room.send({ text: `Hello from ${profile.name}` }, { ack: true });
-
-unsubscribe();
-room.dispose();
 ```
 
-The same contract gives the server and client their types. Add a channel when
-the feature needs ordered events, presence, history, or state owned by one
-durable host.
+The complete server setup, including the handler and channel host, is in [Get started](/getting-started). The [Cloudflare adapter guide](/adapters/cloudflare) covers deployment and bindings.
 
 ## Start here
 
