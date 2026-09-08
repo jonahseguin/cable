@@ -33,9 +33,4 @@ const handler = createHandler(api, procedures, {
   uid: (identity: Identity) => identity.userId,
 });
 
-const worker = {
-  fetch: (request: Request, env: Env, execution: ExecutionContext): Promise<Response> =>
-    handler.fetch(request, env, execution),
-} satisfies ExportedHandler<Env>;
-
-export default worker;
+export default handler satisfies ExportedHandler<Env>;
