@@ -2,7 +2,8 @@ import { defineConfig } from "blume";
 
 export default defineConfig({
   title: "cable",
-  description: "Contract-first procedures and durable typed channels for actor runtimes.",
+  description:
+    "Type-safe RPC and durable realtime channels for TypeScript, with presence, permissions, and replay built in.",
   content: {
     root: "docs/public",
   },

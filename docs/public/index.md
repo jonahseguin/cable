@@ -1,6 +1,6 @@
 ---
 title: Welcome
-description: End-to-end type safety for APIs and realtime.
+description: Type-safe RPC and durable realtime channels for TypeScript, with presence, permissions, and replay built in.
 ---
 
 Define the contract once. The server and client use the same types for RPC and realtime events.
