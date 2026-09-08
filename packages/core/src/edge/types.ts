@@ -125,8 +125,23 @@ export interface EdgeContextInput<TTree, TEnv, TExecution, TIdentity> {
 }
 
 /** A portable handler method with adapter-owned environment and execution values. */
-export interface EdgeHandler<TEnv, TExecution, TUpgrade extends EdgeUpgrade = Response> {
+export interface EdgeHandler<
+  TEnv,
+  TExecution,
+  TUpgrade extends EdgeUpgrade = Response,
+  TTree extends ContractTree = ContractTree,
+  TIdentity = unknown,
+> {
   fetch(request: Request, env: TEnv, execution: TExecution): Promise<Response | TUpgrade>;
+  /**
+   * Create a trusted server-side facade for channel procedures and events.
+   * Authenticate the principal before calling this method. It does not parse
+   * an HTTP request or perform authentication itself.
+   */
+  hosts(input: {
+    readonly env: TEnv;
+    readonly principal: EdgePrincipal<TIdentity>;
+  }): EdgeHosts<TTree>;
 }
 
 /** Details supplied to the best-effort edge error observer. */

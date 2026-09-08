@@ -13,10 +13,13 @@ interface Env {
   readonly CABLE_GRANT_SECRET: string;
 }
 
-export const ChatHost = cloudflareHost(api.chat, chatImplementation, {
+const CableChatHost = cloudflareHost(api.chat, chatImplementation, {
   grantSecret: (env: Env) => env.CABLE_GRANT_SECRET,
   peer: (env: Env, key) => env.CHAT.getByName(key),
 });
+
+/** Application-owned Durable Object entry point; add app RPC methods here. */
+export class ChatHost extends CableChatHost {}
 
 const handler = createHandler(api, procedures, {
   authenticate(request: Request): Identity | null {

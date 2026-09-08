@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import type { HostKey, PeerMessage, SignedGrant } from "../host.js";
-import { implement, verifyGrant } from "../index.js";
+import { CableError, implement, verifyGrant } from "../index.js";
 import { createEdgeHandler } from "./handler.js";
 import type { EdgeHostTransport } from "./types.js";
 
@@ -28,6 +28,7 @@ class Transport implements EdgeHostTransport<undefined> {
   public readonly upgrades: Array<{ key: HostKey; request: Request; grant: SignedGrant }> = [];
   public peerResult:
     | Error
+    | { readonly seq: number }
     | { readonly d: string; readonly ok: true }
     | {
         readonly e: { readonly code: string; readonly data: { readonly reason: string } };
@@ -111,6 +112,68 @@ function hostCallRequest(): Request {
 }
 
 describe("portable edge handler", () => {
+  it("creates a typed trusted host facade with canonical keys and grants", async () => {
+    const transport = new Transport();
+    transport.peerResult = { seq: 1 };
+    const { edge } = handler(transport);
+    const hosts = edge.hosts({
+      env: {},
+      principal: { identity: { userId: "trusted" }, uid: "trusted" },
+    });
+
+    await expect(hosts.room("lobby").emit("changed", 7)).resolves.toBe(1);
+    expect(transport.peers).toEqual([
+      {
+        key: "room:LOBBY",
+        message: {
+          d: 7,
+          ev: "changed",
+          grants: ["connect"],
+          identity: { userId: "trusted" },
+          t: "emit",
+          uid: "trusted",
+        },
+      },
+    ]);
+  });
+
+  it("requires an authenticated principal before pushing an event", async () => {
+    const transport = new Transport();
+    const { edge } = handler(transport);
+    const unauthenticated = edge.hosts({ env: {}, principal: { identity: null } });
+
+    await expect(unauthenticated.room("lobby").emit("changed", 7)).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+
+    expect(transport.peers).toHaveLength(0);
+  });
+
+  it("applies the configured grant policy to server-side pushes", async () => {
+    const transport = new Transport();
+    transport.peerResult = { seq: 1 };
+    const denied = createEdgeHandler(contract, procedures, {
+      authenticate: () => ({ userId: "user-1" }),
+      context: ({ request }) => ({ request }),
+      credentials: { mode: "bearer" },
+      grantSecret: () => secret,
+      grants: () => {
+        throw new CableError("FORBIDDEN");
+      },
+      hosts: () => [{ channel, transport }],
+      now: () => now,
+    });
+
+    const hosts = denied.hosts({
+      env: {},
+      principal: { identity: { userId: "trusted" } },
+    });
+    await expect(hosts.room("lobby").emit("changed", 7)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(transport.peers).toHaveLength(0);
+  });
+
   it("forwards adapter execution and allows an upgrade to complete without a Response", async () => {
     const transport = new VoidTransport();
     const edge = createEdgeHandler(contract, procedures, {

@@ -75,6 +75,37 @@ calling the generated implementation through `super`; those methods restore
 Cable state after hibernation. The class's `env` property is the same Worker
 environment passed to the generated host.
 
+## Use an existing Hono auth boundary
+
+The handler also exposes a typed host facade for application routes outside
+cable's HTTP handler. Authenticate with the middleware already used by the
+application, then pass that verified principal to `handler.hosts`. This does
+not authenticate the request a second time or bypass channel authorization.
+
+```ts
+import { Hono } from "hono";
+
+const app = new Hono<{ Bindings: Env }>();
+
+app.post("/rooms/:roomId/messages", async (c) => {
+  const principal = await requireVerifiedPrincipal(c.req.raw, c.env);
+  if (principal === null) return c.json({ error: "unauthorized" }, 401);
+
+  const seq = await handler
+    .hosts({ env: c.env, principal })
+    .chat({ roomId: c.req.param("roomId") })
+    .emit("message", { text: "hello from Hono", user: principal.identity.name });
+
+  return c.json({ seq });
+});
+```
+
+`requireVerifiedPrincipal` is application code: it should return the same
+`{ identity, uid }` shape used by the handler's authenticated context. The
+`message` payload is checked against the channel contract before delivery, and
+`emit` returns its durable sequence. Keep authorization in the channel contract
+so this route and a WebSocket apply the same policy.
+
 ## Run the example
 
 The local example needs both the Worker and Vite processes. Create the Worker secret and start Wrangler in one terminal:

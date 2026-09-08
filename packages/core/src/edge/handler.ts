@@ -21,6 +21,7 @@ import type {
   EdgeContract,
   EdgeHandler,
   EdgeHandlerOptions,
+  EdgeHosts,
   EdgePrincipal,
   EdgeProcedures,
   EdgeUpgrade,
@@ -52,11 +53,25 @@ export function createEdgeHandler<
   contract: EdgeContract<TTree>,
   procedures: EdgeProcedures<TTree, TContext>,
   options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity, TUpgrade>,
-): EdgeHandler<TEnv, TExecution, TUpgrade> {
+): EdgeHandler<TEnv, TExecution, TUpgrade, TTree, TIdentity> {
   const tree = edgeContractTree(contract);
   const policy = edgePolicy(options);
 
+  function createHosts(env: TEnv, principal: EdgePrincipal<TIdentity>): EdgeHosts<TTree> {
+    const hostOptions = {
+      principal,
+      registrations: options.hosts(env),
+    };
+    return createEdgeHosts<TTree, TIdentity, TExecution, TUpgrade>(
+      contract,
+      options.grants === undefined ? hostOptions : { ...hostOptions, grants: options.grants },
+    );
+  }
+
   return {
+    hosts(input) {
+      return createHosts(input.env, input.principal);
+    },
     async fetch(request, env, execution) {
       const url = new URL(request.url);
       const rpcPath = `${policy.basePath}/rpc`;
@@ -68,17 +83,7 @@ export function createEdgeHandler<
             context: async (contextRequest) => {
               try {
                 const authenticated = await authenticate(contextRequest, env, options);
-                const registrations = options.hosts(env);
-                const hostOptions = {
-                  principal: authenticated.principal,
-                  registrations,
-                };
-                const hosts = createEdgeHosts<TTree, TIdentity, TExecution, TUpgrade>(
-                  contract,
-                  options.grants === undefined
-                    ? hostOptions
-                    : { ...hostOptions, grants: options.grants },
-                );
+                const hosts = createHosts(env, authenticated.principal);
                 return await options.context({
                   env,
                   execution,

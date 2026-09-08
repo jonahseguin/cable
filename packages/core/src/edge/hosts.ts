@@ -96,12 +96,39 @@ function channelHost<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
       if (context.registered.registration.channel.server[name] === undefined) {
         throw new CableError("NOT_FOUND", { message: `Server event '${name}' is not declared` });
       }
-      const message =
-        data === undefined ? { ev: name, t: "emit" } : { d: data, ev: name, t: "emit" };
+      const resolvedGrants = context.grants?.(
+        context.principal.identity,
+        context.resolved.key,
+        context.resolved.params,
+      );
+      const message = buildPeerEmitMessage(
+        context,
+        name,
+        data,
+        resolvedGrants === undefined ? [] : await resolvedGrants,
+      );
       assertJsonData(message, "BAD_REQUEST");
       return parsePeerEmit((await invokePeer(context, message)).value);
     },
   };
+}
+
+function buildPeerEmitMessage<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
+  context: HostOperationContext<TIdentity, TExecution, TUpgrade>,
+  event: string,
+  data: RpcCall["input"],
+  grants: readonly string[],
+): PeerMessage {
+  const base = {
+    ev: event,
+    grants: normalizeGrants(grants),
+    identity: context.principal.identity,
+    t: "emit",
+  };
+  const withData = data === undefined ? base : { ...base, d: data };
+  const message =
+    context.principal.uid === undefined ? withData : { ...withData, uid: context.principal.uid };
+  return message;
 }
 
 export async function callEdgeHost<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(

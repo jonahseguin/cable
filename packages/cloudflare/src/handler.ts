@@ -51,7 +51,7 @@ export function createHandler<
   contract: EdgeContract<TTree>,
   procedures: ImplementedProcedures<TTree, TContext>,
   options: CloudflareHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity>,
-): EdgeHandler<TEnv, TExecution> {
+): EdgeHandler<TEnv, TExecution, Response, TTree, TIdentity> {
   return createEdgeHandler(contract, procedures, {
     ...options,
     hosts: (env): readonly EdgeHostRegistration<TExecution>[] =>
