@@ -523,10 +523,14 @@ class ChannelEngine<
     }
   }
 
-  private async peerEmit(message: PeerMessage): Promise<{ readonly seq: number }> {
+  private async peerEmit(message: PeerMessage): Promise<PeerEmitResult> {
     const event = requirePeerString(message, "ev");
-    const seq = await this.emitNamed(event, message["d"]);
-    return { seq };
+    try {
+      const seq = await this.emitNamed(event, message["d"]);
+      return { seq };
+    } catch (error) {
+      return { e: await channelError(error, {}), ok: false };
+    }
   }
 
   private async peerCall(message: PeerMessage): Promise<PeerCallResult<RpcCall["input"]>> {
@@ -1109,6 +1113,10 @@ interface ProcedureFailure {
 }
 
 type ProcedureResult = ProcedureFailure | ProcedureSuccess;
+
+type PeerEmitResult =
+  | { readonly e: ChannelWireError; readonly ok: false }
+  | { readonly seq: number };
 
 interface WelcomeSnapshot {
   readonly presence: readonly PresenceEntry[];

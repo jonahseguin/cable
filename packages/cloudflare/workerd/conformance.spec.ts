@@ -207,8 +207,8 @@ describe("Cloudflare Durable Object conformance", () => {
         method: "POST",
       }),
     );
-    expect(invalid.status).toBe(503);
-    await expect(invalid.json()).resolves.toEqual({ code: "UNAVAILABLE" });
+    expect(invalid.status).toBe(400);
+    await expect(invalid.json()).resolves.toEqual({ code: "VALIDATION" });
     await expect(
       runInDurableObject(
         env.CABLE_HOSTS.getByName(channelKey(conformanceChannel, { roomId: invalidRoom })),

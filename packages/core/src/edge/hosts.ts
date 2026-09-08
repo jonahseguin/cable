@@ -224,6 +224,10 @@ async function invokePeer<TIdentity, TExecution, TUpgrade extends EdgeUpgrade>(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This parses the raw adapter RPC value at its boundary.
 function parsePeerEmit(value: unknown): number {
   const result = requireRecord(value, "Peer emit response", invalidPeerResponse);
+  if (result["ok"] === false) {
+    assertRecordKeys(result, ["e", "ok"], "Peer emit response", invalidPeerResponse);
+    throw peerError(result["e"]);
+  }
   assertRecordKeys(result, ["seq"], "Peer emit response", invalidPeerResponse);
   const sequence = result["seq"];
   // oxlint-disable-next-line anti-slop/no-runtime-typeof -- The peer response parser narrows the sequence field before use.
