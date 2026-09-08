@@ -8,7 +8,9 @@ import type { ContractTree } from "@cablejs/contract";
 import {
   createEdgeHandler,
   type EdgeContract,
+  type EdgeHosts,
   type EdgeHandlerOptions,
+  type EdgePrincipal,
   type EdgeHostTransport,
   type GrantSecret,
   type ImplementedProcedures,
@@ -29,7 +31,12 @@ export type NodeExecution = NodeUpgradeExecution | undefined;
 export type NodeUpgrade = void;
 
 /** Public HTTP and WebSocket callbacks owned by one Node Cable handler. */
-export interface NodeHandler {
+export interface NodeHandler<TTree extends ContractTree = ContractTree, TIdentity = unknown> {
+  /** Create a trusted server-side facade for channel procedures and events. */
+  hosts(input: {
+    readonly env: undefined;
+    readonly principal: EdgePrincipal<TIdentity>;
+  }): EdgeHosts<TTree>;
   request(request: IncomingMessage, response: ServerResponse): Promise<void>;
   upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): Promise<void>;
   shutdown(): Promise<void>;
@@ -64,7 +71,7 @@ export function createNodeHandlerWithRuntime<
   options: NodeHandlerOptions<TTree, TContext, TIdentity>,
   runtime: NodeRuntime,
   grantSecret: GrantSecret,
-): NodeHandler {
+): NodeHandler<TTree, TIdentity> {
   const webSocketServer = new WebSocketServer({ noServer: true });
   const edge = createEdgeHandler(contract, procedures, {
     ...options,
@@ -77,6 +84,9 @@ export function createNodeHandlerWithRuntime<
   });
 
   return {
+    hosts(input) {
+      return edge.hosts(input);
+    },
     async request(request, response) {
       const result = await edge.fetch(nodeRequest(request), undefined, undefined);
       if (result === undefined)

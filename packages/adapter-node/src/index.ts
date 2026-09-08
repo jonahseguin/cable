@@ -16,7 +16,7 @@ export function createHandler<TTree extends ContractTree, TContext extends objec
   contract: EdgeContract<TTree>,
   procedures: ImplementedProcedures<TTree, TContext>,
   options: NodeHandlerOptions<TTree, TContext, TIdentity>,
-): NodeHandler {
+): NodeHandler<TTree, TIdentity> {
   const configuredSecret = options.grantSecret;
   // SAFETY: `grantSecret` is the documented direct-value or zero-argument factory union.
   const grantSecret =

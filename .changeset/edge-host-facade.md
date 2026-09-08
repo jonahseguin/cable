@@ -1,5 +1,6 @@
 ---
 "@cablejs/core": minor
+"@cablejs/adapter-node": minor
 "@cablejs/cloudflare": minor
 ---
 

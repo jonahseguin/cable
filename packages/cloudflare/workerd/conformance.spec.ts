@@ -203,12 +203,12 @@ describe("Cloudflare Durable Object conformance", () => {
     const invalidRoom = `server-push-invalid-${String(Date.now())}`;
     const invalid = await SELF.fetch(
       new Request("https://conformance.invalid/__cable_test/server-push", {
-        body: JSON.stringify({ roomId: 42, text: "invalid" }),
+        body: JSON.stringify({ roomId: invalidRoom, text: "" }),
         method: "POST",
       }),
     );
-    expect(invalid.status).toBe(400);
-    await expect(invalid.json()).resolves.toEqual({ code: "BAD_REQUEST" });
+    expect(invalid.status).toBe(503);
+    await expect(invalid.json()).resolves.toEqual({ code: "UNAVAILABLE" });
     await expect(
       runInDurableObject(
         env.CABLE_HOSTS.getByName(channelKey(conformanceChannel, { roomId: invalidRoom })),
