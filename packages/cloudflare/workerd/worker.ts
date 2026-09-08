@@ -8,6 +8,7 @@ import { c } from "@cablejs/contract";
 import {
   CableError,
   implement,
+  isCableError,
   type HostLimits,
   type PeerMessage,
   type StorageListOptions,
@@ -66,6 +67,10 @@ const edgeProcedures = implement(edgeApi)
       return { value: `${ctx.identity?.userId ?? "anonymous"}:${input.value}` };
     },
   });
+const serverPushInput = z.object({
+  roomId: z.string(),
+  text: z.string(),
+});
 const edgeHandler = createHandler(edgeApi, edgeProcedures, {
   authenticate(request, _env: ConformanceEnv): EdgeIdentity | null {
     return request.headers.get("authorization") === "Bearer edge-valid"
@@ -77,7 +82,10 @@ const edgeHandler = createHandler(edgeApi, edgeProcedures, {
   },
   credentials: { mode: "bearer" },
   grantSecret: (_env: ConformanceEnv) => grantSecret,
-  grants: () => ["connect"],
+  grants: (_identity, _key, params) => {
+    if (params.roomId === "server-push-deny") throw new CableError("FORBIDDEN");
+    return ["connect"];
+  },
   hosts(env: ConformanceEnv) {
     return [{ channel: edgeApi.room, namespace: countedNamespace(env.CABLE_HOSTS) }];
   },
@@ -171,7 +179,7 @@ export class ConformanceHost extends BaseConformanceHost {
 }
 
 export default {
-  fetch(request: Request, env: ConformanceEnv): Promise<Response> | Response {
+  async fetch(request: Request, env: ConformanceEnv): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/__cable_test/edge-state") {
       return Response.json({ lastForwarded, namedStubRequests });
@@ -180,6 +188,21 @@ export default {
       namedStubRequests = 0;
       lastForwarded = undefined;
       return new Response(null, { status: 204 });
+    }
+    if (url.pathname === "/__cable_test/server-push" && request.method === "POST") {
+      const parsed = serverPushInput.safeParse(await request.json());
+      if (!parsed.success) return Response.json({ code: "BAD_REQUEST" }, { status: 400 });
+      try {
+        const seq = await edgeHandler
+          .hosts({ env, principal: { identity: { userId: "edge-user" }, uid: "edge-user" } })
+          .room({ roomId: parsed.data.roomId })
+          .emit("message", { source: "procedure", text: parsed.data.text });
+        return Response.json({ seq });
+      } catch (error) {
+        if (isCableError(error))
+          return Response.json({ code: error.code }, { status: error.status });
+        throw error;
+      }
     }
     return edgeHandler.fetch(request, env, undefined);
   },
