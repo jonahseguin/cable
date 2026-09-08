@@ -1,5 +1,12 @@
 # @cablejs/adapter-memory
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [[`3c9cb53`](https://github.com/jonahseguin/cable/commit/3c9cb5314f36e5701d098ec3e17723ce8f4256e0)]:
+  - @cablejs/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

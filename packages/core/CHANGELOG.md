@@ -1,5 +1,11 @@
 # @cablejs/core
 
+## 0.2.0
+
+### Minor Changes
+
+- [`3c9cb53`](https://github.com/jonahseguin/cable/commit/3c9cb5314f36e5701d098ec3e17723ce8f4256e0) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Expose a trusted typed host facade for server-side channel procedures and event delivery.
+
 ## 0.1.0
 
 ### Minor Changes

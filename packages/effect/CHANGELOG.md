@@ -1,5 +1,13 @@
 # @cablejs/effect
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [[`3c9cb53`](https://github.com/jonahseguin/cable/commit/3c9cb5314f36e5701d098ec3e17723ce8f4256e0), [`638076d`](https://github.com/jonahseguin/cable/commit/638076d8a4434c68e95c5aebb5bff34b986ddb06)]:
+  - @cablejs/core@0.2.0
+  - @cablejs/client@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

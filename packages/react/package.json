@@ -1,6 +1,6 @@
 {
   "name": "@cablejs/react",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "React channel hooks and native TanStack Query options proxies.",
   "license": "MIT",
