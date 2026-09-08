@@ -26,6 +26,7 @@ const packageManifestSchema = z.object({
   name: z.string(),
   version: z.string(),
   dependencies: z.record(z.string(), z.string()).optional(),
+  devDependencies: z.record(z.string(), z.string()).optional(),
   optionalDependencies: z.record(z.string(), z.string()).optional(),
   peerDependencies: z.record(z.string(), z.string()).optional(),
   exports: z.record(z.string(), z.union([z.string(), z.record(z.string(), z.string())])).optional(),
@@ -315,6 +316,29 @@ async function runtimeImports(
   }
 }
 
+function buildWorkerdTestDependencies(
+  packages: readonly WorkspacePackage[],
+  selected: readonly WorkspacePackage[],
+): void {
+  const byName = new Map(packages.map((pkg) => [pkg.manifest.name, pkg]));
+  const built = new Set(selected.map((pkg) => pkg.manifest.name));
+
+  for (const pkg of selected) {
+    if (!workerdPackages.has(pkg.manifest.name)) continue;
+    for (const name of Object.keys(pkg.manifest.devDependencies ?? {})) {
+      if (!name.startsWith("@cablejs/") || built.has(name)) continue;
+      const dependency = byName.get(name);
+      if (dependency?.manifest.scripts?.["build"] === undefined) {
+        throw new Error(
+          `${pkg.manifest.name} workerd tests require buildable workspace dependency ${name}.`,
+        );
+      }
+      run("bun", ["run", "build"], dependency.directory);
+      built.add(name);
+    }
+  }
+}
+
 interface Arguments {
   readonly selection: "--configured" | "--all-eligible";
   readonly outputDirectory?: string;
@@ -448,6 +472,7 @@ try {
     await pack(index + 1);
   }
   await pack(0);
+  buildWorkerdTestDependencies(packages, ordered);
   await runtimeImports(ordered, tarballs);
   if (!temporary) {
     const artifacts = ordered.map((pkg) => {
