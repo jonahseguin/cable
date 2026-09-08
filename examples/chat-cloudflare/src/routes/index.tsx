@@ -1,19 +1,42 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { createCable, identityKey } from "../chat-client.js";
 import { ChatSession } from "../chat-session.js";
 import { RoomConversation, RoomStatus } from "../room-conversation.js";
 
 export const Route = createFileRoute("/")({ component: Chat });
 
 function Chat(): ReactNode {
-  const [name, setName] = useState("Guest");
+  const initialName =
+    typeof window === "undefined"
+      ? "Guest"
+      : (window.sessionStorage.getItem(identityKey) ?? "Guest");
+  const [name, setName] = useState(initialName);
+  const [draftName, setDraftName] = useState(initialName);
   const [roomId, setRoomId] = useState("lobby");
   const [error, setError] = useState<string>();
-  const reportError = useCallback((message: string) => {
-    setError(message);
+  const activeName = useRef(initialName);
+  const reportErrorFor = useCallback((owner: string, message: string) => {
+    if (activeName.current === owner) setError(message);
   }, []);
+  const reportError = useCallback(
+    (message: string) => {
+      reportErrorFor(name, message);
+    },
+    [name, reportErrorFor],
+  );
+  const commitName = useCallback(() => {
+    const next = draftName.trim();
+    setName(next.length === 0 ? "Guest" : next);
+    setError(undefined);
+  }, [draftName]);
+  useEffect(() => {
+    activeName.current = name;
+    setError(undefined);
+  }, [name]);
+  const cable = useMemo(() => createCable(name), [name]);
 
   return (
     <main className="shell">
@@ -23,16 +46,20 @@ function Chat(): ReactNode {
             <p className="eyebrow">Cable chat</p>
             <h1>Room {roomId}</h1>
           </div>
-          <RoomStatus roomId={roomId} />
+          <RoomStatus cable={cable} key={`${roomId}:${name}`} roomId={roomId} />
         </header>
         <div className="controls">
           <label>
             Name
             <input
-              value={name}
+              value={draftName}
               maxLength={48}
               onChange={(event) => {
-                setName(event.target.value);
+                setDraftName(event.target.value);
+              }}
+              onBlur={commitName}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
               }}
             />
           </label>
@@ -46,9 +73,15 @@ function Chat(): ReactNode {
             />
           </label>
         </div>
-        <ChatSession name={name} reportError={reportError} />
+        <ChatSession cable={cable} name={name} reportError={reportError} />
         {error === undefined ? undefined : <p className="error">{error}</p>}
-        <RoomConversation name={name} reportError={reportError} roomId={roomId} />
+        <RoomConversation
+          cable={cable}
+          key={`${roomId}:${name}`}
+          name={name}
+          reportError={reportError}
+          roomId={roomId}
+        />
       </section>
       <style>{styles}</style>
     </main>

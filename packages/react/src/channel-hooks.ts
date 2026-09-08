@@ -1,4 +1,10 @@
-import type { InferChannel, ChannelStatus, PresenceMember, Unsubscribe } from "@cablejs/client";
+import type {
+  ChannelEventMetadata,
+  InferChannel,
+  ChannelStatus,
+  PresenceMember,
+  Unsubscribe,
+} from "@cablejs/client";
 import type { InferServerEvent } from "@cablejs/contract";
 import { hashKey } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
@@ -48,12 +54,17 @@ export function useChannel<Params, Handle extends ChannelHookHandle>(
 export function useEvent<Handle, Event extends keyof InferChannel<Handle>["server"] & string>(
   handle: Handle,
   event: Event,
-  listener: (data: InferServerEvent<InferChannel<Handle>, Event>) => void,
+  listener: (
+    data: InferServerEvent<InferChannel<Handle>, Event>,
+    metadata: ChannelEventMetadata,
+  ) => void,
 ): void;
 export function useEvent(
-  handle: { on(event: string, listener: (data: never) => void): Unsubscribe },
+  handle: {
+    on(event: string, listener: (data: never, metadata: ChannelEventMetadata) => void): Unsubscribe;
+  },
   event: string,
-  listener: (data: never) => void,
+  listener: (data: never, metadata: ChannelEventMetadata) => void,
 ): void {
   useEffect(() => handle.on(event, listener), [event, handle, listener]);
 }

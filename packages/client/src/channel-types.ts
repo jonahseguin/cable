@@ -23,6 +23,14 @@ export type ChannelStatus = "connecting" | "open" | "resuming" | "closed";
 /** Remove a listener. Calling it more than once has no effect. */
 export type Unsubscribe = () => void;
 
+/** Transport metadata for a server event delivered to a channel listener. */
+export interface ChannelEventMetadata {
+  /** The durable sequence, when the event is recorded by the host. */
+  readonly seq?: number;
+  /** Whether the event arrived in the connection's replay. */
+  readonly replayed: boolean;
+}
+
 /** Presence belongs to a connection, with an optional authenticated user ID. */
 export interface PresenceMember<Data> {
   readonly cid: string;
@@ -45,7 +53,7 @@ export interface ChannelSubscription<Channel extends AnyChannelContract> {
   readonly status: ChannelStatus;
   on<Event extends keyof Channel["server"] & string>(
     event: Event,
-    listener: (data: InferServerEvent<Channel, Event>) => void,
+    listener: (data: InferServerEvent<Channel, Event>, metadata: ChannelEventMetadata) => void,
   ): Unsubscribe;
   on(event: "reset", listener: () => void): Unsubscribe;
   onStatus(listener: () => void): Unsubscribe;

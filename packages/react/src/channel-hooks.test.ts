@@ -56,6 +56,10 @@ function hookTypes() {
   useEvent(handle, "notice", (notice) => {
     expectTypeOf(notice).toEqualTypeOf<number>();
   });
+  useEvent(handle, "notice", (_notice, metadata) => {
+    expectTypeOf(metadata.seq).toEqualTypeOf<number | undefined>();
+    expectTypeOf(metadata.replayed).toEqualTypeOf<boolean>();
+  });
   presence.update({ online: true });
   // @ts-expect-error Channel factory parameters use the schema input, before transformation.
   useChannel(typedClient.typedRoom, { id: 1 });

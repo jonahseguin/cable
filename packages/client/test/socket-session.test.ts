@@ -190,6 +190,22 @@ describe("resumable socket sessions", () => {
     ]);
   });
 
+  it("marks targeted live events as non-replayed and non-durable", async () => {
+    const harness = new SocketHarness();
+    const connection = session(harness);
+    const metadata: { seq: number | undefined; replayed: boolean }[] = [];
+    connection.onFrame((frame, event) => {
+      if (frame.t === "evt") metadata.push({ seq: event?.seq, replayed: event?.replayed ?? false });
+    });
+    connection.start();
+    await harness.flush();
+    harness.welcome();
+    await harness.flush();
+    harness.host({ t: "evt", ev: "private", d: "hello" });
+    await harness.flush();
+    expect(metadata).toEqual([{ seq: undefined, replayed: false }]);
+  });
+
   it("rejects interrupted calls without replaying side effects on reconnect", async () => {
     const harness = new SocketHarness();
     const connection = session(harness);

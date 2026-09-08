@@ -165,7 +165,11 @@ describe.each([false, true])("channel client (hibernate: %s)", (hibernate) => {
     const fixture = await setup(hibernate);
     const channel = fixture.handle();
     const received: string[] = [];
-    channel.on("message", (text) => received.push(text));
+    const metadata: { text: string; seq: number | undefined; replayed: boolean }[] = [];
+    channel.on("message", (text, event) => {
+      received.push(text);
+      metadata.push({ text, seq: event.seq, replayed: event.replayed });
+    });
     channel.presence.update({ name: "returning" });
     await fixture.flush();
     await complete(channel.publish("before", { ack: true }), fixture.host);
@@ -180,6 +184,10 @@ describe.each([false, true])("channel client (hibernate: %s)", (hibernate) => {
     expect(fixture.sockets).toHaveLength(2);
     expect(channel.status).toBe("open");
     expect(received).toEqual(["before", "missed"]);
+    expect(metadata).toEqual([
+      { text: "before", seq: 1, replayed: false },
+      { text: "missed", seq: 2, replayed: true },
+    ]);
     expect(channel.presence.self).toEqual({ name: "returning" });
   });
 
@@ -278,6 +286,11 @@ describe.each([false, true])("channel client (hibernate: %s)", (hibernate) => {
 function channelTypes(client: Client<typeof api>, handle: ChannelHandle<typeof room>): void {
   expectTypeOf(handle.length).returns.toEqualTypeOf<Promise<string>>();
   expectTypeOf(handle.presence.self).toEqualTypeOf<{ name: string } | undefined>();
+  handle.on("message", (message, metadata) => {
+    expectTypeOf(message).toEqualTypeOf<string>();
+    expectTypeOf(metadata.seq).toEqualTypeOf<number | undefined>();
+    expectTypeOf(metadata.replayed).toEqualTypeOf<boolean>();
+  });
   // @ts-expect-error Channel parameters come from the raw schema input.
   client.room({ id: 1 });
   // @ts-expect-error Procedure input is the string before its schema transform.
@@ -292,6 +305,11 @@ function channelTypes(client: Client<typeof api>, handle: ChannelHandle<typeof r
 void channelTypes;
 
 describe("channel HTTP fallback", () => {
+  it("supports JSON inspection without invoking an unknown contract path", () => {
+    const client = createClient({ contract: api });
+    expect(() => JSON.stringify({ client })).not.toThrow();
+  });
+
   it("calls a host procedure without opening a socket and refreshes credentials", async () => {
     let token = "first";
     const requests: Request[] = [];

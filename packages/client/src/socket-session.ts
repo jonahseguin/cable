@@ -1,7 +1,13 @@
 import { CableError, decodeHostFrame, encodeClientFrame, encodeInput } from "@cablejs/core";
 import type { ClientFrame, HostFrame, RpcCall } from "@cablejs/core";
 
-import type { ChannelSocket, ChannelStatus, SocketOptions, Unsubscribe } from "./channel-types.js";
+import type {
+  ChannelEventMetadata,
+  ChannelSocket,
+  ChannelStatus,
+  SocketOptions,
+  Unsubscribe,
+} from "./channel-types.js";
 
 /** Connection credentials are fetched again for every reconnect attempt. */
 export interface SocketSessionOptions extends SocketOptions {
@@ -37,7 +43,7 @@ function textMessage(event: MessageEvent): event is MessageEvent<string> {
 /** One physical connection and resumable cursor, shared by channel handles. */
 export class SocketSession {
   private readonly options: SocketSessionOptions;
-  private readonly frames = new Set<(frame: HostFrame) => void>();
+  private readonly frames = new Set<(frame: HostFrame, metadata?: ChannelEventMetadata) => void>();
   private readonly statuses = new Set<() => void>();
   private readonly errors = new Set<(error: Error) => void>();
   private readonly pending = new Map<string, PendingRequest>();
@@ -76,7 +82,7 @@ export class SocketSession {
     return this.currentStatus;
   }
 
-  onFrame(listener: (frame: HostFrame) => void): Unsubscribe {
+  onFrame(listener: (frame: HostFrame, metadata?: ChannelEventMetadata) => void): Unsubscribe {
     this.frames.add(listener);
     return () => {
       this.frames.delete(listener);
@@ -212,7 +218,7 @@ export class SocketSession {
   private receive(frame: HostFrame | "pong"): void {
     this.lastActivity = Date.now();
     if (frame === "pong") {
-      this.awaitingPong = false;
+      this.receivePong();
       return;
     }
     if (frame.t === "welcome") {
@@ -220,32 +226,58 @@ export class SocketSession {
       return;
     }
     if (frame.t === "bye") {
-      this.stopped = frame.retry === undefined;
-      this.retryDelay = frame.retry;
-      this.socket?.close(frame.code, frame.reason);
-      this.disconnected();
+      this.receiveBye(frame);
       return;
     }
+    this.receiveOpenFrame(frame);
+  }
+
+  private receivePong(): void {
+    this.awaitingPong = false;
+  }
+
+  private receiveBye(frame: Extract<HostFrame, { t: "bye" }>): void {
+    this.stopped = frame.retry === undefined;
+    this.retryDelay = frame.retry;
+    this.socket?.close(frame.code, frame.reason);
+    this.disconnected();
+  }
+
+  private receiveOpenFrame(frame: Exclude<HostFrame, { t: "welcome" | "bye" }>): void {
     if (this.currentStatus !== "open")
       throw new CableError("PARSE_ERROR", { message: "Expected welcome before live frames." });
     if (frame.t === "err") {
-      this.reportError(new CableError(frame.code, frame));
+      this.receiveError(frame);
       return;
     }
     if (frame.t === "res") {
-      const pending = this.pending.get(frame.id);
-      if (pending === undefined) return;
-      this.pending.delete(frame.id);
-      clearTimeout(pending.timer);
-      if (frame.ok) pending.resolve(frame.d);
-      else pending.reject(new CableError(frame.e.code, frame.e));
+      this.receiveResult(frame);
       return;
     }
     if (frame.t === "ev") {
-      if (this.cursor !== undefined && frame.seq <= this.cursor) return;
-      this.saveCursor(frame.seq);
+      this.receiveEvent(frame);
+      return;
     }
-    this.notify(frame);
+    this.notify(frame, { replayed: false });
+  }
+
+  private receiveError(frame: Extract<HostFrame, { t: "err" }>): void {
+    this.reportError(new CableError(frame.code, frame));
+  }
+
+  private receiveResult(frame: Extract<HostFrame, { t: "res" }>): void {
+    const pending = this.pending.get(frame.id);
+    if (pending === undefined) return;
+    this.pending.delete(frame.id);
+    clearTimeout(pending.timer);
+    if (frame.ok) pending.resolve(frame.d);
+    else pending.reject(new CableError(frame.e.code, frame.e));
+  }
+
+  private receiveEvent(frame: Extract<HostFrame, { t: "ev" }>): void {
+    if (this.cursor !== undefined && frame.seq <= this.cursor) return;
+    this.saveCursor(frame.seq);
+    this.notify(frame, { replayed: false, seq: frame.seq });
   }
 
   private validateWelcome(frame: Extract<HostFrame, { t: "welcome" }>): void {
@@ -269,7 +301,7 @@ export class SocketSession {
       if (event.seq > frame.seq) throw new CableError("PARSE_ERROR");
       if (this.cursor !== undefined && event.seq <= this.cursor) continue;
       this.saveCursor(event.seq);
-      this.notify(event);
+      this.notify(event, { replayed: true, seq: event.seq });
     }
     this.notify(frame);
     if (frame.more === true || this.stopped || this.socket === undefined) return;
@@ -391,10 +423,10 @@ export class SocketSession {
     }
   }
 
-  private notify(frame: HostFrame): void {
+  private notify(frame: HostFrame, metadata?: ChannelEventMetadata): void {
     for (const listener of this.frames) {
       try {
-        listener(frame);
+        listener(frame, metadata);
       } catch (cause) {
         this.reportError(cause instanceof Error ? cause : new Error("Event observer failed"));
       }

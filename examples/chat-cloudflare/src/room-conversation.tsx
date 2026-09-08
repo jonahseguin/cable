@@ -1,12 +1,43 @@
 import { useChannel, useChannelStatus, useEvent, usePresence } from "@cablejs/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
-import { cable } from "./chat-client.js";
+import type { createCable } from "./chat-client.js";
+
+type ChatHistoryEvent = {
+  readonly at: number;
+  readonly d: { readonly text: string; readonly user: string };
+  readonly ev: "message";
+  readonly seq: number;
+};
+
+type ChatHistoryPage = {
+  readonly events: readonly ChatHistoryEvent[];
+  readonly nextCursor?: number;
+};
+
+function mergeHistory(
+  page: ChatHistoryPage,
+  additions: readonly ChatHistoryEvent[],
+): ChatHistoryPage {
+  const events = new Map(page.events.map((event) => [event.seq, event]));
+  for (const event of additions) events.set(event.seq, event);
+  return {
+    ...page,
+    // oxlint-disable-next-line unicorn/no-array-sort -- History order is a new array built above.
+    events: Array.from(events.values()).sort((left, right) => left.seq - right.seq),
+  };
+}
 
 /** Shows the current transport state for one room. */
-export function RoomStatus({ roomId }: { readonly roomId: string }): ReactNode {
+export function RoomStatus({
+  cable,
+  roomId,
+}: {
+  readonly cable: ReturnType<typeof createCable>;
+  readonly roomId: string;
+}): ReactNode {
   const room = useChannel(cable.chat, { roomId });
   const status = useChannelStatus(room);
   return <span className={`status status-${status}`}>{status}</span>;
@@ -14,10 +45,12 @@ export function RoomStatus({ roomId }: { readonly roomId: string }): ReactNode {
 
 /** Displays one channel instance and owns its history, presence, and send flow. */
 export function RoomConversation({
+  cable,
   name,
   reportError,
   roomId,
 }: {
+  readonly cable: ReturnType<typeof createCable>;
   readonly name: string;
   readonly reportError: (message: string) => void;
   readonly roomId: string;
@@ -26,7 +59,9 @@ export function RoomConversation({
   const queryClient = useQueryClient();
   const room = useChannel(cable.chat, { roomId });
   const status = useChannelStatus(room);
-  const presence = usePresence(room);
+  // oxlint-disable-next-line typescript/unbound-method -- The hook owns the channel methods and returns a stable updater.
+  const { others, update: updatePresence } = usePresence(room);
+  const pendingLive = useRef(new Map<number, ChatHistoryEvent>());
   const historyKey = useMemo(() => ["cable", "chat.history", roomId] as const, [roomId]);
   const history = useQuery({
     enabled: typeof window !== "undefined",
@@ -35,21 +70,37 @@ export function RoomConversation({
   });
 
   useEffect(() => {
-    presence.update({ name });
-  }, [name, presence]);
+    updatePresence({ name });
+  }, [name, updatePresence]);
 
-  useEvent(room, "message", (message) => {
+  useEvent(room, "message", (message, metadata) => {
+    if (metadata.seq === undefined) return;
+    const next = {
+      at: Date.now(),
+      d: message,
+      ev: "message" as const,
+      seq: metadata.seq,
+    };
+    pendingLive.current.set(next.seq, next);
+    while (pendingLive.current.size > 100) {
+      const oldest = Math.min(...Array.from(pendingLive.current.keys()));
+      pendingLive.current.delete(oldest);
+    }
     queryClient.setQueryData(historyKey, (page: typeof history.data) => {
       if (page === undefined) return page;
-      const next = {
-        at: Date.now(),
-        d: message,
-        ev: "message" as const,
-        seq: page.events.at(-1)?.seq ?? 0,
-      };
-      return { ...page, events: [...page.events, next] };
+      pendingLive.current.delete(next.seq);
+      return mergeHistory(page, [next]);
     });
   });
+
+  useEffect(() => {
+    if (history.data === undefined || pendingLive.current.size === 0) return;
+    const pending = Array.from(pendingLive.current.values());
+    queryClient.setQueryData(historyKey, (page: typeof history.data) => {
+      for (const event of pending) pendingLive.current.delete(event.seq);
+      return mergeHistory(page, pending);
+    });
+  }, [history.data, historyKey, queryClient]);
 
   useEffect(
     () =>
@@ -69,7 +120,7 @@ export function RoomConversation({
       text: event.d.text,
       user: event.d.user,
     })) ?? [];
-  const members = presence.others.map((member) => member.d.name);
+  const members = others.map((member) => member.d.name);
 
   function send(event: { preventDefault(): void }): void {
     event.preventDefault();

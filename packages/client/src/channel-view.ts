@@ -3,14 +3,16 @@ import { CableError } from "@cablejs/core";
 import type { PresenceEntry, RpcCall } from "@cablejs/core";
 
 import type { ChannelPool, ManagedChannel } from "./channel-pool.js";
-import type { ChannelStatus, Unsubscribe } from "./channel-types.js";
+import type { ChannelEventMetadata, ChannelStatus, Unsubscribe } from "./channel-types.js";
 
 const noMembers: readonly PresenceEntry[] = Object.freeze([]);
 
 function isString(value: string | symbol): value is string {
   return typeof value === "string";
 }
-function isListener(value: RpcCall["input"]): value is (data: RpcCall["input"]) => void {
+function isListener(
+  value: RpcCall["input"],
+): value is (data: RpcCall["input"], metadata?: ChannelEventMetadata) => void {
   return typeof value === "function";
 }
 function isAck(value: RpcCall["input"]): value is { readonly ack: true } {
@@ -75,8 +77,9 @@ export class ChannelView {
     if (event !== "reset" && !Object.hasOwn(this.contract.server, event))
       throw new TypeError(`Unknown server event: ${event}`);
     return this.subscribe((managed) =>
-      managed.session.onFrame((frame) => {
-        if ((frame.t === "ev" || frame.t === "evt") && frame.ev === event) listener(frame.d);
+      managed.session.onFrame((frame, metadata) => {
+        if ((frame.t === "ev" || frame.t === "evt") && frame.ev === event)
+          listener(frame.d, metadata ?? { replayed: false });
         else if (
           event === "reset" &&
           frame.t === "welcome" &&

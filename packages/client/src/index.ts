@@ -20,6 +20,7 @@ export type {
 export type { Link, LinkContext, LinkHandler, NextLink } from "./link.js";
 export type {
   ChannelHandle,
+  ChannelEventMetadata,
   ChannelHistoryEvent,
   ChannelHistoryPage,
   InferChannel,

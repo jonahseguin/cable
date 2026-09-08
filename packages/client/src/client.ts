@@ -120,6 +120,24 @@ const unavailable: NextLink = () =>
 
 type ProxyCall = (input?: RpcCall["input"]) => RpcSuccess["data"];
 
+const noProxyIntrinsic = Symbol("noProxyIntrinsic");
+type ProxyIntrinsic = typeof noProxyIntrinsic | undefined | (() => object) | (() => string);
+
+function proxyIntrinsic(target: () => undefined, key: string): ProxyIntrinsic {
+  switch (key) {
+    case "toJSON":
+      return undefined;
+    case "valueOf":
+      return target.valueOf.bind(target);
+    case "toString":
+      return target.toString.bind(target);
+    case "toLocaleString":
+      return target.toLocaleString.bind(target);
+    default:
+      return noProxyIntrinsic;
+  }
+}
+
 /** Create a lazy, contract-shaped client. No request is made until an operation is called. */
 export function createClient<Tree extends AnyContract>(options: ClientOptions<Tree>): Client<Tree> {
   const contract = clientContract(options.contract);
@@ -176,6 +194,11 @@ export function createClient<Tree extends AnyContract>(options: ClientOptions<Tr
     const child = new Proxy(() => undefined, {
       get(_target, key) {
         if (!isStringKey(key) || key === "then") return undefined;
+        const intrinsic = proxyIntrinsic(_target, key);
+        if (intrinsic !== noProxyIntrinsic) {
+          const node = contract === undefined ? undefined : findNode(contract, [...path, key]);
+          if (node === undefined) return intrinsic;
+        }
         return proxy([...path, key]);
       },
       apply(_target, _receiver, args: RpcCall["input"][]) {
