@@ -1,5 +1,18 @@
 # @cablejs/cloudflare
 
+## 0.2.0
+
+### Minor Changes
+
+- [`22b7caf`](https://github.com/jonahseguin/cable/commit/22b7caffb4b89c11f3e2f30f46758c60a9ba7020) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Expose the production Durable Object base class so applications can extend a generated Cable host with typed RPC methods and lifecycle hooks.
+
+- [`3c9cb53`](https://github.com/jonahseguin/cable/commit/3c9cb5314f36e5701d098ec3e17723ce8f4256e0) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Expose a trusted typed host facade for server-side channel procedures and event delivery.
+
+### Patch Changes
+
+- Updated dependencies [[`3c9cb53`](https://github.com/jonahseguin/cable/commit/3c9cb5314f36e5701d098ec3e17723ce8f4256e0)]:
+  - @cablejs/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

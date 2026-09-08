@@ -1,6 +1,6 @@
 {
   "name": "@cablejs/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "Portable procedure runtime, wire codec, Host interfaces, and durable channel engine.",
   "license": "MIT",
