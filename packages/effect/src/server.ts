@@ -126,7 +126,8 @@ function toPromiseHandlers<
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(handlers)) {
     if (isEffectHandler<TEnvironment>(value)) {
-      result[key] = async (options: unknown) => runEffect(value(options), layer);
+      result[key] = async (options: unknown) =>
+        runEffect(value(options), layer, handlerSignal(options));
       continue;
     }
     if (isRecord(value)) result[key] = toPromiseHandlerRecord(value, layer);
@@ -144,7 +145,8 @@ function toPromiseHandlerRecord<TEnvironment, TLayerError>(
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(handlers)) {
     if (isEffectHandler<TEnvironment>(value))
-      result[key] = async (options: unknown) => runEffect(value(options), layer);
+      result[key] = async (options: unknown) =>
+        runEffect(value(options), layer, handlerSignal(options));
     else if (isRecord(value)) result[key] = toPromiseHandlerRecord(value, layer);
   }
   return result;
@@ -153,8 +155,10 @@ function toPromiseHandlerRecord<TEnvironment, TLayerError>(
 export async function runEffect<TOutput, TError, TEnvironment, TLayerError>(
   effect: Effect.Effect<TOutput, TError, TEnvironment>,
   layer: Layer.Layer<TEnvironment, TLayerError>,
+  signal?: AbortSignal,
 ): Promise<TOutput> {
-  const exit = await Effect.runPromiseExit(Effect.provide(effect, layer, { local: true }));
+  const options = signal === undefined ? undefined : { signal };
+  const exit = await Effect.runPromiseExit(Effect.provide(effect, layer, { local: true }), options);
   if (Exit.isSuccess(exit)) return exit.value;
 
   const failure = exit.cause.reasons.find(Cause.isFailReason);
@@ -173,4 +177,18 @@ function isEffectHandler<TEnvironment>(
   value: unknown,
 ): value is (options: unknown) => Effect.Effect<unknown, unknown, TEnvironment> {
   return typeof value === "function";
+}
+
+function handlerSignal(value: unknown): AbortSignal | undefined {
+  if (!isRecord(value)) return undefined;
+  const signal = value["signal"];
+  return isAbortSignal(signal) ? signal : undefined;
+}
+
+function isAbortSignal(value: unknown): value is AbortSignal {
+  return (
+    isRecord(value) &&
+    typeof value["aborted"] === "boolean" &&
+    typeof value["addEventListener"] === "function"
+  );
 }

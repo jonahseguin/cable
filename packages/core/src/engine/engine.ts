@@ -26,6 +26,7 @@ import {
   type ResultFrame,
   type WelcomeFrame,
 } from "../channel-protocol.js";
+import { diagnosticFailure, observeDiagnostic } from "../diagnostics.js";
 import { CableError, isCableError } from "../errors.js";
 import { verifyGrant, type VerifiedGrantClaims } from "../grant.js";
 import type {
@@ -319,6 +320,7 @@ class ChannelEngine<
     }
     const record = await this.loadRecord(connection, attachment);
     if (record === undefined) return;
+    let reset = false;
     try {
       await this.delivery.run(async () => {
         const current = connection.attachment.get();
@@ -327,6 +329,7 @@ class ChannelEngine<
         }
         connection.attachment.set(withPhase(current, "resuming", frame.since));
         const snapshot = await this.readWelcomeSnapshot(record, current.cid, frame.since);
+        reset = snapshot.reset === true;
         for (const welcome of chunkWelcome(
           current.cid,
           snapshot.sequence,
@@ -347,6 +350,7 @@ class ChannelEngine<
         "connect hook",
         connection,
       );
+      this.observeConnection("connecting", "open", reset);
     } catch (error) {
       await this.report(error, "hello", connection);
       this.close(connection, CLOSE_PROTOCOL, "Handshake failed");
@@ -358,20 +362,30 @@ class ChannelEngine<
     record: ConnectionRecord<TChannel, TIdentity>,
     frame: EmitFrame,
   ): Promise<void> {
+    const startedAt = this.host.now();
     const event = this.clientEvents.get(frame.ev);
     if (event === undefined) {
+      this.observeOperationFailure(
+        startedAt,
+        "channel event",
+        "channel-socket",
+        new CableError("NOT_FOUND"),
+      );
       this.sendOperationError(connection, frame.id, {
         code: "NOT_FOUND",
         message: "Event not found",
       });
       return;
     }
+    const name = this.operationName("event", frame.ev);
     try {
       const input = await validate(event.input, frame.d);
       await event.handler(this.erasedConnectionContext(connection, record), input);
+      this.observeOperationSuccess(startedAt, name, "channel-socket");
       if (frame.id !== undefined) this.send(connection, { id: frame.id, ok: true, t: "res" });
     } catch (error) {
-      await this.report(error, `client event ${frame.ev}`, connection);
+      this.observeOperationFailure(startedAt, name, "channel-socket", error);
+      await this.reportOperationError(error, `client event ${frame.ev}`, connection);
       this.sendOperationError(connection, frame.id, await channelError(error, event.errors));
     }
   }
@@ -391,13 +405,29 @@ class ChannelEngine<
     record: ConnectionRecord<TChannel, TIdentity>,
     connection?: Connection,
   ): Promise<ProcedureResult> {
+    const startedAt = this.host.now();
+    const transport = connection === undefined ? "channel-peer" : "channel-socket";
     if (name === "history.load") {
-      return this.executeHistory(inputValue, record, connection);
+      return this.executeHistory(
+        inputValue,
+        record,
+        connection,
+        startedAt,
+        transport,
+        this.operationName("procedure", "history.load"),
+      );
     }
     const procedure = this.procedures.get(name);
     if (procedure === undefined) {
+      this.observeOperationFailure(
+        startedAt,
+        "channel procedure",
+        transport,
+        new CableError("NOT_FOUND"),
+      );
       return { error: { code: "NOT_FOUND", message: "Procedure not found" }, ok: false };
     }
+    const operation = this.operationName("procedure", name);
     try {
       const input = await validate(procedure.contract.input, inputValue);
       const output = await procedure.handler(
@@ -406,9 +436,11 @@ class ChannelEngine<
       );
       const data = await validate(procedure.contract.output, output);
       assertJsonData(data, "INTERNAL");
+      this.observeOperationSuccess(startedAt, operation, transport);
       return { data, ok: true };
     } catch (error) {
-      await this.report(error, `channel procedure ${name}`, connection);
+      this.observeOperationFailure(startedAt, operation, transport, error);
+      await this.reportOperationError(error, `channel procedure ${name}`, connection);
       return { error: await channelError(error, procedure.contract.errors), ok: false };
     }
   }
@@ -417,15 +449,23 @@ class ChannelEngine<
     input: RpcCall["input"],
     record: ConnectionRecord<TChannel, TIdentity>,
     connection?: Connection,
+    startedAt = this.host.now(),
+    transport: "channel-peer" | "channel-socket" = connection === undefined
+      ? "channel-peer"
+      : "channel-socket",
+    operation = this.operationName("procedure", "history.load"),
   ): Promise<ProcedureResult> {
     if (this.channel.history === undefined) {
+      this.observeOperationFailure(startedAt, operation, transport, new CableError("NOT_FOUND"));
       return { error: { code: "NOT_FOUND", message: "History is not enabled" }, ok: false };
     }
     try {
       const query = parseHistoryInput(input);
       const data = await this.loadHistory(query, record, connection?.attachment.get()?.cid);
+      this.observeOperationSuccess(startedAt, operation, transport);
       return { data, ok: true };
     } catch (error) {
+      this.observeOperationFailure(startedAt, operation, transport, error);
       return { error: await channelError(error, {}), ok: false };
     }
   }
@@ -503,6 +543,7 @@ class ChannelEngine<
         "disconnect hook",
         connection,
       );
+      if (attachment.phase === "ready") this.observeConnection("open", "closed");
     }
   }
 
@@ -929,6 +970,21 @@ class ChannelEngine<
   }
 
   private async report(error: unknown, operation: string, connection?: Connection): Promise<void> {
+    observeDiagnostic(this.options.diagnostics, {
+      at: this.host.now(),
+      failure: diagnosticFailure(error),
+      operation,
+      runtime: "server" as const,
+      type: "fault",
+    });
+    await this.reportOperationError(error, operation, connection);
+  }
+
+  private async reportOperationError(
+    error: unknown,
+    operation: string,
+    connection?: Connection,
+  ): Promise<void> {
     try {
       const context =
         connection === undefined ? { error, operation } : { connection, error, operation };
@@ -936,6 +992,61 @@ class ChannelEngine<
     } catch {
       // Error reporting is observational and cannot change engine state.
     }
+  }
+
+  private operationName(kind: "event" | "procedure", name: string): string {
+    return `${this.channel.pattern}.${kind}.${name}`;
+  }
+
+  private observeConnection(
+    previous: "connecting" | "open",
+    state: "open" | "closed",
+    reset = false,
+  ): void {
+    const event = {
+      at: this.host.now(),
+      previous,
+      runtime: "server" as const,
+      state,
+      transport: "channel-socket" as const,
+      type: "connection" as const,
+    };
+    if (reset) Object.assign(event, { reset: true as const });
+    observeDiagnostic(this.options.diagnostics, event);
+  }
+
+  private observeOperationSuccess(
+    startedAt: number,
+    name: string,
+    transport: "channel-peer" | "channel-socket",
+  ): void {
+    observeDiagnostic(this.options.diagnostics, {
+      durationMs: Math.max(0, this.host.now() - startedAt),
+      name,
+      outcome: "ok",
+      runtime: "server",
+      startedAt,
+      transport,
+      type: "operation",
+    });
+  }
+
+  private observeOperationFailure(
+    startedAt: number,
+    name: string,
+    transport: "channel-peer" | "channel-socket",
+    error: unknown,
+  ): void {
+    observeDiagnostic(this.options.diagnostics, {
+      durationMs: Math.max(0, this.host.now() - startedAt),
+      failure: diagnosticFailure(error),
+      name,
+      outcome: "error",
+      runtime: "server",
+      startedAt,
+      transport,
+      type: "operation",
+    });
   }
 
   private erasedTimerContext(): ChannelTimerContext<AnyChannelContract, object> {

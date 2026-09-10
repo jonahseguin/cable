@@ -12,16 +12,23 @@ import type {
   QueryTransport,
 } from "@cablejs/contract";
 import { CableError } from "@cablejs/core";
-import type { BuiltinCode, RpcCall, RpcSuccess } from "@cablejs/core";
+import type { BuiltinCode, CableDiagnostics, RpcCall, RpcSuccess } from "@cablejs/core";
 
 import { batchLink } from "./batch-link.js";
 import { ChannelPool } from "./channel-pool.js";
 import type { ChannelHandle, SocketOptions } from "./channel-types.js";
-import type { Link, NextLink } from "./link.js";
+import { abortError, isAborted, type Link, type LinkContext, type NextLink } from "./link.js";
+
+/** Options that control one HTTP procedure request. */
+export interface ProcedureCallOptions {
+  readonly signal?: AbortSignal;
+}
 
 /** Raw schema inputs accepted by a client operation; void inputs may be omitted. */
 export type ProcedureArguments<Node extends AnyProcedureContract> =
-  undefined extends InferInput<Node> ? [input?: InferInput<Node>] : [input: InferInput<Node>];
+  undefined extends InferInput<Node>
+    ? [input?: InferInput<Node>, options?: ProcedureCallOptions]
+    : [input: InferInput<Node>, options?: ProcedureCallOptions];
 
 /** Every transport and declared error a procedure call may reject with. */
 export type ProcedureError<Node extends AnyProcedureContract> = CableError<
@@ -62,6 +69,7 @@ export interface ClientOptions<Tree extends AnyContract = AnyContract> {
   readonly fetch?: typeof globalThis.fetch;
   readonly headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
   readonly auth?: ClientAuth;
+  readonly diagnostics?: CableDiagnostics;
   readonly onError?: (error: Error, call: RpcCall) => void;
 }
 
@@ -73,6 +81,30 @@ function isHeadersFactory(
   headers: ClientOptions["headers"],
 ): headers is () => HeadersInit | Promise<HeadersInit> {
   return typeof headers === "function";
+}
+
+function createLinkContext<Tree extends AnyContract>(
+  options: ClientOptions<Tree>,
+  contract: ContractTree | undefined,
+): LinkContext {
+  const context: LinkContext = {
+    url: options.url ?? "/_cable",
+    transport(path: string): QueryTransport | undefined {
+      return contract === undefined ? undefined : findTransport(contract, path);
+    },
+    fetch: options.fetch ?? globalThis.fetch,
+    async headers(): Promise<Headers> {
+      const headers = new Headers(
+        isHeadersFactory(options.headers) ? await options.headers() : options.headers,
+      );
+      const token = await options.auth?.token();
+      if (token !== undefined) headers.set("authorization", `Bearer ${token}`);
+      return headers;
+    },
+  };
+  return options.diagnostics === undefined
+    ? context
+    : { ...context, diagnostics: options.diagnostics };
 }
 
 function isBranch(node: ContractTree | ContractNode): node is ContractTree {
@@ -113,6 +145,30 @@ function reportError(options: ClientOptions, error: Error, call: RpcCall): void 
   }
 }
 
+function procedureOptions(value: RpcCall["input"]): ProcedureCallOptions | undefined {
+  if (value === undefined) return undefined;
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Validate cross-realm option objects at this boundary.
+  if (typeof value !== "object" || value === null || !Object.hasOwn(value, "signal")) {
+    throw new TypeError("Procedure options must contain an AbortSignal.");
+  }
+  const signal: unknown = Object.getOwnPropertyDescriptor(value, "signal")?.value;
+  if (signal !== undefined && !isAbortSignal(signal)) {
+    throw new TypeError("Procedure options signal must be an AbortSignal.");
+  }
+  return signal === undefined ? {} : { signal };
+}
+
+function isAbortSignal(value: unknown): value is AbortSignal {
+  if (typeof AbortSignal === "function" && value instanceof AbortSignal) return true;
+  if (typeof value !== "object" || value === null) return false;
+  // SAFETY: The candidate is only used for structural AbortSignal validation; no value is trusted beyond these two members.
+  const candidate = value as {
+    readonly aborted?: unknown;
+    readonly addEventListener?: unknown;
+  };
+  return typeof candidate.aborted === "boolean" && typeof candidate.addEventListener === "function";
+}
+
 const unavailable: NextLink = () =>
   Promise.reject(
     new CableError("UNAVAILABLE", { message: "No transport link handled the request." }),
@@ -142,21 +198,7 @@ function proxyIntrinsic(target: () => undefined, key: string): ProxyIntrinsic {
 export function createClient<Tree extends AnyContract>(options: ClientOptions<Tree>): Client<Tree> {
   const contract = clientContract(options.contract);
   let nextId = 0;
-  const context = {
-    url: options.url ?? "/_cable",
-    transport(path: string): QueryTransport | undefined {
-      return contract === undefined ? undefined : findTransport(contract, path);
-    },
-    fetch: options.fetch ?? globalThis.fetch,
-    async headers(): Promise<Headers> {
-      const headers = new Headers(
-        isHeadersFactory(options.headers) ? await options.headers() : options.headers,
-      );
-      const token = await options.auth?.token();
-      if (token !== undefined) headers.set("authorization", `Bearer ${token}`);
-      return headers;
-    },
-  };
+  const context = createLinkContext(options, contract);
   const links = (options.links ?? [batchLink()]).map((link) => link(context));
   const execute = links.reduceRight<NextLink>(
     (next, link) => (call) => link(call, next),
@@ -168,8 +210,12 @@ export function createClient<Tree extends AnyContract>(options: ClientOptions<Tr
   async function executeProcedure(
     path: readonly string[],
     input: RpcCall["input"],
+    signal?: AbortSignal,
   ): Promise<RpcSuccess["data"]> {
-    const call: RpcCall = { id: String(++nextId), path: path.join("."), input };
+    const call: RpcCall =
+      signal === undefined
+        ? { id: String(++nextId), path: path.join("."), input }
+        : { id: String(++nextId), path: path.join("."), input, signal };
     try {
       const result = await execute(call);
       if (result.id !== call.id)
@@ -179,6 +225,11 @@ export function createClient<Tree extends AnyContract>(options: ClientOptions<Tr
       if (!result.ok) throw new CableError(result.error.code, result.error);
       return result.data;
     } catch (cause) {
+      if (isAborted(signal)) {
+        const error = abortError(signal);
+        reportError(options, error, call);
+        throw error;
+      }
       const error = cause instanceof CableError ? cause : new CableError("UNAVAILABLE", { cause });
       reportError(options, error, call);
       throw error;
@@ -210,7 +261,7 @@ export function createClient<Tree extends AnyContract>(options: ClientOptions<Tr
             "Call query or mutate; channel factories require runtime contract metadata.",
           );
         }
-        return executeProcedure(path.slice(0, -1), args[0]);
+        return executeProcedure(path.slice(0, -1), args[0], procedureOptions(args[1])?.signal);
       },
     });
     proxies.set(pathKey, child);

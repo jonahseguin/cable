@@ -1,5 +1,11 @@
-import { CableError, decodeHostFrame, encodeClientFrame, encodeInput } from "@cablejs/core";
-import type { ClientFrame, HostFrame, RpcCall } from "@cablejs/core";
+import {
+  CableError,
+  decodeHostFrame,
+  encodeClientFrame,
+  encodeInput,
+  observeDiagnostic,
+} from "@cablejs/core";
+import type { CableDiagnostics, ClientFrame, HostFrame, RpcCall } from "@cablejs/core";
 
 import type {
   ChannelEventMetadata,
@@ -11,6 +17,7 @@ import type {
 
 /** Connection credentials are fetched again for every reconnect attempt. */
 export interface SocketSessionOptions extends SocketOptions {
+  readonly diagnostics?: CableDiagnostics;
   readonly url: string;
   readonly key: string;
   readonly params: RpcCall["input"];
@@ -305,17 +312,17 @@ export class SocketSession {
     }
     this.notify(frame);
     if (frame.more === true || this.stopped || this.socket === undefined) return;
-    this.finishWelcome(frame.seq);
+    this.finishWelcome(frame.seq, frame.reset === true);
   }
 
-  private finishWelcome(seq: number): void {
+  private finishWelcome(seq: number, reset: boolean): void {
     this.saveCursor(seq);
     this.replayHead = undefined;
     this.replayReset = undefined;
     this.attempt = 0;
     clearTimeout(this.handshakeTimer);
     this.handshakeTimer = undefined;
-    this.setStatus("open");
+    this.setStatus("open", reset);
     if (this.stopped || this.socket === undefined) return;
     for (const pending of this.pending.values()) {
       if (!pending.sent) {
@@ -412,8 +419,21 @@ export class SocketSession {
     this.awaitingPong = false;
   }
 
-  private setStatus(status: ChannelStatus): void {
+  private setStatus(status: ChannelStatus, reset = false): void {
+    const previous = this.currentStatus;
     this.currentStatus = status;
+    if (previous !== status || reset) {
+      const event = {
+        at: Date.now(),
+        previous,
+        runtime: "client" as const,
+        state: status,
+        transport: "channel-socket" as const,
+        type: "connection" as const,
+      };
+      if (reset) Object.assign(event, { reset: true as const });
+      observeDiagnostic(this.options.diagnostics, event);
+    }
     for (const listener of this.statuses) {
       try {
         listener();

@@ -6,6 +6,7 @@ export type {
   ChannelFactory,
   ClientAuth,
   ClientOptions,
+  ProcedureCallOptions,
   ProcedureArguments,
   ProcedureClient,
   ProcedureError,

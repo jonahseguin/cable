@@ -204,6 +204,75 @@ describe("runtime contract metadata", () => {
     expect(caches[1]).not.toContain("public");
   });
 
+  it("passes procedure abort signals to HTTP fetches", async () => {
+    const contract = c.contract({
+      cached: c.query({
+        input: z.void(),
+        output: z.string(),
+        transport: { method: "GET" },
+      }),
+      write: c.mutation({ input: z.string(), output: z.string() }),
+    });
+    const runtime = implement(contract)
+      .context<Record<never, never>>()
+      .procedures({ cached: () => "cached", write: ({ input }) => input });
+    const handler = createRpcHandler(runtime, { context: () => ({}) });
+    const seen: (AbortSignal | null | undefined)[] = [];
+    const client = createClient({
+      contract,
+      fetch: async (url, init) => {
+        seen.push(init?.signal);
+        const request = new Request(
+          new URL(url instanceof Request ? url.url : url, "https://example.test"),
+          {
+            ...init,
+          },
+        );
+        return handler.fetch(request);
+      },
+    });
+    const cachedController = new AbortController();
+    const writeController = new AbortController();
+    await expect(client.cached.query(undefined, { signal: cachedController.signal })).resolves.toBe(
+      "cached",
+    );
+    await expect(client.write.mutate("saved", { signal: writeController.signal })).resolves.toBe(
+      "saved",
+    );
+    expect(seen).toEqual([cachedController.signal, writeController.signal]);
+  });
+
+  it("does not start an aborted GET and reports one cancellation", async () => {
+    const contract = c.contract({
+      cached: c.query({
+        input: z.void(),
+        output: z.string(),
+        transport: { method: "GET" },
+      }),
+    });
+    const controller = new AbortController();
+    controller.abort(new Error("before send"));
+    let requests = 0;
+    const events: string[] = [];
+    const client = createClient({
+      contract,
+      diagnostics: {
+        observe: (event) => {
+          if (event.type === "operation") events.push(event.outcome);
+        },
+      },
+      fetch: async () => {
+        requests += 1;
+        return new Response();
+      },
+    });
+    await expect(client.cached.query(undefined, { signal: controller.signal })).rejects.toThrow(
+      "before send",
+    );
+    expect(requests).toBe(0);
+    expect(events).toEqual(["cancelled"]);
+  });
+
   it.each(["HTTP", "memory"])("preserves schema transforms over %s", async (transport) => {
     const contract = c.contract({
       convert: c.query({

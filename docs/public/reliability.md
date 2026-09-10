@@ -25,3 +25,5 @@ An acknowledged event or channel procedure rejects when its connection breaks be
 Presence follows the same connection lifecycle but is not part of the durable event log. A reconnect creates a new presence member. Targeted events sent with `emitTo` are also transient unless the host explicitly uses `{ log: true }`.
 
 Use `onStatus` and `onError` for UI state. A status of `closed` does not prove the remote host lost data. It says this handle has no active managed connection.
+
+HTTP procedures accept an `AbortSignal` for caller-owned cancellation. Cable removes an aborted queued call and keeps calls with different signals in separate batches. Server cancellation is cooperative: a handler must observe its signal, and an aborted client does not imply that a mutation rolled back. Channel sockets have no cancellation frame; acknowledged channel work still follows the connection failure boundary above.

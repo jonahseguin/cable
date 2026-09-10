@@ -129,13 +129,16 @@ export class ChannelPool {
     const { key } = await resolveChannel(channel, raw);
     let managed = this.channels.get(key);
     if (managed === undefined) {
-      const session = new SocketSession({
+      const sessionOptions = {
         ...this.options,
         key,
         params: raw,
         url: this.context.url,
         token: this.token,
-      });
+      };
+      if (this.context.diagnostics !== undefined)
+        Object.assign(sessionOptions, { diagnostics: this.context.diagnostics });
+      const session = new SocketSession(sessionOptions);
       managed = new ManagedChannel(session, key, raw);
       this.channels.set(key, managed);
     }

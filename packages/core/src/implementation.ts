@@ -13,6 +13,7 @@ import {
   type InferSchemaOutput,
 } from "@cablejs/contract";
 
+import { diagnosticFailure, observeDiagnostic, type CableDiagnostics } from "./diagnostics.js";
 import { BUILTIN_CODES, CableError, isCableError, type BuiltinCode } from "./errors.js";
 import {
   assertJsonData,
@@ -52,6 +53,7 @@ export interface ProcedureHandlerOptions<
 > {
   readonly ctx: TContext;
   readonly input: InferSchemaOutput<TProcedure["input"]>;
+  readonly signal?: AbortSignal;
 }
 
 /** A server implementation for one contract procedure. */
@@ -172,6 +174,8 @@ export interface ProcedureErrorContext<TContext extends object> {
 export interface ProcedureOptions<TContext extends object> {
   /** Observe procedure failures on the server. Hook failures are ignored. */
   readonly onError?: (details: ProcedureErrorContext<TContext>) => Promise<void> | void;
+  /** Receive best-effort terminal observations without affecting procedure work. */
+  readonly diagnostics?: CableDiagnostics;
 }
 
 /** Validation options fixed when a contract implementation begins. */
@@ -343,14 +347,45 @@ function createProcedures<
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated tree construction establishes every caller key and function.
       return caller as ProcedureCaller<TTree>;
     },
-    async execute(call: RpcCall, context: TInitialContext): Promise<RpcResult> {
+    async execute(
+      call: RpcCall,
+      context: TInitialContext,
+      signal?: AbortSignal,
+    ): Promise<RpcResult> {
+      const startedAt = Date.now();
+      let cancelled = false;
       const procedure = registry.get(call.path);
+      const diagnosticName = procedure === undefined ? "unresolved" : call.path;
+      const observeResult = (result: RpcResult): RpcResult => {
+        const base = {
+          durationMs: Math.max(0, Date.now() - startedAt),
+          name: diagnosticName,
+          runtime: "server" as const,
+          startedAt,
+          transport: "rpc" as const,
+          type: "operation" as const,
+        };
+        if (cancelled) {
+          observeDiagnostic(options.diagnostics, { ...base, outcome: "cancelled" });
+        } else if (result.ok) {
+          observeDiagnostic(options.diagnostics, { ...base, outcome: "ok" });
+        } else {
+          observeDiagnostic(options.diagnostics, {
+            ...base,
+            failure: diagnosticFailure(new CableError(result.error.code, result.error)),
+            outcome: "error",
+          });
+        }
+        return result;
+      };
       if (procedure === undefined) {
-        return failure(call.id, {
-          code: "NOT_FOUND",
-          message: "Procedure not found",
-          status: 404,
-        });
+        return observeResult(
+          failure(call.id, {
+            code: "NOT_FOUND",
+            message: "Procedure not found",
+            status: 404,
+          }),
+        );
       }
 
       let input: RpcCall["input"];
@@ -359,20 +394,27 @@ function createProcedures<
         input = await validate(procedure.contract.input, call.input);
       } catch (error) {
         await reportError(options.onError, { context, error, input: call.input, path: call.path });
-        return failure(call.id, errorToWire(error));
+        return observeResult(failure(call.id, errorToWire(error)));
       }
 
       try {
-        const result = await invokeMiddleware(procedure.middleware, 0, context, procedure, input);
+        const result = await invokeMiddleware(
+          procedure.middleware,
+          0,
+          context,
+          procedure,
+          input,
+          signal,
+        );
         if (!validateOutput) {
           assertJsonData(result.data, "INTERNAL");
-          return { data: result.data, id: call.id, ok: true };
+          return observeResult({ data: result.data, id: call.id, ok: true });
         }
 
         try {
           const output = await validate(procedure.contract.output, result.data);
           assertJsonData(output, "INTERNAL");
-          return { data: output, id: call.id, ok: true };
+          return observeResult({ data: output, id: call.id, ok: true });
         } catch (error) {
           await reportError(options.onError, {
             context,
@@ -380,11 +422,14 @@ function createProcedures<
             input: call.input,
             path: call.path,
           });
-          return failure(call.id, internalWireError());
+          return observeResult(failure(call.id, internalWireError()));
         }
       } catch (error) {
+        cancelled = isAbortCause(error, signal);
         await reportError(options.onError, { context, error, input: call.input, path: call.path });
-        return failure(call.id, await handlerErrorToWire(error, procedure.contract.errors));
+        return observeResult(
+          failure(call.id, await handlerErrorToWire(error, procedure.contract.errors)),
+        );
       }
     },
     transport(path: string): { readonly cache?: string; readonly method: "GET" } | undefined {
@@ -392,6 +437,13 @@ function createProcedures<
     },
   };
   return runtime;
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Abort causes are inspected without exposing their contents.
+function isAbortCause(error: unknown, signal: AbortSignal | undefined): boolean {
+  if (signal?.aborted !== true) return false;
+  if (error === signal.reason) return true;
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function createResolver<
@@ -430,10 +482,13 @@ async function invokeMiddleware(
   context: RuntimeContext,
   procedure: RuntimeProcedure,
   input: RpcCall["input"],
+  signal?: AbortSignal,
 ): Promise<MiddlewareResult<RuntimeContext>> {
   const current = middleware[index];
   if (current === undefined) {
-    const data = await procedure.handler({ ctx: context, input });
+    const data = await procedure.handler(
+      signal === undefined ? { ctx: context, input } : { ctx: context, input, signal },
+    );
     return { data };
   }
   let calledNext = false;
@@ -444,7 +499,7 @@ async function invokeMiddleware(
         throw new CableError("INTERNAL", { message: "Middleware called next more than once" });
       }
       calledNext = true;
-      return invokeMiddleware(middleware, index + 1, ctx, procedure, input);
+      return invokeMiddleware(middleware, index + 1, ctx, procedure, input, signal);
     },
   });
 }

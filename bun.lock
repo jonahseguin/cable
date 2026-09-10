@@ -86,18 +86,19 @@
     },
     "packages/adapter-memory": {
       "name": "@cablejs/adapter-memory",
-      "version": "0.0.0",
+      "version": "0.1.1",
       "dependencies": {
         "@cablejs/contract": "workspace:*",
         "@cablejs/core": "workspace:*",
       },
       "devDependencies": {
         "@cablejs/conformance": "workspace:*",
+        "zod": "4.5.4",
       },
     },
     "packages/adapter-node": {
       "name": "@cablejs/adapter-node",
-      "version": "0.0.0",
+      "version": "0.2.0",
       "dependencies": {
         "@cablejs/contract": "workspace:*",
         "@cablejs/core": "workspace:*",
@@ -112,7 +113,7 @@
     },
     "packages/client": {
       "name": "@cablejs/client",
-      "version": "0.0.0",
+      "version": "0.2.0",
       "dependencies": {
         "@cablejs/contract": "workspace:*",
         "@cablejs/core": "workspace:*",
@@ -124,7 +125,7 @@
     },
     "packages/cloudflare": {
       "name": "@cablejs/cloudflare",
-      "version": "0.0.0",
+      "version": "0.2.0",
       "dependencies": {
         "@cablejs/contract": "workspace:*",
         "@cablejs/core": "workspace:*",
@@ -155,7 +156,7 @@
     },
     "packages/contract": {
       "name": "@cablejs/contract",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@standard-schema/spec": "1.1.0",
       },
@@ -165,7 +166,7 @@
     },
     "packages/core": {
       "name": "@cablejs/core",
-      "version": "0.0.0",
+      "version": "0.2.0",
       "dependencies": {
         "@cablejs/contract": "workspace:*",
       },
@@ -175,7 +176,7 @@
     },
     "packages/effect": {
       "name": "@cablejs/effect",
-      "version": "0.0.0",
+      "version": "0.1.1",
       "dependencies": {
         "@cablejs/client": "workspace:*",
         "@cablejs/contract": "workspace:*",
@@ -189,7 +190,7 @@
     },
     "packages/react": {
       "name": "@cablejs/react",
-      "version": "0.0.0",
+      "version": "0.2.0",
       "dependencies": {
         "@cablejs/client": "workspace:*",
       },

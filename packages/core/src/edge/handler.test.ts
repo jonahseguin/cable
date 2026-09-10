@@ -2,8 +2,9 @@ import { c } from "@cablejs/contract";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import type { CableDiagnosticEvent } from "../diagnostics.js";
 import type { HostKey, PeerMessage, SignedGrant } from "../host.js";
-import { CableError, implement, verifyGrant } from "../index.js";
+import { CableError, encodeBatch, implement, verifyGrant } from "../index.js";
 import { createEdgeHandler } from "./handler.js";
 import type { EdgeHostTransport } from "./types.js";
 
@@ -76,14 +77,17 @@ class VoidTransport implements EdgeHostTransport<UpgradeExecution, void> {
 
 function handler(
   transport: Transport,
-  options: { readonly authenticate?: () => { readonly userId: string } | null } = {},
+  options: {
+    readonly authenticate?: () => { readonly userId: string } | null;
+    readonly diagnostics?: (event: CableDiagnosticEvent) => void;
+  } = {},
 ) {
   let grantSecrets = 0;
-  const edge = createEdgeHandler(contract, procedures, {
+  const edgeOptions = {
     authenticate: () =>
       options.authenticate === undefined ? { userId: "user-1" } : options.authenticate(),
-    context: ({ request }) => ({ request }),
-    credentials: { mode: "cookie", origins: ["https://app.example.com"] },
+    context: ({ request }: { readonly request: Request }) => ({ request }),
+    credentials: { mode: "cookie" as const, origins: ["https://app.example.com"] },
     grantSecret: () => {
       grantSecrets += 1;
       return secret;
@@ -91,7 +95,10 @@ function handler(
     grants: () => ["connect"],
     hosts: () => [{ channel, transport }],
     now: () => now,
-  });
+  };
+  if (options.diagnostics !== undefined)
+    Object.assign(edgeOptions, { diagnostics: { observe: options.diagnostics } });
+  const edge = createEdgeHandler(contract, procedures, edgeOptions);
   return { edge, grantSecrets: () => grantSecrets };
 }
 
@@ -112,6 +119,38 @@ function hostCallRequest(): Request {
 }
 
 describe("portable edge handler", () => {
+  it("passes the incoming HTTP signal through the public edge RPC route", async () => {
+    const rpcContract = c.contract({ ping: c.query({ input: z.void(), output: z.string() }) });
+    let observedSignal: AbortSignal | undefined;
+    const rpcProcedures = implement(rpcContract)
+      .context<Record<never, never>>()
+      .procedures({
+        ping: ({ signal }) => {
+          observedSignal = signal;
+          return "pong";
+        },
+      });
+    const edge = createEdgeHandler(rpcContract, rpcProcedures, {
+      authenticate: () => ({ userId: "user-1" }),
+      context: () => ({}),
+      credentials: { mode: "bearer" },
+      grantSecret: () => secret,
+      hosts: () => [],
+    });
+    const response = await edge.fetch(
+      new Request("https://example.test/_cable/rpc", {
+        body: encodeBatch({ calls: [{ id: "ping", input: undefined, path: "ping" }] }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+      undefined,
+      undefined,
+    );
+    expect(response.status).toBe(200);
+    expect(observedSignal).toBeInstanceOf(AbortSignal);
+    expect(observedSignal?.aborted).toBe(false);
+  });
+
   it("creates a typed trusted host facade with canonical keys and grants", async () => {
     const transport = new Transport();
     transport.peerResult = { seq: 1 };
@@ -308,5 +347,28 @@ describe("portable edge handler", () => {
       ok: false,
     });
     expect(transport.peers).toHaveLength(4);
+  });
+
+  it("does not expose an unknown host procedure route through diagnostics", async () => {
+    const transport = new Transport();
+    const diagnostics: unknown[] = [];
+    transport.peerResult = new Error("network down");
+    const { edge } = handler(transport, { diagnostics: (event) => diagnostics.push(event) });
+    const response = await edge.fetch(
+      new Request("https://example.test/_cable/host/room%3ALOBBY/private-route-secret", {
+        body: JSON.stringify({ input: "private-input-secret", params: "lobby" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+      {},
+      undefined,
+    );
+
+    expect(response.status).toBe(404);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ operation: "host procedure", type: "fault" }),
+    ]);
+    expect(JSON.stringify(diagnostics)).not.toContain("private-route-secret");
+    expect(JSON.stringify(diagnostics)).not.toContain("private-input-secret");
   });
 });

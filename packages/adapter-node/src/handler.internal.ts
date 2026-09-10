@@ -19,6 +19,8 @@ import { WebSocketServer } from "ws";
 
 import type { NodeRuntime, NodeHandlerHost, NodePreparedUpgrade } from "./runtime.js";
 
+const nodeRequestCleanup = new WeakMap<Request, () => void>();
+
 /** Node values retained only for one native WebSocket upgrade. */
 export interface NodeUpgradeExecution {
   readonly head: Buffer;
@@ -88,18 +90,28 @@ export function createNodeHandlerWithRuntime<
       return edge.hosts(input);
     },
     async request(request, response) {
-      const result = await edge.fetch(nodeRequest(request), undefined, undefined);
-      if (result === undefined)
-        throw new Error("A Node HTTP request completed without a Response.");
-      await writeResponse(response, result);
+      const webRequest = nodeRequest(request, response);
+      try {
+        const result = await edge.fetch(webRequest, undefined, undefined);
+        if (result === undefined)
+          throw new Error("A Node HTTP request completed without a Response.");
+        await writeResponse(response, result);
+      } finally {
+        nodeRequestCleanup.get(webRequest)?.();
+      }
     },
     async upgrade(request, socket, head) {
-      const result = await edge.fetch(nodeRequest(request), undefined, {
-        head,
-        request,
-        socket,
-      });
-      if (result !== undefined) await writeUpgradeResponse(socket, result);
+      const webRequest = nodeRequest(request);
+      try {
+        const result = await edge.fetch(webRequest, undefined, {
+          head,
+          request,
+          socket,
+        });
+        if (result !== undefined) await writeUpgradeResponse(socket, result);
+      } finally {
+        nodeRequestCleanup.get(webRequest)?.();
+      }
     },
     async shutdown() {
       await runtime.shutdown();
@@ -166,7 +178,28 @@ function acceptWebSocket(
 }
 
 /** Convert one Node request at the package's HTTP boundary. */
-export function nodeRequest(request: IncomingMessage): Request {
+export function nodeRequest(request: IncomingMessage, response?: ServerResponse): Request {
+  const abort = new AbortController();
+  const onAborted = (): void => {
+    abort.abort();
+  };
+  const onSocketClose = (): void => {
+    if (response?.writableFinished === true) return;
+    abort.abort();
+  };
+  const cleanup = (): void => {
+    request.off("aborted", onAborted);
+    request.socket.off("close", onSocketClose);
+    if (response !== undefined) response.off("finish", cleanup);
+  };
+  if (request.destroyed && !request.complete) abort.abort();
+  else request.once("aborted", onAborted);
+  request.socket.once("close", onSocketClose);
+  if (response !== undefined) response.once("finish", cleanup);
+  const rememberCleanup = (webRequest: Request): Request => {
+    nodeRequestCleanup.set(webRequest, cleanup);
+    return webRequest;
+  };
   const host = request.headers.host ?? "localhost";
   const url = new URL(request.url ?? "/", `http://${host}`);
   const headers = new Headers();
@@ -174,14 +207,23 @@ export function nodeRequest(request: IncomingMessage): Request {
     if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(", ") : value);
   }
   const method = request.method ?? "GET";
-  if (method === "GET" || method === "HEAD") return new Request(url, { headers, method });
+  if (method === "GET" || method === "HEAD")
+    return rememberCleanup(new Request(url, { headers, method, signal: abort.signal }));
   // SAFETY: Node's `Readable.toWeb()` produces the runtime ReadableStream that
   // Node's global Request consumes. Its declaration uses Node's duplicate stream types.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node's runtime stream matches the Request body contract.
   const body = Readable.toWeb(request) as BodyInit;
   // SAFETY: Node requires `duplex: "half"` for a streamed request body, which is omitted
   // from the DOM RequestInit declaration used by this package.
-  return new Request(url, { body, headers, method, duplex: "half" } as RequestInit);
+  return rememberCleanup(
+    new Request(url, {
+      body,
+      headers,
+      method,
+      duplex: "half",
+      signal: abort.signal,
+    } as RequestInit),
+  );
 }
 
 async function writeResponse(response: ServerResponse, result: Response): Promise<void> {

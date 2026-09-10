@@ -19,9 +19,15 @@ interface TestContext {
 
 class TestRuntime implements RpcRuntime<TestContext> {
   public readonly seen: Array<{ call: RpcCall; context: TestContext }> = [];
+  public readonly signals: Array<AbortSignal | undefined> = [];
 
-  public async execute(call: RpcCall, context: TestContext): Promise<RpcResult> {
+  public async execute(
+    call: RpcCall,
+    context: TestContext,
+    signal?: AbortSignal,
+  ): Promise<RpcResult> {
     this.seen.push({ call, context });
+    this.signals.push(signal);
     if (call.path === "fail" || call.path === "read-fail") {
       return {
         error: { code: "CONFLICT", message: "Conflict", status: 409 },
@@ -168,6 +174,30 @@ describe("createRpcHandler", () => {
     );
     expect(rejected.status).toBe(404);
     expect(runtime.seen).toHaveLength(1);
+  });
+
+  it("passes the request signal to POST and GET runtime calls", async () => {
+    const runtime = new TestRuntime();
+    const handler = createRpcHandler(runtime, {
+      context: () => ({ requestId: "request-signal" }),
+    });
+    const postController = new AbortController();
+    await handler.fetch(
+      new Request("https://example.test/_cable/rpc", {
+        body: encodeBatch({ calls: [{ id: "post", input: 1, path: "ok" }] }),
+        method: "POST",
+        signal: postController.signal,
+      }),
+    );
+    const getController = new AbortController();
+    await handler.fetch(
+      new Request("https://example.test/_cable/rpc/read", {
+        method: "GET",
+        signal: getController.signal,
+      }),
+    );
+    expect(runtime.signals).toHaveLength(2);
+    expect(runtime.signals.every((signal) => signal?.aborted === false)).toBe(true);
   });
 
   it("returns a bounded error for malformed batch JSON", async () => {

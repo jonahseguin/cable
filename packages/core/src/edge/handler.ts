@@ -3,6 +3,7 @@ and adapter results are narrowed at this runtime-neutral edge boundary. */
 import type { ContractTree } from "@cablejs/contract";
 
 import { resolveChannel } from "../channel-key.js";
+import { diagnosticFailure, observeDiagnostic } from "../diagnostics.js";
 import { CableError, isCableError } from "../errors.js";
 import { signGrant } from "../grant.js";
 import type { GrantClaims, HostKey } from "../host.js";
@@ -92,7 +93,7 @@ export function createEdgeHandler<
                   request: contextRequest,
                 });
               } catch (error) {
-                await report(options, error, "RPC context", contextRequest);
+                await reportOnError(options, error, "RPC context", contextRequest);
                 throw error;
               }
             },
@@ -228,7 +229,7 @@ async function handleHostCall<
     const data = await callEdgeHost(context, route.procedure, body.input);
     return rpcResultResponse({ data, id: "host", ok: true }, 200);
   } catch (error) {
-    await report(options, error, `host procedure ${route.procedure}`, request);
+    await report(options, error, "host procedure", request);
     const wire = wireError(error);
     return rpcResultResponse({ error: wire, id: "host", ok: false }, wire.status);
   }
@@ -454,6 +455,29 @@ function edgeFailureResponse(error: unknown): Response {
 }
 
 async function report<
+  TTree extends ContractTree,
+  TContext extends object,
+  TEnv,
+  TExecution,
+  TIdentity,
+  TUpgrade extends EdgeUpgrade,
+>(
+  options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity, TUpgrade>,
+  error: unknown,
+  operation: string,
+  request: Request,
+): Promise<void> {
+  observeDiagnostic(options.diagnostics, {
+    at: readNow(options.now),
+    failure: diagnosticFailure(error),
+    operation,
+    runtime: "server",
+    type: "fault",
+  });
+  await reportOnError(options, error, operation, request);
+}
+
+async function reportOnError<
   TTree extends ContractTree,
   TContext extends object,
   TEnv,

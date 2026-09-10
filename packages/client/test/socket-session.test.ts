@@ -1,6 +1,6 @@
 import { MemorySocket } from "@cablejs/adapter-memory";
 import { decodeClientFrame } from "@cablejs/core";
-import type { ClientWireFrame, RpcCall } from "@cablejs/core";
+import type { CableDiagnosticEvent, ClientWireFrame, RpcCall } from "@cablejs/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SocketSession } from "../src/socket-session.js";
@@ -84,6 +84,48 @@ afterEach(() => {
 });
 
 describe("resumable socket sessions", () => {
+  it("reports reconnect and reset transitions without channel parameters", async () => {
+    const harness = new SocketHarness();
+    const events: CableDiagnosticEvent[] = [];
+    const connection = session(harness, {
+      diagnostics: {
+        observe: (event) => {
+          events.push(event);
+        },
+      },
+    });
+    vi.setSystemTime(0);
+
+    connection.start();
+    await harness.flush();
+    harness.welcome(3);
+    await harness.flush();
+    harness.socket.terminate();
+    await harness.flush();
+    await vi.advanceTimersByTimeAsync(100);
+    await harness.flush();
+    harness.host({
+      cid: "cid-2",
+      presence: [],
+      replay: [],
+      reset: true,
+      seq: 3,
+      t: "welcome",
+      v: 1,
+    });
+    await harness.flush();
+
+    expect(events).toMatchObject([
+      { previous: "closed", runtime: "client", state: "connecting", type: "connection" },
+      { previous: "connecting", runtime: "client", state: "open", type: "connection" },
+      { previous: "open", runtime: "client", state: "closed", type: "connection" },
+      { previous: "closed", runtime: "client", state: "resuming", type: "connection" },
+      { previous: "resuming", reset: true, runtime: "client", state: "open", type: "connection" },
+    ]);
+    expect(events.at(-1)).not.toHaveProperty("key");
+    expect(events.at(-1)).not.toHaveProperty("params");
+  });
+
   it("does not start heartbeat timers after queued frame encoding fails", async () => {
     const harness = new SocketHarness();
     const connection = session(harness);

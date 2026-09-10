@@ -8,6 +8,7 @@ import type {
   InferSchemaInput,
 } from "@cablejs/contract";
 
+import type { CableDiagnostics } from "../diagnostics.js";
 import type { GrantSecret } from "../grant.js";
 import type { HostKey, PeerMessage, SignedGrant } from "../host.js";
 import type { ImplementedProcedures, MaybePromise } from "../implementation.js";
@@ -165,6 +166,8 @@ export interface EdgeHandlerOptions<
     input: EdgeContextInput<TTree, TEnv, TExecution, TIdentity>,
   ) => MaybePromise<TContext>;
   readonly credentials: EdgeCredentials;
+  /** Best-effort, privacy-safe observations for edge-only failures. */
+  readonly diagnostics?: CableDiagnostics;
   readonly grantSecret: (env: TEnv) => MaybePromise<GrantSecret>;
   readonly grantTtlMs?: number;
   readonly grants?: EdgeGrants<TIdentity>;

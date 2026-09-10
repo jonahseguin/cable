@@ -7,6 +7,16 @@ export {
   type CableErrorOptions,
 } from "./errors.js";
 export {
+  diagnosticFailure,
+  observeDiagnostic,
+  type CableDiagnosticEvent,
+  type CableDiagnostics,
+  type ConnectionDiagnosticEvent,
+  type DiagnosticFailure,
+  type FaultDiagnosticEvent,
+  type OperationDiagnosticEvent,
+} from "./diagnostics.js";
+export {
   signGrant,
   verifyGrant,
   type GrantErrorData,

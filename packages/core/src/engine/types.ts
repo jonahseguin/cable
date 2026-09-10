@@ -7,6 +7,7 @@ import type {
 } from "@cablejs/contract";
 
 import type { ChannelWireError } from "../channel-protocol.js";
+import type { CableDiagnostics } from "../diagnostics.js";
 import type { GrantSecret } from "../grant.js";
 import type { Connection, HostKey, Peers, Storage } from "../host.js";
 import type { MaybePromise } from "../implementation.js";
@@ -204,6 +205,8 @@ export interface ChannelImplementation<
 export interface EngineOptions {
   /** Bytes already queued on a socket before the engine reconnects it for replay. */
   readonly backpressureBytes?: number;
+  /** Best-effort, privacy-safe operation and connection observations. */
+  readonly diagnostics?: CableDiagnostics;
   /** HMAC key used to verify short-lived edge grants. */
   readonly grantSecret: GrantSecret;
   /** Time allowed for the first hello frame. Defaults to 10 seconds. */

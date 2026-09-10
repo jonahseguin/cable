@@ -80,6 +80,21 @@ async function setup() {
 }
 
 describe("effect client", () => {
+  it("aborts an HTTP procedure when its Effect fiber is interrupted", async () => {
+    let signal: AbortSignal | undefined;
+    const raw = createClient({
+      contract: api,
+      fetch: async (_url, init) => {
+        signal = init?.signal ?? undefined;
+        return new Promise<Response>(() => undefined);
+      },
+    });
+    const fiber = Effect.runFork(effectClient(api, raw).posts.create.mutate("pending"));
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    await Effect.runPromise(Fiber.interrupt(fiber));
+    expect(signal?.aborted).toBe(true);
+  });
+
   it("turns procedure rejections into declared Cable failures", async () => {
     const client = effectClient(
       api,

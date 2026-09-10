@@ -21,6 +21,20 @@ await client.posts.create.mutate({ title: "A new post" });
 
 Concurrent procedure calls share a POST batch. The default batch has a limit of 20 requests or 10 milliseconds. `batchLink({ maxBatch, maxWait })` changes those limits.
 
+## Cancel an HTTP procedure
+
+Pass an `AbortSignal` as the second argument when a view no longer needs a query or mutation:
+
+```ts
+const controller = new AbortController();
+const pending = client.posts.list.query({ limit: 20 }, { signal: controller.signal });
+
+controller.abort();
+await pending.catch(() => undefined);
+```
+
+An aborted call is removed from a queued batch, and a different signal starts a separate batch. The server receives the request signal when its runtime supports it; handlers must observe `signal.aborted` or the signal's abort event for cooperative cancellation. Cancellation does not roll back a mutation, retry it, or add cancellation frames to channel sockets.
+
 ## Enable channels
 
 Pass the runtime contract when the client uses channels. A channel handle opens its socket when the application subscribes, sends an event, or updates presence.

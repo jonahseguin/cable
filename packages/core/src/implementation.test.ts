@@ -2,6 +2,7 @@ import { c } from "@cablejs/contract";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import type { CableDiagnosticEvent } from "./diagnostics.js";
 import { CableError } from "./errors.js";
 import { implement, type ProcedureErrorContext } from "./implementation.js";
 import { createRpcHandler, decodeBatchResponse, encodeBatch } from "./rpc.js";
@@ -64,6 +65,65 @@ function createTestProcedures(
 }
 
 describe("implement", () => {
+  it("exposes the HTTP execution signal to a procedure handler", async () => {
+    const contract = c.contract({
+      observe: c.query({ input: z.void(), output: z.boolean() }),
+    });
+    let received: AbortSignal | undefined;
+    const procedures = implement(contract)
+      .context<Record<never, never>>()
+      .procedures({
+        observe: ({ signal }) => {
+          received = signal;
+          return true;
+        },
+      });
+    const signal = new AbortController().signal;
+    await expect(
+      procedures.execute({ id: "signal", input: undefined, path: "observe" }, {}, signal),
+    ).resolves.toEqual({ data: true, id: "signal", ok: true });
+    expect(received).toBe(signal);
+  });
+
+  it("observes cooperative abort as cancelled without exposing a wire error", async () => {
+    const diagnostics: CableDiagnosticEvent[] = [];
+    const contract = c.contract({
+      observe: c.query({ input: z.void(), output: z.boolean() }),
+    });
+    const procedures = implement(contract)
+      .context<Record<never, never>>()
+      .procedures(
+        {
+          observe: ({ signal }) => {
+            if (signal?.aborted === true) throw signal.reason;
+            return true;
+          },
+        },
+        {
+          diagnostics: {
+            observe: (event) => {
+              diagnostics.push(event);
+            },
+          },
+        },
+      );
+    const controller = new AbortController();
+    controller.abort(new DOMException("Stopped", "AbortError"));
+    await expect(
+      procedures.execute(
+        { id: "cancelled", input: undefined, path: "observe" },
+        {},
+        controller.signal,
+      ),
+    ).resolves.toMatchObject({ error: { code: "INTERNAL" }, ok: false });
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      name: "observe",
+      outcome: "cancelled",
+      type: "operation",
+    });
+  });
+
   it("parses transformed input, threads middleware context, and parses output", async () => {
     const procedures = createTestProcedures();
     const result = await procedures.execute(

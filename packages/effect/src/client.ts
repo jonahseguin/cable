@@ -88,7 +88,10 @@ export type EffectClient<TTree> = {
 
 type ClientCursorValue = {
   readonly [key: string]: ClientCursorValue | undefined;
-  (input?: RpcCall["input"]): Promise<RpcSuccess["data"]> | ChannelHandle<AnyChannelContract>;
+  (
+    input?: RpcCall["input"],
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<RpcSuccess["data"]> | ChannelHandle<AnyChannelContract>;
 };
 
 class ClientCursor {
@@ -116,9 +119,10 @@ class ClientCursor {
   procedure<TProcedure extends AnyProcedureContract>(
     operation: "query" | "mutate",
     input: InferInput<TProcedure>,
+    signal?: AbortSignal,
   ): Promise<InferOutput<TProcedure>> {
     const method = this.child(operation).value;
-    const result = method(input);
+    const result = method(input, signal === undefined ? undefined : { signal });
     // SAFETY: effectTree selects query or mutate from the matching branded procedure node; Client<TTree> validates its output at the transport boundary.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The selected Client<TTree> procedure resolves InferOutput<TProcedure>.
     return result as Promise<InferOutput<TProcedure>>;
@@ -183,10 +187,10 @@ function cableFailure(cause: unknown): CableError<string> {
 }
 
 function effectFrom<Result>(
-  operation: () => Result | PromiseLike<Result>,
+  operation: (signal: AbortSignal) => Result | PromiseLike<Result>,
 ): Effect.Effect<Result, CableError<string>> {
   return Effect.tryPromise({
-    try: () => Promise.resolve().then(operation),
+    try: (signal) => Promise.resolve().then(() => operation(signal)),
     catch: cableFailure,
   });
 }
@@ -255,7 +259,7 @@ function effectTree(contract: ContractTree, client: ClientCursor): EffectOwner {
       const operation = node.kind === "query" ? "query" : "mutate";
       defineEffectMember(result, name, {
         [operation]: (...args: ProcedureArguments<typeof node>) =>
-          effectFrom(() => member.procedure<typeof node>(operation, args[0])),
+          effectFrom((signal) => member.procedure<typeof node>(operation, args[0], signal)),
       });
       continue;
     }

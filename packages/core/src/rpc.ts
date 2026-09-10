@@ -8,6 +8,8 @@ export interface RpcCall {
   readonly id: string;
   readonly input: unknown;
   readonly path: string;
+  /** Transport-local cancellation metadata; never encoded into JSON. */
+  readonly signal?: AbortSignal;
 }
 
 /** An error safe to serialize across the RPC transport. */
@@ -47,7 +49,7 @@ export interface RpcBatchResponse {
 
 /** The procedure runtime consumed by HTTP and in-memory transports. */
 export interface RpcRuntime<TContext extends object> {
-  execute(call: RpcCall, context: TContext): Promise<RpcResult>;
+  execute(call: RpcCall, context: TContext, signal?: AbortSignal): Promise<RpcResult>;
   transport(path: string): { readonly cache?: string; readonly method: "GET" } | undefined;
 }
 
@@ -86,7 +88,9 @@ export function encodeBatch(batch: RpcBatch): string {
   for (const call of batch.calls) {
     assertJsonData(call.input, "BAD_REQUEST");
   }
-  return encodeJson(batch);
+  return encodeJson({
+    calls: batch.calls.map(({ id, input, path }) => ({ id, input, path })),
+  });
 }
 
 /** Encode one GET input, or omit the query parameter for void input. */
@@ -202,7 +206,7 @@ async function handlePost<TContext extends object>(
     }
     const context = await createContext(request);
     const results = await Promise.all(
-      batch.calls.map((call) => executeIndependently(runtime, call, context)),
+      batch.calls.map((call) => executeIndependently(runtime, call, context, request.signal)),
     );
     return jsonResponse(encodeBatchResponse({ results }), 200);
   } catch (error) {
@@ -234,7 +238,7 @@ async function handleGet<TContext extends object>(
 
     const input = decodeGetInput(url.searchParams.get("input"), maxBodyBytes);
     const context = await createContext(request);
-    const result = await runtime.execute({ id: "get", input, path }, context);
+    const result = await runtime.execute({ id: "get", input, path }, context, request.signal);
     return getResultResponse(normalizeRuntimeResult(result, "get"), transport.cache);
   } catch (error) {
     return fatalResponse(error);
@@ -256,9 +260,10 @@ async function executeIndependently<TContext extends object>(
   runtime: RpcRuntime<TContext>,
   call: RpcCall,
   context: TContext,
+  signal?: AbortSignal,
 ): Promise<RpcResult> {
   try {
-    const result = await runtime.execute(call, context);
+    const result = await runtime.execute(call, context, signal);
     return normalizeRuntimeResult(result, call.id);
   } catch {
     return internalResult(call.id);
