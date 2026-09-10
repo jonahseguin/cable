@@ -1,6 +1,6 @@
 {
   "name": "@cablejs/cloudflare",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "description": "Durable Objects host, authenticated edge handler, and workerd conformance.",
   "license": "MIT",

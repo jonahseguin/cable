@@ -1,6 +1,6 @@
 {
   "name": "@cablejs/contract",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Contract DSL, Standard Schema types, and inference helpers. Zero runtime dependencies.",
   "license": "MIT",

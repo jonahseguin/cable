@@ -1,6 +1,6 @@
 {
   "name": "@cablejs/client",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "description": "Typed procedure proxy, HTTP links, and per-host resumable sockets.",
   "license": "MIT",
