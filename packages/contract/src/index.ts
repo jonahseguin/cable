@@ -29,6 +29,26 @@ export type EmptyErrorMap = Readonly<Record<never, never>>;
 /** The two procedure execution modes supported by the contract. */
 export type ProcedureKind = "mutation" | "query";
 
+/** HTTP methods available to an optional REST procedure route. */
+export type HttpMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
+
+/** Successful JSON response statuses supported by REST procedure routes. */
+export type HttpSuccessStatus = 200 | 201 | 202;
+
+/** An OpenAPI-compatible security requirement used for documentation only. */
+export type HttpSecurityRequirement = Readonly<Record<string, readonly string[]>>;
+
+/** Data-only REST route and OpenAPI metadata for one global procedure. */
+export interface HttpProcedureOptions<TKind extends ProcedureKind = ProcedureKind> {
+  readonly method: TKind extends "query" ? "GET" : Exclude<HttpMethod, "GET">;
+  readonly operationId?: string;
+  readonly path: string;
+  readonly security?: readonly HttpSecurityRequirement[];
+  readonly successStatus?: HttpSuccessStatus;
+  readonly summary?: string;
+  readonly tags?: readonly string[];
+}
+
 /** The shallow marker shared by every procedure and channel built by cable. */
 export interface ContractNode {
   readonly [contractNodeBrand]: true;
@@ -48,6 +68,7 @@ export interface ProcedureContract<
   TErrors extends ErrorMap = ErrorMap,
 > extends ContractNode {
   readonly errors: TErrors;
+  readonly http?: HttpProcedureOptions<TKind>;
   readonly input: TInput;
   readonly kind: TKind;
   readonly output: TOutput;
@@ -296,6 +317,7 @@ export interface QueryDefinitionBase<
   TInput extends AnyStandardSchema,
   TOutput extends AnyStandardSchema,
 > {
+  readonly http?: HttpProcedureOptions<"query">;
   readonly input: TInput;
   readonly output: TOutput;
   readonly transport?: QueryTransport;
@@ -323,6 +345,7 @@ export interface MutationDefinitionBase<
   TInput extends AnyStandardSchema,
   TOutput extends AnyStandardSchema,
 > {
+  readonly http?: HttpProcedureOptions<"mutation">;
   readonly input: TInput;
   readonly output: TOutput;
   readonly transport?: never;
@@ -347,10 +370,19 @@ export interface MutationDefinitionWithErrors<
 
 interface RuntimeQueryContract {
   errors: ErrorMap;
+  http?: HttpProcedureOptions<"query">;
   input: AnyStandardSchema;
   kind: "query";
   output: AnyStandardSchema;
   transport?: QueryTransport;
+}
+
+interface RuntimeMutationContract {
+  errors: ErrorMap;
+  http?: HttpProcedureOptions<"mutation">;
+  input: AnyStandardSchema;
+  kind: "mutation";
+  output: AnyStandardSchema;
 }
 
 interface RuntimeChannelContract {
@@ -448,9 +480,15 @@ export function isProcedureContract(value: unknown): value is AnyProcedureContra
     return false;
   }
   if (value["kind"] === "mutation") {
-    return value["transport"] === undefined;
+    return (
+      value["transport"] === undefined &&
+      (value["http"] === undefined || isHttpProcedureOptions(value["http"], "mutation"))
+    );
   }
-  return value["transport"] === undefined || isQueryTransport(value["transport"]);
+  return (
+    (value["transport"] === undefined || isQueryTransport(value["transport"])) &&
+    (value["http"] === undefined || isHttpProcedureOptions(value["http"], "query"))
+  );
 }
 
 /** Checks whether a value is a normalized channel contract. */
@@ -519,7 +557,11 @@ function query(
   },
 ): QueryContract {
   assertDefinitionRecord(definition, "Query definition");
-  assertAllowedKeys(definition, ["errors", "input", "output", "transport"], "Query definition");
+  assertAllowedKeys(
+    definition,
+    ["errors", "http", "input", "output", "transport"],
+    "Query definition",
+  );
   assertSchema(definition.input, "Query input");
   assertSchema(definition.output, "Query output");
   const errors = definition.errors ?? emptyErrors;
@@ -535,6 +577,9 @@ function query(
   };
   if (definition.transport !== undefined) {
     result.transport = Object.freeze({ ...definition.transport });
+  }
+  if (definition.http !== undefined) {
+    result.http = freezeHttpOptions(definition.http, "query");
   }
   return Object.freeze(brandContractNode(result));
 }
@@ -555,19 +600,21 @@ function mutation(
   },
 ): MutationContract {
   assertDefinitionRecord(definition, "Mutation definition");
-  assertAllowedKeys(definition, ["errors", "input", "output"], "Mutation definition");
+  assertAllowedKeys(definition, ["errors", "http", "input", "output"], "Mutation definition");
   assertSchema(definition.input, "Mutation input");
   assertSchema(definition.output, "Mutation output");
   const errors = definition.errors ?? emptyErrors;
   assertErrorMap(errors, "Mutation errors");
-  return Object.freeze(
-    brandContractNode({
-      errors,
-      input: definition.input,
-      kind: "mutation" as const,
-      output: definition.output,
-    }),
-  );
+  const result: RuntimeMutationContract = {
+    errors,
+    input: definition.input,
+    kind: "mutation",
+    output: definition.output,
+  };
+  if (definition.http !== undefined) {
+    result.http = freezeHttpOptions(definition.http, "mutation");
+  }
+  return Object.freeze(brandContractNode(result));
 }
 
 function channel<const TPattern extends string, const TDefinition extends ChannelDefinition>(
@@ -667,6 +714,10 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
 // oxlint-disable-next-line anti-slop/no-object-parameters -- This definition guard only checks the prototype.
 function assertDefinitionRecord(value: object, label: string): void {
   if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) {
@@ -722,6 +773,129 @@ function isQueryTransport(value: unknown): value is QueryTransport {
     keys.every((key) => key === "cache" || key === "method") &&
     value["method"] === "GET" &&
     (value["cache"] === undefined || typeof value["cache"] === "string")
+  );
+}
+
+function isHttpProcedureOptions(
+  value: unknown,
+  kind: ProcedureKind,
+): value is HttpProcedureOptions {
+  if (!isPlainRecord(value)) return false;
+  const keys = Object.keys(value);
+  if (
+    !keys.every((key) =>
+      ["method", "operationId", "path", "security", "successStatus", "summary", "tags"].includes(
+        key,
+      ),
+    )
+  ) {
+    return false;
+  }
+  if (typeof value["path"] !== "string" || !isHttpPath(value["path"])) return false;
+  if (kind === "query" ? value["method"] !== "GET" : !isMutationHttpMethod(value["method"])) {
+    return false;
+  }
+  if (value["operationId"] !== undefined && !isNonEmptyString(value["operationId"])) return false;
+  if (value["summary"] !== undefined && !isNonEmptyString(value["summary"])) return false;
+  if (value["successStatus"] !== undefined && !isHttpSuccessStatus(value["successStatus"])) {
+    return false;
+  }
+  if (value["tags"] !== undefined && !isStringArray(value["tags"])) return false;
+  return value["security"] === undefined || isHttpSecurityRequirements(value["security"]);
+}
+
+function freezeHttpOptions<TKind extends ProcedureKind>(
+  value: HttpProcedureOptions<TKind>,
+  kind: TKind,
+): HttpProcedureOptions<TKind> {
+  assertHttpProcedureOptions(value, kind);
+  const result: MutableHttpProcedureOptions<TKind> = { method: value.method, path: value.path };
+  if (value.operationId !== undefined) result.operationId = value.operationId;
+  if (value.summary !== undefined) result.summary = value.summary;
+  if (value.successStatus !== undefined) result.successStatus = value.successStatus;
+  if (value.tags !== undefined) result.tags = Object.freeze([...value.tags]);
+  if (value.security !== undefined) {
+    result.security = Object.freeze(
+      value.security.map((requirement) => Object.freeze({ ...requirement })),
+    );
+  }
+  return Object.freeze(result);
+}
+
+function assertHttpProcedureOptions<TKind extends ProcedureKind>(
+  value: HttpProcedureOptions<TKind>,
+  kind: TKind,
+): void {
+  assertDefinitionRecord(value, "Procedure HTTP metadata");
+  assertAllowedKeys(
+    value,
+    ["method", "operationId", "path", "security", "successStatus", "summary", "tags"],
+    "Procedure HTTP metadata",
+  );
+  if (!isHttpPath(value.path)) {
+    throw new TypeError("Procedure HTTP path must be an absolute path with valid segments");
+  }
+  if (kind === "query" && value.method !== "GET") {
+    throw new TypeError("Query HTTP method must be GET");
+  }
+  if (kind === "mutation" && !isMutationHttpMethod(value.method)) {
+    throw new TypeError("Mutation HTTP method must be POST, PUT, PATCH, or DELETE");
+  }
+  if (value.successStatus !== undefined && !isHttpSuccessStatus(value.successStatus)) {
+    throw new TypeError("HTTP successStatus must be 200, 201, or 202");
+  }
+  if (value.operationId !== undefined && !isNonEmptyString(value.operationId)) {
+    throw new TypeError("HTTP operationId must be a non-empty string");
+  }
+  if (value.summary !== undefined && !isNonEmptyString(value.summary)) {
+    throw new TypeError("HTTP summary must be a non-empty string");
+  }
+  if (value.tags !== undefined && !isStringArray(value.tags)) {
+    throw new TypeError("HTTP tags must be strings");
+  }
+  if (value.security !== undefined && !isHttpSecurityRequirements(value.security)) {
+    throw new TypeError("HTTP security requirements must map scheme names to string arrays");
+  }
+}
+
+interface MutableHttpProcedureOptions<TKind extends ProcedureKind> {
+  method: HttpProcedureOptions<TKind>["method"];
+  operationId?: string;
+  path: string;
+  security?: readonly HttpSecurityRequirement[];
+  successStatus?: HttpSuccessStatus;
+  summary?: string;
+  tags?: readonly string[];
+}
+
+function isHttpPath(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  if (!value.startsWith("/") || value.includes("?") || value.includes("#")) return false;
+  return value.split("/").every((segment, index) => {
+    if (index === 0) return true;
+    return (
+      segment.length > 0 &&
+      ((!segment.includes("{") && !segment.includes("}")) ||
+        /^\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(segment))
+    );
+  });
+}
+
+function isMutationHttpMethod(value: unknown): value is Exclude<HttpMethod, "GET"> {
+  return value === "DELETE" || value === "PATCH" || value === "POST" || value === "PUT";
+}
+
+function isHttpSuccessStatus(value: unknown): value is HttpSuccessStatus {
+  return value === 200 || value === 201 || value === 202;
+}
+
+function isHttpSecurityRequirements(value: unknown): value is readonly HttpSecurityRequirement[] {
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (requirement) =>
+      isPlainRecord(requirement) &&
+      Object.keys(requirement).length > 0 &&
+      Object.values(requirement).every(isStringArray),
   );
 }
 

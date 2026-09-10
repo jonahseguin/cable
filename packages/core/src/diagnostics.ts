@@ -18,7 +18,7 @@ interface DiagnosticOperationBase {
   /** Process owning this observation. Values do not imply distributed tracing. */
   readonly runtime: "client" | "server";
   /** Transport that carried the operation. */
-  readonly transport: "rpc" | "channel-http" | "channel-peer" | "channel-socket";
+  readonly transport: "rpc" | "rest" | "channel-http" | "channel-peer" | "channel-socket";
   readonly type: "operation";
 }
 

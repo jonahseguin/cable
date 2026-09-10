@@ -351,6 +351,7 @@ function createProcedures<
       call: RpcCall,
       context: TInitialContext,
       signal?: AbortSignal,
+      transport: "rest" | "rpc" = "rpc",
     ): Promise<RpcResult> {
       const startedAt = Date.now();
       let cancelled = false;
@@ -362,7 +363,7 @@ function createProcedures<
           name: diagnosticName,
           runtime: "server" as const,
           startedAt,
-          transport: "rpc" as const,
+          transport,
           type: "operation" as const,
         };
         if (cancelled) {

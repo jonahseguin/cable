@@ -22,6 +22,7 @@ import type {
   EdgeContract,
   EdgeHandler,
   EdgeHandlerOptions,
+  EdgeHttpMount,
   EdgeHosts,
   EdgePrincipal,
   EdgeProcedures,
@@ -54,6 +55,7 @@ export function createEdgeHandler<
   contract: EdgeContract<TTree>,
   procedures: EdgeProcedures<TTree, TContext>,
   options: EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity, TUpgrade>,
+  mount?: EdgeHttpMount<TContext>,
 ): EdgeHandler<TEnv, TExecution, TUpgrade, TTree, TIdentity> {
   const tree = edgeContractTree(contract);
   const policy = edgePolicy(options);
@@ -69,6 +71,27 @@ export function createEdgeHandler<
     );
   }
 
+  async function createContext(
+    request: Request,
+    env: TEnv,
+    execution: TExecution,
+  ): Promise<TContext> {
+    try {
+      const authenticated = await authenticate(request, env, options);
+      const hosts = createHosts(env, authenticated.principal);
+      return await options.context({
+        env,
+        execution,
+        hosts,
+        identity: authenticated.principal.identity,
+        request,
+      });
+    } catch (error) {
+      await reportOnError(options, error, "RPC context", request);
+      throw error;
+    }
+  }
+
   return {
     hosts(input) {
       return createHosts(input.env, input.principal);
@@ -77,26 +100,16 @@ export function createEdgeHandler<
       const url = new URL(request.url);
       const rpcPath = `${policy.basePath}/rpc`;
       try {
+        if (mount?.matches(request) === true) {
+          return await mount.fetch(request, await createContext(request, env, execution), {
+            maxBodyBytes: policy.maxBodyBytes,
+          });
+        }
         if (isRpcRoute(request, url, rpcPath)) {
           if (request.method === "POST") requireJsonContentType(request);
           const handler = createRpcHandler(procedures, {
             basePath: policy.basePath,
-            context: async (contextRequest) => {
-              try {
-                const authenticated = await authenticate(contextRequest, env, options);
-                const hosts = createHosts(env, authenticated.principal);
-                return await options.context({
-                  env,
-                  execution,
-                  hosts,
-                  identity: authenticated.principal.identity,
-                  request: contextRequest,
-                });
-              } catch (error) {
-                await reportOnError(options, error, "RPC context", contextRequest);
-                throw error;
-              }
-            },
+            context: (contextRequest) => createContext(contextRequest, env, execution),
             maxBatchSize: policy.maxBatchSize,
             maxBodyBytes: policy.maxBodyBytes,
           });

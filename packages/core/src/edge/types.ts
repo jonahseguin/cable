@@ -125,6 +125,17 @@ export interface EdgeContextInput<TTree, TEnv, TExecution, TIdentity> {
   readonly request: Request;
 }
 
+/** Resource bounds supplied by an adapter to one mounted HTTP route set. */
+export interface EdgeHttpPolicy {
+  readonly maxBodyBytes: number;
+}
+
+/** One optional HTTP route set mounted by an adapter without a package dependency. */
+export interface EdgeHttpMount<TContext extends object> {
+  fetch(request: Request, context: TContext, policy: EdgeHttpPolicy): Promise<Response>;
+  matches(request: Request): boolean;
+}
+
 /** A portable handler method with adapter-owned environment and execution values. */
 export interface EdgeHandler<
   TEnv,

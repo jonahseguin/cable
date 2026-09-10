@@ -43,7 +43,11 @@ For adapter integration, core exports one narrow public boundary:
 ```ts
 interface EdgeHttpMount<TContext> {
   matches(request: Request): boolean;
-  fetch(request: Request, context: TContext): Promise<Response>;
+  fetch(request: Request, context: TContext, policy: EdgeHttpPolicy): Promise<Response>;
+}
+
+interface EdgeHttpPolicy {
+  readonly maxBodyBytes: number;
 }
 ```
 
@@ -57,7 +61,8 @@ unannotated procedure.
 
 The edge integration calls `authenticate` and `context` exactly once after
 `matches()` selects a REST route. The mount receives the original `Request` and
-context; it reads the request signal directly. A nonmatching mount is never
+context and its already-validated body limit; it reads the request signal directly.
+A nonmatching mount is never
 asked to fetch, so the edge handler can continue with its existing RPC,
 WebSocket, and host routes.
 
@@ -120,11 +125,12 @@ registration time. JSON bodies carry rich nested data.
 
 At request time, the handler rejects malformed path/query/body encoding,
 missing path parameters, repeated scalar parameters, and collisions between path
-or query data and body data. It does not drop unrecognized query or body keys.
-It adds them to the raw input object, so the procedure input schema applies its
-own strict, strip, or passthrough policy. A strict schema therefore still rejects
-an extra query key; a stripping schema may remove it during the one established
-validation pass.
+or query data and body data. A body method accepts declared non-path fields only
+from its JSON body. It appends unknown query keys as decoded strings or string
+arrays and unknown body keys as JSON values, so the procedure input schema
+applies its own strict, strip, or passthrough policy. A strict schema therefore
+still rejects an extra key; a stripping schema may remove it during the one
+established validation pass.
 
 The route layer decodes percent-encoded path text and conventional query values.
 It must not `JSON.parse` every query parameter. The converted input JSON Schema
@@ -134,10 +140,11 @@ string therefore receives the original URL string even if its output transform
 returns a number. The layer creates one raw input object, and the established
 procedure runtime validates it once.
 
-`undefined` input needs one explicit rule before implementation. The proposed
-rule is that a no-input route allows no path, query, or body input. A procedure
-whose raw input is a scalar is body-only, with no path or query bindings. This
-avoids inventing a merge shape for scalar input.
+Version one does not support `undefined` or `void` input because its Standard
+JSON Schema conversion has no reliable object wire shape. Use `z.object({})`
+for a no-argument endpoint. A procedure whose raw input is a scalar is body-only,
+with no path or query bindings. This avoids inventing a merge shape for scalar
+input.
 
 A successful endpoint returns the validated output as plain JSON with
 `successStatus` or `200`. A failed endpoint returns `{ "error": WireError }`

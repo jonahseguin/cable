@@ -1,0 +1,38 @@
+{
+  "name": "@cablejs/openapi",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Optional REST routes and OpenAPI documents for cable global procedures.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonahseguin/cable.git",
+    "directory": "packages/openapi"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cablejs/contract": "workspace:*",
+    "@cablejs/core": "workspace:*",
+    "@standard-schema/spec": "1.1.0"
+  },
+  "devDependencies": {
+    "zod": "4.5.4"
+  }
+}

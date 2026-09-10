@@ -74,8 +74,10 @@
       "dependencies": {
         "@cablejs/contract": "workspace:*",
         "@cablejs/core": "workspace:*",
+        "@cablejs/openapi": "workspace:*",
       },
       "devDependencies": {
+        "@valibot/to-json-schema": "1.7.1",
         "arktype": "2.2.3",
         "effect": "4.0.0-rc.112",
         "typescript": "5.9.3",
@@ -185,6 +187,18 @@
       },
       "devDependencies": {
         "@cablejs/adapter-memory": "workspace:*",
+        "zod": "4.5.4",
+      },
+    },
+    "packages/openapi": {
+      "name": "@cablejs/openapi",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cablejs/contract": "workspace:*",
+        "@cablejs/core": "workspace:*",
+        "@standard-schema/spec": "1.1.0",
+      },
+      "devDependencies": {
         "zod": "4.5.4",
       },
     },
@@ -366,6 +380,8 @@
     "@cablejs/fixture-big-contract": ["@cablejs/fixture-big-contract@workspace:fixtures/big-contract"],
 
     "@cablejs/fixture-standard-schema-compatibility": ["@cablejs/fixture-standard-schema-compatibility@workspace:fixtures/standard-schema-compatibility"],
+
+    "@cablejs/openapi": ["@cablejs/openapi@workspace:packages/openapi"],
 
     "@cablejs/react": ["@cablejs/react@workspace:packages/react"],
 
@@ -1196,6 +1212,8 @@
     "@ungap/structured-clone": ["@ungap/structured-clone@1.4.0", "", {}, "sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ=="],
 
     "@upsetjs/venn.js": ["@upsetjs/venn.js@2.0.0", "", { "optionalDependencies": { "d3-selection": "^3.0.0", "d3-transition": "^3.0.1" } }, "sha512-WbBhLrooyePuQ1VZxrJjtLvTc4NVfpOyKx0sKqioq9bX1C1m7Jgykkn8gLrtwumBioXIqam8DLxp88Adbue6Hw=="],
+
+    "@valibot/to-json-schema": ["@valibot/to-json-schema@1.7.1", "", { "peerDependencies": { "valibot": "^1.4.0" } }, "sha512-3qkmU6KXWh8GIThEAW3kuRHPQBMjWkKy+Ppz3WkUucx53DTpOa6siMn4xDGSOhlVyMrDaJTCTMLYPZVAIk1P0A=="],
 
     "@vercel/analytics": ["@vercel/analytics@2.0.1", "", { "peerDependencies": { "@remix-run/react": "^2", "@sveltejs/kit": "^1 || ^2", "next": ">= 13", "nuxt": ">= 3", "react": "^18 || ^19 || ^19.0.0-rc", "svelte": ">= 4", "vue": "^3", "vue-router": "^4" }, "optionalPeers": ["@remix-run/react", "@sveltejs/kit", "next", "nuxt", "react", "svelte", "vue", "vue-router"] }, "sha512-MTQG6V9qQrt1tsDeF+2Uoo5aPjqbVPys1xvnIftXSJYG2SrwXRHnqEvVoYID7BTruDz4lCd2Z7rM1BdkUehk2g=="],
 

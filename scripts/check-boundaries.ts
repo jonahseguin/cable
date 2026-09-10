@@ -14,6 +14,7 @@ const allowedWorkspaceDependencies = {
   contract: [],
   core: ["contract"],
   effect: ["contract", "core", "client"],
+  openapi: ["contract", "core"],
   react: ["contract", "core", "client"],
   rivet: ["contract", "core"],
 } as const satisfies Readonly<Record<string, readonly string[]>>;

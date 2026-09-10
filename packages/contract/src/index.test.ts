@@ -143,6 +143,57 @@ describe("contract DSL", () => {
     ).toThrow("must implement Standard Schema v1");
   });
 
+  it("preserves frozen HTTP metadata and validates procedure methods and success statuses", () => {
+    const query = c.query({
+      input: stringSchema,
+      output: stringSchema,
+      http: {
+        method: "GET",
+        operationId: "getGreeting",
+        path: "/greetings/{id}",
+        security: [{ bearerAuth: [] }],
+        successStatus: 200,
+        summary: "Get a greeting",
+        tags: ["greetings"],
+      },
+    });
+
+    expect(query.http).toEqual({
+      method: "GET",
+      operationId: "getGreeting",
+      path: "/greetings/{id}",
+      security: [{ bearerAuth: [] }],
+      successStatus: 200,
+      summary: "Get a greeting",
+      tags: ["greetings"],
+    });
+    expect(Object.isFrozen(query.http)).toBe(true);
+
+    expect(() =>
+      c.query({
+        input: stringSchema,
+        output: stringSchema,
+        // @ts-expect-error HTTP metadata is added by the REST contract feature.
+        http: { method: "POST", path: "/greetings" },
+      }),
+    ).toThrow("Query HTTP method must be GET");
+    expect(() =>
+      c.mutation({
+        input: stringSchema,
+        output: stringSchema,
+        // @ts-expect-error HTTP metadata is added by the REST contract feature.
+        http: { method: "DELETE", path: "/greetings/{id}", successStatus: 204 },
+      }),
+    ).toThrow("HTTP successStatus must be 200, 201, or 202");
+    expect(() =>
+      c.query({
+        input: stringSchema,
+        output: stringSchema,
+        http: { method: "GET", path: "/greetings/id}" },
+      }),
+    ).toThrow("Procedure HTTP path must be an absolute path with valid segments");
+  });
+
   it("rejects channel members that collide with the handle API", () => {
     expect(() =>
       c.channel("chat", {

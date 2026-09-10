@@ -13,6 +13,7 @@ export const artifactCandidates: readonly string[] = [
   "@cablejs/cloudflare",
   "@cablejs/react",
   "@cablejs/effect",
+  "@cablejs/openapi",
 ];
 
 export const publishablePackages = artifactCandidates;

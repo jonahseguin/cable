@@ -49,7 +49,12 @@ export interface RpcBatchResponse {
 
 /** The procedure runtime consumed by HTTP and in-memory transports. */
 export interface RpcRuntime<TContext extends object> {
-  execute(call: RpcCall, context: TContext, signal?: AbortSignal): Promise<RpcResult>;
+  execute(
+    call: RpcCall,
+    context: TContext,
+    signal?: AbortSignal,
+    transport?: "rest" | "rpc",
+  ): Promise<RpcResult>;
   transport(path: string): { readonly cache?: string; readonly method: "GET" } | undefined;
 }
 

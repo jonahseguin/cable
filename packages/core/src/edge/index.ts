@@ -12,6 +12,8 @@ export type {
   EdgeGrants,
   EdgeHandler,
   EdgeHandlerOptions,
+  EdgeHttpMount,
+  EdgeHttpPolicy,
   EdgeHostRegistration,
   EdgeHostTransport,
   EdgeHostTransportLimits,

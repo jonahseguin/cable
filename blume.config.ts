@@ -41,7 +41,10 @@ export default defineConfig({
         label: "Build your API",
         items: ["/contracts", "/procedures", "/authorization", "/grants", "/organizing-procedures"],
       },
-      { label: "Use in your app", items: ["/client", "/diagnostics", "/react", "/tanstack-query"] },
+      {
+        label: "Use in your app",
+        items: ["/client", "/diagnostics", "/rest-openapi", "/react", "/tanstack-query"],
+      },
       {
         label: "Realtime channels",
         items: ["/channels", "/channel-procedures", "/reliability"],

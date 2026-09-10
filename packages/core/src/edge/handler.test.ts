@@ -151,6 +151,57 @@ describe("portable edge handler", () => {
     expect(observedSignal?.aborted).toBe(false);
   });
 
+  it("authenticates and creates context once before dispatching a matching HTTP mount", async () => {
+    const routeContract = c.contract({ ping: c.query({ input: z.void(), output: z.string() }) });
+    const routeProcedures = implement(routeContract)
+      .context<{ readonly request: Request }>()
+      .procedures({ ping: () => "pong" });
+    let authenticated = 0;
+    let contexts = 0;
+    let mounted = 0;
+    const edge = createEdgeHandler(
+      routeContract,
+      routeProcedures,
+      {
+        authenticate: () => {
+          authenticated += 1;
+          return { userId: "user-1" };
+        },
+        context: ({ request }) => {
+          contexts += 1;
+          return { request };
+        },
+        credentials: { mode: "bearer" },
+        grantSecret: () => secret,
+        hosts: () => [],
+      },
+      {
+        fetch: async (
+          _request: Request,
+          context: { readonly request: Request },
+          policy: { readonly maxBodyBytes: number },
+        ) => {
+          mounted += 1;
+          expect(context.request.url).toBe("https://example.test/posts");
+          expect(policy.maxBodyBytes).toBe(1_048_576);
+          return new Response("mounted", { status: 201 });
+        },
+        matches: (request: Request) => new URL(request.url).pathname === "/posts",
+      },
+    );
+
+    const response = await edge.fetch(
+      new Request("https://example.test/posts"),
+      undefined,
+      undefined,
+    );
+
+    expect(response.status).toBe(201);
+    expect(authenticated).toBe(1);
+    expect(contexts).toBe(1);
+    expect(mounted).toBe(1);
+  });
+
   it("creates a typed trusted host facade with canonical keys and grants", async () => {
     const transport = new Transport();
     transport.peerResult = { seq: 1 };

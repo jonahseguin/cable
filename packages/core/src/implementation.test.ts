@@ -124,6 +124,28 @@ describe("implement", () => {
     });
   });
 
+  it("labels a REST execution with one runtime-owned REST diagnostic", async () => {
+    const diagnostics: CableDiagnosticEvent[] = [];
+    const contract = c.contract({ read: c.query({ input: z.void(), output: z.string() }) });
+    const procedures = implement(contract)
+      .context<Record<never, never>>()
+      .procedures(
+        { read: () => "ok" },
+        {
+          diagnostics: {
+            observe: (event) => {
+              diagnostics.push(event);
+            },
+          },
+        },
+      );
+
+    await procedures.execute({ id: "rest", input: undefined, path: "read" }, {}, undefined, "rest");
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({ name: "read", transport: "rest", type: "operation" });
+  });
+
   it("parses transformed input, threads middleware context, and parses output", async () => {
     const procedures = createTestProcedures();
     const result = await procedures.execute(

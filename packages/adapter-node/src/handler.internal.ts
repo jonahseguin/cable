@@ -8,6 +8,7 @@ import type { ContractTree } from "@cablejs/contract";
 import {
   createEdgeHandler,
   type EdgeContract,
+  type EdgeHttpMount,
   type EdgeHosts,
   type EdgeHandlerOptions,
   type EdgePrincipal,
@@ -55,6 +56,8 @@ export type NodeHandlerOptions<
 > & {
   readonly grantSecret: GrantSecret | (() => GrantSecret);
   readonly hosts: readonly NodeHandlerHost[];
+  /** Optional adapter-neutral REST routes served through this handler's authentication and context. */
+  readonly mount?: EdgeHttpMount<TContext>;
 };
 
 /**
@@ -75,15 +78,20 @@ export function createNodeHandlerWithRuntime<
   grantSecret: GrantSecret,
 ): NodeHandler<TTree, TIdentity> {
   const webSocketServer = new WebSocketServer({ noServer: true });
-  const edge = createEdgeHandler(contract, procedures, {
-    ...options,
-    grantSecret: () => grantSecret,
-    hosts: () =>
-      options.hosts.map((host) => ({
-        channel: host.channel,
-        transport: createNodeHostTransport(host, runtime, webSocketServer),
-      })),
-  });
+  const edge = createEdgeHandler(
+    contract,
+    procedures,
+    {
+      ...options,
+      grantSecret: () => grantSecret,
+      hosts: () =>
+        options.hosts.map((host) => ({
+          channel: host.channel,
+          transport: createNodeHostTransport(host, runtime, webSocketServer),
+        })),
+    },
+    options.mount,
+  );
 
   return {
     hosts(input) {

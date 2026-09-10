@@ -6,6 +6,7 @@ import {
   type EdgeContract,
   type EdgeHostRegistration,
   type EdgeHostTransport,
+  type EdgeHttpMount,
   type ImplementedProcedures,
 } from "@cablejs/core";
 
@@ -33,6 +34,8 @@ export type CloudflareHandlerOptions<
   TIdentity,
 > = Omit<EdgeHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity>, "hosts"> & {
   readonly hosts: (env: TEnv) => readonly CloudflareHandlerHost[];
+  /** Optional adapter-neutral REST routes served through this handler's authentication and context. */
+  readonly mount?: EdgeHttpMount<TContext>;
 };
 
 /**
@@ -52,14 +55,19 @@ export function createHandler<
   procedures: ImplementedProcedures<TTree, TContext>,
   options: CloudflareHandlerOptions<TTree, TContext, TEnv, TExecution, TIdentity>,
 ): EdgeHandler<TEnv, TExecution, Response, TTree, TIdentity> {
-  return createEdgeHandler(contract, procedures, {
-    ...options,
-    hosts: (env): readonly EdgeHostRegistration<TExecution>[] =>
-      options.hosts(env).map((host) => ({
-        channel: host.channel,
-        transport: cloudflareTransport<TExecution>(host.namespace),
-      })),
-  });
+  return createEdgeHandler(
+    contract,
+    procedures,
+    {
+      ...options,
+      hosts: (env): readonly EdgeHostRegistration<TExecution>[] =>
+        options.hosts(env).map((host) => ({
+          channel: host.channel,
+          transport: cloudflareTransport<TExecution>(host.namespace),
+        })),
+    },
+    options.mount,
+  );
 }
 
 function cloudflareTransport<TExecution>(
