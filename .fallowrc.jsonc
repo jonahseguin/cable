@@ -17,7 +17,13 @@
   "publicPackages": ["@cablejs/*"],
   // The local anti-slop plugin imports this package, but that vendored source
   // is intentionally excluded from project analysis.
-  "ignoreDependencies": ["@oxlint/plugins"],
+  "ignoreDependencies": [
+    "@oxlint/plugins",
+    // The OpenAPI interop fixture copies this generation-only template to a
+    // temporary .ts file after fetching the live document. Its test compiles
+    // and executes that generated client, but Fallow cannot parse the source.
+    "openapi-fetch",
+  ],
   "rules": {
     "dev-dependencies-in-production": "error",
     // These aliases are exported from their defining modules and appear in

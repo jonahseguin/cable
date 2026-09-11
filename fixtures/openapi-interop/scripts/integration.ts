@@ -7,6 +7,12 @@ import { join } from "node:path";
 
 import { createClient, type ChannelHandle } from "@cablejs/client";
 
+import {
+  waitFor,
+  waitForOpen,
+  within,
+} from "../../../examples/chat-cloudflare/scripts/chat-await.ts";
+import { captureOutput } from "../../../examples/chat-cloudflare/scripts/process-lifecycle.ts";
 import { api } from "../../../examples/chat-cloudflare/src/api.ts";
 
 const port = await availablePort();
@@ -195,63 +201,6 @@ async function expectMessage(
 interface Message {
   readonly text: string;
   readonly user: string;
-}
-
-interface OpenRoom {
-  readonly status: string;
-  onStatus(listener: () => void): () => void;
-}
-
-function waitForOpen(room: OpenRoom): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      off();
-      reject(new Error("Cable client did not open a WebSocket within five seconds."));
-    }, 5_000);
-    const off = room.onStatus(() => {
-      if (room.status !== "open") return;
-      clearTimeout(timer);
-      off();
-      resolve();
-    });
-  });
-}
-
-async function waitFor(condition: () => boolean | Promise<boolean>, label: string): Promise<void> {
-  const deadline = Date.now() + 5_000;
-  await waitForCondition(condition, deadline, label);
-}
-
-async function waitForCondition(
-  condition: () => boolean | Promise<boolean>,
-  deadline: number,
-  label: string,
-): Promise<void> {
-  if (await condition()) return;
-  if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${label}.`);
-  await new Promise<void>((resolve) => setTimeout(resolve, 25));
-  await waitForCondition(condition, deadline, label);
-}
-
-function within<T>(promise: Promise<T>, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_resolve, reject) => {
-      setTimeout(() => {
-        reject(new Error(message));
-      }, 5_000);
-    }),
-  ]);
-}
-
-function captureOutput(child: ChildProcess): () => string {
-  let captured = "";
-  const append = (chunk: Buffer) => {
-    captured = `${captured}${chunk.toString()}`.slice(-4_000);
-  };
-  child.stdout?.on("data", append);
-  child.stderr?.on("data", append);
-  return () => captured;
 }
 
 async function run(

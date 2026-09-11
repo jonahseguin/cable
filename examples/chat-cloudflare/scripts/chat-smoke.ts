@@ -1,7 +1,7 @@
 import { createClient } from "@cablejs/client";
 
 import { api } from "../src/api.ts";
-import { waitFor, waitForOpen } from "./chat-await.ts";
+import { waitFor, waitForOpen, within } from "./chat-await.ts";
 
 export async function verifyChat(endpoint: string, label: string): Promise<void> {
   const client = (name: string) =>
@@ -54,16 +54,6 @@ export async function verifyChat(endpoint: string, label: string): Promise<void>
     aliceRoom.dispose();
     bobRoom.dispose();
   }
-}
-function within<T>(promise: Promise<T>, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_resolve, reject) => {
-      setTimeout(() => {
-        reject(new Error(message));
-      }, 5_000);
-    }),
-  ]);
 }
 interface Deferred<T> {
   readonly promise: Promise<T>;

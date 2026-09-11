@@ -26,6 +26,17 @@ export async function waitFor(
   await waitForCondition(condition, deadline, label);
 }
 
+export function within<T>(promise: Promise<T>, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_resolve, reject) => {
+      setTimeout(() => {
+        reject(new Error(message));
+      }, 5_000);
+    }),
+  ]);
+}
+
 async function waitForCondition(
   condition: () => boolean | Promise<boolean>,
   deadline: number,
