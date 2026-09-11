@@ -4,8 +4,37 @@ import { z } from "zod";
 export const api = c.contract({
   session: {
     whoami: c.query({
+      http: {
+        method: "GET",
+        operationId: "getSession",
+        path: "/api/session",
+        security: [{ bearerAuth: [] }],
+        summary: "Get the current demo session",
+        tags: ["session"],
+      },
       input: z.object({}),
       output: z.object({ name: z.string(), userId: z.string() }),
+    }),
+  },
+  rooms: {
+    postMessage: c.mutation({
+      http: {
+        method: "POST",
+        operationId: "postRoomMessage",
+        path: "/api/rooms/{roomId}/messages",
+        security: [{ bearerAuth: [] }],
+        summary: "Post a message to a room",
+        tags: ["rooms"],
+      },
+      input: z.object({
+        roomId: z.string().min(1),
+        text: z.string().trim().min(1).max(2_000),
+      }),
+      output: z.object({
+        roomId: z.string(),
+        text: z.string(),
+        user: z.object({ name: z.string(), userId: z.string() }),
+      }),
     }),
   },
   chat: c.channel("chat.{roomId}", {

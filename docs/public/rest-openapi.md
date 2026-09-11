@@ -80,6 +80,12 @@ const document = createOpenApiDocument(api, {
 Serve `document` from an application route such as `/openapi.json`. It has no
 handler or authentication side effects.
 
+The [Cloudflare chat example](https://github.com/jonahseguin/cable/tree/main/examples/chat-cloudflare)
+serves `/openapi.json`, mounts authenticated REST procedures, and shows an
+application-owned Hono route publishing a typed channel event through the
+adapter's server host facade. The Hono route is outside the generated document;
+only annotated global procedures appear in OpenAPI.
+
 The generator uses input JSON Schema for parameters and request bodies, and
 output JSON Schema for responses. Validators without native Standard JSON
 Schema support need the `schema` converter option. Security metadata describes

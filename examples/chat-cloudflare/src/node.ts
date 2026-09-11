@@ -2,6 +2,7 @@
 import { createServer } from "node:http";
 
 import { createHandler, nodeHost } from "@cablejs/adapter-node";
+import { createRestHandler } from "@cablejs/openapi";
 
 import { api } from "./api.js";
 import { chatImplementation, identityFromRequest, procedures } from "./chat-server.js";
@@ -12,11 +13,12 @@ if (secret === undefined) throw new Error("CABLE_GRANT_SECRET is required.");
 
 const handler = createHandler(api, procedures, {
   authenticate: identityFromRequest,
-  context: ({ identity }) => ({ identity }),
+  context: ({ hosts, identity }) => ({ chat: hosts.chat, identity }),
   credentials: { mode: "bearer" },
   grantSecret: secret,
   grants: () => ["chat"],
   hosts: [nodeHost(api.chat, chatImplementation)],
+  mount: createRestHandler(api, procedures),
   uid: (identity) => identity.userId,
 });
 const server = createServer((request, response) => {

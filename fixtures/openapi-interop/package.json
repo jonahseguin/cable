@@ -1,0 +1,15 @@
+{
+  "name": "@cablejs/fixture-openapi-interop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:integration": "bun run scripts/integration.ts"
+  },
+  "devDependencies": {
+    "@cablejs/client": "workspace:*",
+    "openapi-fetch": "0.17.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

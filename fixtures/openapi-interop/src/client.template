@@ -1,0 +1,51 @@
+import createClient from "openapi-fetch";
+
+import type { paths } from "./schema.js";
+
+const endpoint = requiredEnvironment("OPENAPI_INTEROP_ENDPOINT");
+const client = createClient<paths>({
+  baseUrl: endpoint,
+  headers: { authorization: "Bearer Alice" },
+});
+
+const session = await client.GET("/api/session");
+if (!session.response.ok || session.data?.name !== "Alice" || session.data.userId !== "Alice") {
+  throw new Error("Generated GET /api/session did not return Alice.");
+}
+
+const unauthenticated = await createClient<paths>({ baseUrl: endpoint }).GET("/api/session");
+if (unauthenticated.response.status !== 401) {
+  throw new Error(
+    `Generated GET /api/session without credentials returned ${String(unauthenticated.response.status)}.`,
+  );
+}
+
+const invalidMessage = await client.POST("/api/rooms/{roomId}/messages", {
+  body: { text: "" },
+  params: { path: { roomId: "interop" } },
+});
+if (invalidMessage.response.status !== 400) {
+  throw new Error(
+    `Generated POST with an invalid body returned ${String(invalidMessage.response.status)}.`,
+  );
+}
+
+const message = await client.POST("/api/rooms/{roomId}/messages", {
+  body: { text: "Hello from generated REST" },
+  params: { path: { roomId: "interop" } },
+});
+if (
+  !message.response.ok ||
+  message.data?.roomId !== "interop" ||
+  message.data.text !== "Hello from generated REST" ||
+  message.data.user.name !== "Alice" ||
+  message.data.user.userId !== "Alice"
+) {
+  throw new Error("Generated POST /api/rooms/{roomId}/messages returned the wrong message.");
+}
+
+function requiredEnvironment(name: string): string {
+  const value = process.env[name];
+  if (value === undefined || value.length === 0) throw new Error(`${name} is required.`);
+  return value;
+}

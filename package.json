@@ -34,7 +34,7 @@
     "setup:hooks": "bun scripts/setup-git-hooks.ts",
     "test": "vitest run",
     "test:cloudflare": "bun --filter @cablejs/cloudflare test && bun --filter @cablejs/cloudflare test:workerd",
-    "test:integration": "bun --filter @cablejs/example-chat-cloudflare test:integration",
+    "test:integration": "bun --filter @cablejs/example-chat-cloudflare test:integration && bun --filter @cablejs/fixture-openapi-interop test:integration",
     "test:watch": "vitest",
     "ts-perf": "tsx scripts/ts-perf.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && bun run --workspaces --if-present typecheck"

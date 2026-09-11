@@ -1,5 +1,11 @@
 # @cablejs/contract
 
+## 0.1.1
+
+### Patch Changes
+
+- [`11f2c45`](https://github.com/jonahseguin/cable/commit/11f2c45186e023ff50364443926f325bf7a5ad7b) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Add optional REST mounts and OpenAPI 3.1.2 generation for annotated global procedures.
+
 ## 0.1.0
 
 ### Minor Changes

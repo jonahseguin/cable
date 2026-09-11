@@ -16,10 +16,12 @@
     "@cablejs/cloudflare": "workspace:*",
     "@cablejs/contract": "workspace:*",
     "@cablejs/core": "workspace:*",
+    "@cablejs/openapi": "workspace:*",
     "@cablejs/react": "workspace:*",
     "@tanstack/react-query": "latest",
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",
+    "hono": "4.13.7",
     "react": "latest",
     "react-dom": "latest",
     "zod": "4.5.4"

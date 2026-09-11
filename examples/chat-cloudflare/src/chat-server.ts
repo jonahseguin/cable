@@ -1,5 +1,5 @@
 import { CableError, implement } from "@cablejs/core";
-import type { ChannelImplementation } from "@cablejs/core";
+import type { ChannelImplementation, EdgeChannelFactory } from "@cablejs/core";
 
 import { api } from "./api.js";
 
@@ -9,6 +9,7 @@ export interface Identity {
 }
 
 export interface AppContext {
+  readonly chat: EdgeChannelFactory<typeof api.chat>;
   readonly identity: Identity | null;
 }
 
@@ -35,6 +36,16 @@ export const procedures = implement(api)
       whoami: ({ ctx }) => {
         if (ctx.identity === null) throw new CableError("UNAUTHORIZED");
         return ctx.identity;
+      },
+    },
+    rooms: {
+      postMessage: async ({ ctx, input }) => {
+        if (ctx.identity === null) throw new CableError("UNAUTHORIZED");
+        await ctx.chat({ roomId: input.roomId }).emit("message", {
+          text: input.text,
+          user: ctx.identity.name,
+        });
+        return { roomId: input.roomId, text: input.text, user: ctx.identity };
       },
     },
   });

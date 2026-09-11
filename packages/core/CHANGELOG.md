@@ -1,5 +1,15 @@
 # @cablejs/core
 
+## 0.2.1
+
+### Patch Changes
+
+- [`5ab7008`](https://github.com/jonahseguin/cable/commit/5ab700825ca6e95f495979ea134cd187e82e3e22) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Add privacy-safe diagnostics for procedure and channel operation timing, connection transitions, and runtime faults, plus cooperative AbortSignal support for HTTP procedures and Effect integrations.
+
+- [`11f2c45`](https://github.com/jonahseguin/cable/commit/11f2c45186e023ff50364443926f325bf7a5ad7b) Thanks [@jonahseguin](https://github.com/jonahseguin)! - Add optional REST mounts and OpenAPI 3.1.2 generation for annotated global procedures.
+- Updated dependencies [[`11f2c45`](https://github.com/jonahseguin/cable/commit/11f2c45186e023ff50364443926f325bf7a5ad7b)]:
+  - @cablejs/contract@0.1.1
+
 ## 0.2.0
 
 ### Minor Changes
